@@ -28,6 +28,10 @@ jobs:
           python -m pip install "rapidocr>=3.10,<4" "onnxruntime>=1.20,<2" "opencv-python-headless>=4.8" "Pillow>=10" "numpy>=1.26,<3" "pyinstaller>=6.10,<7" "pytesseract>=0.3.13,<1"
       - name: Install Tesseract
         run: choco install tesseract -y --no-progress
+      - name: Add Korean OCR data
+        run: |
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/kor.traineddata' -OutFile (Join-Path $env:ProgramFiles 'Tesseract-OCR/tessdata/kor.traineddata')
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/eng.traineddata' -OutFile (Join-Path $env:ProgramFiles 'Tesseract-OCR/tessdata/eng.traineddata')
       - name: Download job icons
         run: |
           @'
