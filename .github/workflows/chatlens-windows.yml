@@ -56,8 +56,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
       - name: Verify frozen executable with network blocked
         run: |
-          & .\dist\ChatLensOCR.exe --self-test "$PWD\selftest.json"
-          if ($LASTEXITCODE -ne 0) { if (Test-Path selftest.json) { Get-Content selftest.json }; throw "OCR frozen selftest failed" }
+          $p = Start-Process -FilePath (Resolve-Path ".\dist\ChatLensOCR.exe") -ArgumentList "--self-test", (Join-Path $PWD "selftest.json") -Wait -PassThru
+          if (Test-Path selftest.json) { Get-Content selftest.json }
+          if ($p.ExitCode -ne 0) { throw "OCR frozen selftest failed: $($p.ExitCode)" }
           Get-Content selftest.json
       - uses: actions/upload-artifact@v4
         if: always()
