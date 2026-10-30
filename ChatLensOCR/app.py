@@ -209,6 +209,9 @@ def selftest(outpath):
         font_file=Path("C:/Windows/Fonts/arial.ttf")
         font=ImageFont.truetype(str(font_file),40) if font_file.exists() else ImageFont.load_default()
         ImageDraw.Draw(img).text((30,55),"CHATLENS OCR 12345",fill="black",font=font)
+        tess_text,_,tess_conf=tess_read(img,"범용","한국어")
+        info["checks"]["tesseract_text"]=tess_text
+        if not tess_text:raise RuntimeError("Bundled Tesseract OCR failed")
         old=socket.socket.connect
         oldex=socket.socket.connect_ex
         oldcreate=socket.create_connection
