@@ -43,16 +43,29 @@ jobs:
       - name: Warm up three OCR languages
         run: |
           @'
-          import sys
+          import sys, shutil
+          from pathlib import Path
+          from PIL import Image, ImageDraw, ImageFont
           sys.path.insert(0,"ChatLensOCR")
-          from app import engine
+          from app import recognize
+          img=Image.new("RGB",(1000,220),"white")
+          font=ImageFont.truetype("C:/Windows/Fonts/arial.ttf",60)
+          ImageDraw.Draw(img).text((20,60),"CHATLENS OCR 12345",fill="black",font=font)
           for lang in ["한국어","영어","일본어"]:
-              x=engine(lang)
-              print("ready",lang,flush=True)
+              found=recognize(img,lang,False)
+              print("model loaded",repr(lang),len(found),flush=True)
+              assert found, "OCR failed"
+          import rapidocr
+          source=Path(rapidocr.__file__).parent/"models"
+          target=Path("ChatLensOCR/models")
+          shutil.copytree(source,target,dirs_exist_ok=True)
+          files=list(target.rglob("*.onnx"))
+          print("ONNX models",len(files),[p.name for p in files],flush=True)
+          assert len(files)>=4
           '@ | python -
       - name: Build single Windows GUI executable
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name ChatLensOCR --collect-all rapidocr --collect-all onnxruntime --collect-all cv2 --add-data "ChatLensOCR/assets;assets" --hidden-import=rapidocr --hidden-import=onnxruntime ChatLensOCR/app.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name ChatLensOCR --collect-all rapidocr --collect-all onnxruntime --collect-all cv2 --add-data "ChatLensOCR/assets;assets" --add-data "ChatLensOCR/models;models" --hidden-import=rapidocr --hidden-import=onnxruntime ChatLensOCR/app.py
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
       - name: Verify frozen executable with network blocked
         run: |
