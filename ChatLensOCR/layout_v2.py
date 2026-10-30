@@ -98,7 +98,7 @@ def _fixed_lines(img, color="ffxiv"):
     elif color=="red":
         selected=(r>80)&(r-g>35)&(r-b>34)
     else:
-        selected=(b-r>16)&(g-r>10)&(b>80)
+        selected=(r<160)&(b-r>20)&(g-r>14)&(b>80)
     amount=selected.sum(axis=1)
     # The projection is stable despite glyph differences and anti-aliasing.
     # Do NOT dilate the projection: in dense FFXIV chat, adjacent
