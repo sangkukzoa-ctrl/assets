@@ -26,7 +26,10 @@ JOBS = {
 WORLD = re.compile(r"^(.+?)(?:\s*[@＠&＆]\s*([가-힣\w-]{2,24})|\s*\[([가-힣\w-]{2,24})\])$")
 HEADER = re.compile(r"^\s*(?:(?:\[(?:파티|부대|자유부대|말하기|연합|링크셸|귓속말)\])\s*)?([^:：]{1,56})\s*[:：]\s*(.*)$")
 
+_ENGINE_CACHE = {}
 def engine(language="한국어"):
+    if language in _ENGINE_CACHE:
+        return _ENGINE_CACHE[language]
     from rapidocr import RapidOCR
     from rapidocr.utils.typings import ModelType, OCRVersion
     settings = {"Det.model_type":ModelType.SMALL, "Det.ocr_version":OCRVersion.PPOCRV6}
@@ -37,13 +40,15 @@ def engine(language="한국어"):
     else:
         settings.update({"Rec.lang_type":"korean" if language == "한국어" else "en",
                          "Rec.model_type":ModelType.MOBILE,"Rec.ocr_version":OCRVersion.PPOCRV5})
-    return RapidOCR(params=settings)
+    ocr = RapidOCR(params=settings)
+    _ENGINE_CACHE[language] = ocr
+    return ocr
 
 def recognize(img, language="한국어", precise=True):
     import numpy as np
     import cv2
     from PIL import Image, ImageEnhance
-    scale = min(2.5, max(1., 960/max(1,img.height))) if img.height < 960 else 1.
+    scale = 1.0 if (img.height < 140 and img.width >= 1100) else min(2.0, max(1., 850/max(1,img.height))) if img.height < 850 else 1.
     enlarged = img.resize((int(img.width*scale),int(img.height*scale)),Image.Resampling.LANCZOS) if scale>1 else img
     ocr = engine(language)
     def pass_once(picture):
@@ -193,6 +198,8 @@ def selftest(outpath):
         from PIL import Image, ImageDraw, ImageFont
         icons=list((BASE/"assets"/"jobs").glob("*.png"))
         info["checks"]["job_icons"]=len(icons)
+        from layout_v2 import _test_detection
+        info["checks"]["pixel_layout"]=bool(_test_detection())
         if len(icons)<40:raise RuntimeError("Job icon resources missing")
         img=Image.new("RGB",(800,160),"white")
         font_file=Path("C:/Windows/Fonts/arial.ttf")
@@ -270,8 +277,8 @@ def gui():
                 xicons=Icons();results=[]
                 for name,img in todo:
                     if img is None:continue
-                    raw=recognize(img,settings[1],settings[2])
-                    detected,output,hits,meta,rows=format_chat(img,raw,settings[0],settings[3],xicons)
+                    from layout_v2 import analyze
+                    detected,output,hits,meta,rows,raw=analyze(img,settings[0],settings[1],settings[2],settings[3],xicons)
                     results.append({"filename":name,"mode":detected,"result":output,"ocr_lines":raw,"messages":meta,"icons":hits,"rows":rows})
                 events.put(("ok",results))
             except Exception:events.put(("error",traceback.format_exc()))
