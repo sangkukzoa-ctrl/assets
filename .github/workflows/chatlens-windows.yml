@@ -63,6 +63,8 @@ jobs:
           print("ONNX models",len(files),[p.name for p in files],flush=True)
           assert len(files)>=4
           '@ | python -
+      - name: Run three-mode synthetic screenshot OCR tests
+        run: python ChatLensOCR/test_layout_v2.py
       - name: Build single Windows GUI executable
         run: |
           python -m PyInstaller --noconfirm --clean --onefile --windowed --name ChatLensOCR --collect-all rapidocr --collect-all onnxruntime --collect-all cv2 --add-data "ChatLensOCR/assets;assets" --add-data "ChatLensOCR/models;models" --hidden-import=rapidocr --hidden-import=onnxruntime ChatLensOCR/app.py
