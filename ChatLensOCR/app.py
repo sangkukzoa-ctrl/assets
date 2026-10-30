@@ -198,6 +198,10 @@ def selftest(outpath):
         from PIL import Image, ImageDraw, ImageFont
         icons=list((BASE/"assets"/"jobs").glob("*.png"))
         info["checks"]["job_icons"]=len(icons)
+        from tess_backend import read as tess_read
+        tesspath=BASE/"tesseract"/"tesseract.exe"
+        info["checks"]["tesseract_binary"]=tesspath.is_file()
+        if not tesspath.is_file():raise RuntimeError("Bundled Tesseract missing")
         from layout_v2 import _test_detection
         info["checks"]["pixel_layout"]=bool(_test_detection())
         if len(icons)<40:raise RuntimeError("Job icon resources missing")
