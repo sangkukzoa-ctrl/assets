@@ -30,6 +30,8 @@ def engine(language="한국어"):
     from rapidocr import RapidOCR
     from rapidocr.utils.typings import ModelType, OCRVersion
     settings = {"Det.model_type":ModelType.SMALL, "Det.ocr_version":OCRVersion.PPOCRV6}
+    if getattr(sys, "frozen", False):
+        settings["Global.model_root_dir"] = str(BASE / "models")
     if language == "일본어":
         settings.update({"Rec.lang_type":"japan","Rec.model_type":ModelType.MOBILE,"Rec.ocr_version":OCRVersion.PPOCRV4})
     else:
