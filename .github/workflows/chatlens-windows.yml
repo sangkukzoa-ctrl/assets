@@ -73,7 +73,7 @@ jobs:
         run: python ChatLensOCR/test_layout_v2.py
       - name: Build single Windows GUI executable
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name ChatLensOCR --collect-all rapidocr --collect-all onnxruntime --collect-all cv2 --add-data "ChatLensOCR/assets;assets" --add-data "ChatLensOCR/models;models" --hidden-import=rapidocr --hidden-import=onnxruntime ChatLensOCR/app.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name ChatLensOCR --collect-all rapidocr --collect-all onnxruntime --collect-all cv2 --hidden-import=pytesseract --add-data "ChatLensOCR/assets;assets" --add-data "ChatLensOCR/models;models" --hidden-import=rapidocr --hidden-import=onnxruntime ChatLensOCR/app.py
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
       - name: Verify frozen executable with network blocked
         run: |
