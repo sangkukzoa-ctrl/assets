@@ -28,12 +28,13 @@ HEADER = re.compile(r"^\s*(?:(?:\[(?:파티|부대|자유부대|말하기|연합
 
 def engine(language="한국어"):
     from rapidocr import RapidOCR
-    settings = {"Det.model_type":"small", "Det.ocr_version":"PP-OCRv6"}
+    from rapidocr.utils.typings import ModelType, OCRVersion
+    settings = {"Det.model_type":ModelType.SMALL, "Det.ocr_version":OCRVersion.PPOCRV6}
     if language == "일본어":
-        settings.update({"Rec.lang_type":"japan","Rec.model_type":"mobile","Rec.ocr_version":"PP-OCRv4"})
+        settings.update({"Rec.lang_type":"japan","Rec.model_type":ModelType.MOBILE,"Rec.ocr_version":OCRVersion.PPOCRV4})
     else:
         settings.update({"Rec.lang_type":"korean" if language == "한국어" else "en",
-                         "Rec.model_type":"mobile","Rec.ocr_version":"PP-OCRv5"})
+                         "Rec.model_type":ModelType.MOBILE,"Rec.ocr_version":OCRVersion.PPOCRV5})
     return RapidOCR(params=settings)
 
 def recognize(img, language="한국어", precise=True):
