@@ -68,6 +68,11 @@ def _variants(img,mode, language, precise):
             ims.append(ImageOps.autocontrast(base,cutoff=1))
     for candidate in ims:
         if scale>1: candidate=candidate.resize((max(1,int(candidate.width*scale)),max(1,int(candidate.height*scale))),Image.Resampling.LANCZOS)
+        from tess_backend import read as tesseract_read
+        tt,tboxes,tconf=tesseract_read(candidate,mode,language)
+        if tt and tconf>=78 and (language!="한국어" or len(re.findall(r"[가-힣]",tt))>=2):
+            return tt,tboxes,tconf/20
+        if tt:opts.append((tconf/28+min(1,len(tt)*.018),tt,tboxes))
         res=recognize(candidate, language,False)
         groups=merge_rows(res)
         content=" ".join(r["text"].strip() for r in groups if r["text"].strip())
