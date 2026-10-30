@@ -1,0 +1,66 @@
+name: ChatLens OCR Windows standalone
+on:
+  push:
+    branches: [chatlens-ocr-windows-build]
+    paths: ['ChatLensOCR/**', '.github/workflows/chatlens-windows.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 100
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: x64
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "rapidocr>=3.10,<4" "onnxruntime>=1.20,<2" "opencv-python-headless>=4.8" "Pillow>=10" "numpy>=1.26,<3" "pyinstaller>=6.10,<7"
+      - name: Download job icons
+        run: |
+          @'
+          import io, zipfile, urllib.request, pathlib
+          url="https://github.com/xivapi/classjob-icons/archive/refs/heads/master.zip"
+          req=urllib.request.Request(url,headers={"User-Agent":"ChatLensOCR-build"})
+          with urllib.request.urlopen(req, timeout=90) as res: z=zipfile.ZipFile(io.BytesIO(res.read()))
+          target=pathlib.Path("ChatLensOCR/assets/jobs");target.mkdir(parents=True,exist_ok=True)
+          for name in z.namelist():
+              if "/icons/" in name and name.endswith(".png"):
+                  (target/pathlib.Path(name).name).write_bytes(z.read(name))
+          print("icons",len(list(target.glob("*.png"))))
+          assert len(list(target.glob("*.png")))>=40
+          '@ | python -
+      - name: Warm up three OCR languages
+        run: |
+          @'
+          import sys
+          sys.path.insert(0,"ChatLensOCR")
+          from app import engine
+          for lang in ["한국어","영어","일본어"]:
+              x=engine(lang)
+              print("ready",lang,flush=True)
+          '@ | python -
+      - name: Build single Windows GUI executable
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name ChatLensOCR --collect-all rapidocr --collect-all onnxruntime --collect-all cv2 --add-data "ChatLensOCR/assets;assets" --hidden-import=rapidocr --hidden-import=onnxruntime ChatLensOCR/app.py
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
+      - name: Verify frozen executable with network blocked
+        run: |
+          & .\dist\ChatLensOCR.exe --self-test "$PWD\selftest.json"
+          if ($LASTEXITCODE -ne 0) { if (Test-Path selftest.json) { Get-Content selftest.json }; throw "OCR frozen selftest failed" }
+          Get-Content selftest.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ChatLensOCR-Windows-x64
+          path: |
+            dist/ChatLensOCR.exe
+            selftest.json
+          if-no-files-found: warn
