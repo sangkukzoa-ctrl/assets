@@ -101,8 +101,10 @@ def _fixed_lines(img, color="ffxiv"):
         selected=(b-r>16)&(g-r>10)&(b>80)
     amount=selected.sum(axis=1)
     # The projection is stable despite glyph differences and anti-aliasing.
-    proj=np.convolve((amount>=max(3,img.width//240)).astype(np.int8),[1,1,1],mode="same")>0
-    return _runs(proj, min_length=3, gap=2)
+    # Do NOT dilate the projection: in dense FFXIV chat, adjacent
+    # 19px-spaced lines otherwise bridge into one huge block.
+    proj=amount>=max(6,img.width//110)
+    return _runs(proj, min_length=3, gap=0)
 
 def ffxiv(img, language, precise, world, icons):
     lines=_fixed_lines(img)
