@@ -174,18 +174,32 @@ def _bubble_boxes(img):
 def kakao(img,language,precise):
     boxes=_bubble_boxes(img)
     results=[];raw=[];metadata=[]
-    lastname="상대"
+    # Names appear above the first white bubble of each group. Extract from
+    # fixed label ROI and vote across repetitions, rather than OCRing avatars
+    # and timestamps in the same large detection image.
+    candidate_names=[]
+    previous_bottom=-100
+    for x,y,w,h,kind in boxes:
+        if kind!="상대": continue
+        if y-previous_bottom>=12 and y>16:
+            name_area=img.crop((max(0,x-8),max(0,y-29),min(img.width,x+95),max(0,y-5)))
+            name_txt,_,_= _variants(name_area,"카카오톡",language,False)
+            cleaned=re.sub(r"[^가-힣A-Za-z0-9_]","",name_txt)
+            if 2<=len(cleaned)<=12 and re.search(r"[가-힣]",cleaned):
+                candidate_names.append(cleaned)
+        previous_bottom=y+h
+    from collections import Counter
+    nickname=Counter(candidate_names).most_common(1)[0][0] if candidate_names else "상대"
     for x,y,w,h,kind in boxes:
         margin=7 if w>55 else 3
         image=img.crop((x+margin,y+4,x+w-3,y+h-3))
         if image.width<5 or image.height<5:continue
         content,items,score=_variants(image,"카카오톡",language,precise)
         if not content:continue
-        # Read independent chat bubbles, not timestamp captions.
         content=_HHMM.sub("",content).strip()
         if not content:continue
         raw.extend(_offset(items,x+margin,y+4,3 if image.height<55 else 2 if image.height<130 else 1.5))
-        who="나" if kind=="나" else lastname
+        who="나" if kind=="나" else nickname
         results.append(f"{who}: {content}")
         metadata.append({"speaker":who,"kind":"bubble","box":(x,y,x+w,y+h),"ocr_score":score})
     if not results:
