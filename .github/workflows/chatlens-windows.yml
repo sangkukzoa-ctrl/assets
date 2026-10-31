@@ -5,7 +5,7 @@ on:
     paths: ['ChatLensOCR/**', '.github/workflows/chatlens-windows.yml']
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   windows:
     runs-on: windows-2022
@@ -81,11 +81,50 @@ jobs:
           if (Test-Path selftest.json) { Get-Content selftest.json }
           if ($p.ExitCode -ne 0) { throw "OCR frozen selftest failed: $($p.ExitCode)" }
           Get-Content selftest.json
+      - name: Create and validate release archive
+        run: |
+          $exe = (Resolve-Path "dist/ChatLensOCR.exe").Path
+          $zip = "dist/ChatLensOCR_v0.2.1_Windows_x64.zip"
+          $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ((Get-Item $exe).Length -lt 100MB) { throw "Executable unexpectedly small" }
+          Compress-Archive -Path $exe -DestinationPath $zip -CompressionLevel Optimal -Force
+          $check = Join-Path $env:RUNNER_TEMP "ChatLensVerify"
+          New-Item -ItemType Directory -Force -Path $check | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $check -Force
+          $extracted = (Get-FileHash (Join-Path $check "ChatLensOCR.exe") -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne $extracted) { throw "Archive checksum mismatch" }
+          $zipSha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          @(
+            "$sha  ChatLensOCR.exe"
+            "$zipSha  ChatLensOCR_v0.2.1_Windows_x64.zip"
+          ) | Set-Content "dist/SHA256SUMS.txt" -Encoding ascii
+          Get-Content "dist/SHA256SUMS.txt"
+          Write-Host "EXE bytes: $((Get-Item $exe).Length)"
+          Write-Host "ZIP bytes: $((Get-Item $zip).Length)"
+          Write-Host "ZIP extract checksum verified"
+      - name: Publish direct-download GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag="chatlens-v0.2.1"
+          $assets=@("dist/ChatLensOCR.exe","dist/ChatLensOCR_v0.2.1_Windows_x64.zip","dist/SHA256SUMS.txt","selftest.json")
+          gh release create $tag $assets --title "ChatLens OCR v0.2.1 Windows x64" --target "$env:GITHUB_SHA" --notes "Standalone offline Windows OCR for FFXIV, KakaoTalk and general screenshots. No Python installation needed. Includes both RapidOCR and Korean Tesseract. ZIP extracted successfully and SHA256 checked on Windows before publishing."
+          if ($LASTEXITCODE -ne 0) { throw "Release creation failed" }
+          $verify=Join-Path $env:RUNNER_TEMP "release_download"
+          New-Item -ItemType Directory -Path $verify -Force | Out-Null
+          gh release download $tag --pattern "ChatLensOCR.exe" --dir $verify
+          if ($LASTEXITCODE -ne 0) { throw "Release EXE redownload failed" }
+          $got = (Get-FileHash (Join-Path $verify "ChatLensOCR.exe") -Algorithm SHA256).Hash.ToLowerInvariant()
+          $want = (Get-FileHash "dist/ChatLensOCR.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($got -ne $want) { throw "GitHub release asset digest mismatch" }
+          Write-Host "Release round-trip SHA256 verified: $got"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: ChatLensOCR-Windows-x64
           path: |
             dist/ChatLensOCR.exe
+            dist/ChatLensOCR_v0.2.1_Windows_x64.zip
+            dist/SHA256SUMS.txt
             selftest.json
           if-no-files-found: warn
