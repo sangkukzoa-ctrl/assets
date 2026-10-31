@@ -262,7 +262,7 @@ def gui():
     precise=tk.BooleanVar(value=True); world=tk.StringVar(value="모그리")
     status=tk.StringVar(value="준비 완료 | 이미지는 외부 서버로 전송하지 않습니다")
     entries=[]; active=[None]; selection=[None]; last=[None]; photo=[None]; scale=[1.]
-    origin=[0,0]; jobs=[None]; events=queue.Queue(); worker=[None]
+    origin=[0,0]; jobs=[None]; events=queue.Queue(); worker=[None]; generation=[0]
     def label(parent,s):ttk.Label(parent,text=s).pack(side="left",padx=(8,3))
     def button(parent,s,cb):ttk.Button(parent,text=s,command=cb).pack(side="left",padx=3)
     bar=ttk.Frame(root,padding=9);bar.pack(fill="x")
@@ -270,6 +270,7 @@ def gui():
         im=im.convert("RGB");entries.append((name,im))
         lb.insert("end",name);lb.selection_clear(0,"end");lb.selection_set("end");lb.see("end")
         active[0]=im;selection[0]=None;last[0]=None
+        generation[0]+=1
         show();status.set(f"대상: {name} ({im.width}×{im.height})")
     def open_file():
         for f in filedialog.askopenfilenames(filetypes=[("이미지","*.png *.jpg *.jpeg *.webp *.bmp *.tif"),("모든 파일","*.*")]):
@@ -289,7 +290,7 @@ def gui():
     def run(allfiles=False):
         if not entries:messagebox.showinfo("대상 없음","먼저 이미지를 열어 주세요.");return
         if worker[0] and worker[0].is_alive():return
-        jobs[0]=None; settings=(mode.get(),language.get(),precise.get(),world.get())
+        jobs[0]=None; stamp=generation[0]; settings=(mode.get(),language.get(),precise.get(),world.get())
         todo=entries[:] if allfiles else [(entries[lb.curselection()[0]][0] if lb.curselection() else "선택 영역",get_selected())]
         def compute():
             try:
@@ -299,8 +300,8 @@ def gui():
                     from layout_v2 import analyze
                     detected,output,hits,meta,rows,raw=analyze(img,settings[0],settings[1],settings[2],settings[3],xicons)
                     results.append({"filename":name,"mode":detected,"result":output,"ocr_lines":raw,"messages":meta,"icons":hits,"rows":rows})
-                events.put(("ok",results))
-            except Exception:events.put(("error",traceback.format_exc()))
+                events.put(("ok",stamp,results))
+            except Exception:events.put(("error",stamp,traceback.format_exc()))
         worker[0]=threading.Thread(target=compute,daemon=True)
         worker[0].start();status.set("OCR 분석 중...")
     button(bar,"🔎 분석",lambda:run(False));button(bar,"전체 분석",lambda:run(True))
@@ -337,6 +338,32 @@ def gui():
         sel=lb.curselection()
         if sel:active[0]=entries[sel[0]][1];selection[0]=None;last[0]=None;show()
     lb.bind("<<ListboxSelect>>",change)
+    def remove_selected():
+        indices=sorted(lb.curselection(),reverse=True)
+        if not indices:return
+        for index in indices:
+            if 0<=index<len(entries):
+                entries.pop(index)
+                lb.delete(index)
+        generation[0]+=1
+        selection[0]=None;last[0]=None
+        if entries:
+            idx=min(indices[-1],len(entries)-1)
+            lb.selection_clear(0,"end");lb.selection_set(idx)
+            active[0]=entries[idx][1]
+        else:
+            active[0]=None
+        for widget in fields:widget.delete("1.0","end")
+        show()
+        status.set(f"이미지 언로드 완료 · 남은 이미지 {len(entries)}개")
+    def remove_key(event):
+        if isinstance(event.widget,(tk.Text,tk.Entry,ttk.Entry)):
+            return
+        remove_selected()
+        return "break"
+    root.bind("<Delete>",remove_key)
+    root.bind("<KP_Delete>",remove_key)
+    button(tools,"이미지 언로드 (Delete)",remove_selected)
     actions=ttk.Frame(right);actions.pack(fill="x")
     tabs=ttk.Notebook(right);tabs.pack(fill="both",expand=True,pady=6)
     fields=[]
@@ -398,7 +425,9 @@ def gui():
     canvas.bind("<B1-Motion>",drag);canvas.bind("<ButtonRelease-1>",release)
     def poll():
         try:
-            kind,info=events.get_nowait()
+            kind,stamp,info=events.get_nowait()
+            if stamp!=generation[0]:
+                root.after(120,poll);return
             if kind=="error":messagebox.showerror("분석 오류",info);status.set("오류 - 상세 내용을 확인하세요")
             else:
                 last[0]=info
