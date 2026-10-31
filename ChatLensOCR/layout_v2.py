@@ -124,6 +124,20 @@ def ffxiv(img, language, precise, world, icons):
         crop=img.crop((0,top,img.width,bottom))
         value,items,score=_variants(crop,"파판14",language,precise)
         if not value:continue
+        # The FF14 channel is rendered in a dense monospaced overlay.
+        # When a Korean line is fragmented, compare a full-row PSM6 read.
+        from tess_backend import read as _read_tess
+        alt,alt_boxes,alt_conf=_read_tess(crop.resize((crop.width*3,crop.height*3),Image.Resampling.LANCZOS),
+                                         "파판14",language,psm=6)
+        if alt and alt_conf>=66:
+            import re as _re
+            def fragmentation(t):
+                return len(_re.findall(r"(?<=[가-힣]) (?=[가-힣])",t))
+            if (fragmentation(alt)<fragmentation(value)
+                or (value.count("<")<alt.count("<") and alt_conf>78)):
+                value=alt
+                items=_offset(alt_boxes,0,0,3)
+                score=alt_conf/20
         raw.extend(_offset(items,0,top))
         value=re.sub(r"\s+([:：>〉）\]])",r"\1",value)
         match=_FFXIV.match(value)
@@ -146,12 +160,31 @@ def ffxiv(img, language, precise, world, icons):
             job="직업미확인"
             icon=None; conf=0.
             try:
-                found,rect,conf=icons.match(img,(0,top, min(160,img.width),bottom))
+                # In PvP chat the job icon precedes the character name near x=100.
+                found,rect,conf=icons.match(img,(min(112,img.width-1),top, min(200,img.width),bottom))
                 if found:job=found;icon=rect
             except Exception:pass
             out.append(f"({job}){speaker}: {message}")
             if icon: hits.append((icon,job))
             metadata.append({"speaker":nickname,"server":server,"job":job,"ocr_score":score,"icon_score":conf,"y":top})
+        elif re.search(r"\\(\\s*\\(?[^)]{3,65}\\)\\s*\\)",value):
+            # PvP message format: ((party marker + job icon + NAME + WORLD))
+            # It is NOT the <name> chat header format.
+            block=re.search(r"\\(\\s*\\(?([^)]{3,65})\\)\\s*\\)\\s*(.*)",value)
+            if block:
+                words=re.findall(r"[가-힣]{2,}",block.group(1))
+                if len(words)>=2:
+                    name,server=words[-2:]
+                    talk=block.group(2).strip()
+                    job,icon,conf=icons.match(img,(min(112,img.width-1),top,min(200,img.width),bottom))
+                    speaker=name+("&"+server if server!=world else "")
+                    out.append(f"({job or '직업미확인'}){speaker}: {talk}")
+                    metadata.append({"speaker":name,"server":server,"job":job or "직업미확인","icon_score":conf})
+                    if icon:hits.append((icon,job))
+                else:out.append("[원문] "+value)
+            else:out.append("[원문] "+value)
+        elif re.match(r"^\\s*[\\[［【]\\s*\\d{1,2}\\s*[:：]\\s*\\d{2}",value):
+            out.append("[시스템] "+value)
         elif re.search(r"스크린샷|저장했|Screenshot",value):
             out.append("[시스템] "+value)
         elif out and not re.search(r"\d{1,2}\s*[:：]\s*\d{2}",value[:12]):
@@ -181,6 +214,26 @@ def _bubble_boxes(img):
     # one bubble per connected flat-colored surface
     return sorted(found,key=lambda v:(v[1],v[0]))
 
+def _bubble_text(image,language,precise):
+    """Segment long chat balloons by actual dark-ink rows before OCR."""
+    a=np.asarray(image.convert("RGB"))
+    gray=cv2.cvtColor(a,cv2.COLOR_RGB2GRAY)
+    ink=(gray<155)
+    density=ink.sum(axis=1)
+    bands=_runs(density>=max(3,image.width//160),min_length=3,gap=1)
+    if len(bands)<2:
+        return _variants(image,"카카오톡",language,precise)
+    lines=[];all_boxes=[];sc=[]
+    for y0,y1 in bands:
+        if y1-y0<3:continue
+        y=max(0,y0-3);end=min(image.height,y1+3)
+        content,items,score=_variants(image.crop((0,y,image.width,end)),"카카오톡",language,precise)
+        if content:
+            lines.append(content)
+            all_boxes.extend(_offset(items,0,y))
+            sc.append(score)
+    return " ".join(lines),all_boxes,sum(sc)/max(1,len(sc))
+
 def kakao(img,language,precise):
     boxes=_bubble_boxes(img)
     results=[];raw=[];metadata=[]
@@ -204,7 +257,7 @@ def kakao(img,language,precise):
         margin=7 if w>55 else 3
         image=img.crop((x+margin,y+4,x+w-3,y+h-3))
         if image.width<5 or image.height<5:continue
-        content,items,score=_variants(image,"카카오톡",language,precise)
+        content,items,score=_bubble_text(image,language,precise)
         if not content:continue
         content=_HHMM.sub("",content).strip()
         if not content:continue
