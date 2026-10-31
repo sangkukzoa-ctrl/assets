@@ -167,10 +167,10 @@ def ffxiv(img, language, precise, world, icons):
             out.append(f"({job}){speaker}: {message}")
             if icon: hits.append((icon,job))
             metadata.append({"speaker":nickname,"server":server,"job":job,"ocr_score":score,"icon_score":conf,"y":top})
-        elif re.search(r"\\(\\s*\\(?[^)]{3,65}\\)\\s*\\)",value):
+        elif re.search(r"\(\s*\(?[^)]{3,65}\)\s*\)",value):
             # PvP message format: ((party marker + job icon + NAME + WORLD))
             # It is NOT the <name> chat header format.
-            block=re.search(r"\\(\\s*\\(?([^)]{3,65})\\)\\s*\\)\\s*(.*)",value)
+            block=re.search(r"\(\s*\(?([^)]{3,65})\)\s*\)\s*(.*)",value)
             if block:
                 words=re.findall(r"[가-힣]{2,}",block.group(1))
                 if len(words)>=2:
@@ -183,7 +183,7 @@ def ffxiv(img, language, precise, world, icons):
                     if icon:hits.append((icon,job))
                 else:out.append("[원문] "+value)
             else:out.append("[원문] "+value)
-        elif re.match(r"^\\s*[\\[［【]\\s*\\d{1,2}\\s*[:：]\\s*\\d{2}",value):
+        elif re.match(r"^\s*[\[［【]\s*\d{1,2}\s*[:：]\s*\d{2}",value):
             out.append("[시스템] "+value)
         elif re.search(r"스크린샷|저장했|Screenshot",value):
             out.append("[시스템] "+value)
@@ -291,12 +291,12 @@ def generic(img,language,precise):
                 raw.extend(_offset(items,0,y))
                 meta.append({"y":y0,"ocr_score":score})
                 prev_bottom=y1
-            if out:return "범용","\\n".join(out),[],meta,raw
+            if out:return "범용","\n".join(out),[],meta,raw
     # Dark or photographic layouts: preserve OCR's original spatial ordering.
     from app import recognize,merge_rows
     items=recognize(img,language,precise)
     rows=merge_rows(items)
-    return "범용","\\n".join(v["text"] for v in rows),[],[{"confidence":v["score"]} for v in rows],items
+    return "범용","\n".join(v["text"] for v in rows),[],[{"confidence":v["score"]} for v in rows],items
 
 
 def analyze(img,mode,language,precise,world,icons):
