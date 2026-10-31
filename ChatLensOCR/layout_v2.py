@@ -114,6 +114,24 @@ def _fixed_lines(img, color="ffxiv"):
     proj=amount>=max(6,img.width//110)
     return _runs(proj, min_length=3, gap=0)
 
+def _pvp_color_read(crop,language):
+    """Extract saturated PvP name and chat colors from the dark game scene.
+    System notices and the underlying environment are suppressed.
+    """
+    from tess_backend import read as _read
+    a=np.asarray(crop.convert("RGB")).astype(np.int16)
+    r,g,b=a[:,:,0],a[:,:,1],a[:,:,2]
+    blue=(b-r>48)&(b>145)&(g>85)
+    red=(r-g>42)&(r-b>55)&(r>140)
+    green=(g-r>38)&(g-b>25)&(g>110)
+    if (blue|red|green).sum()<20:return "",[],0.
+    vmax=a.max(axis=2);vmin=a.min(axis=2)
+    mask=(vmax-vmin>66)&(vmax>130)
+    white=np.where(mask,0,255).astype(np.uint8)
+    prep=Image.fromarray(white).resize((crop.width*3,crop.height*3),Image.Resampling.LANCZOS)
+    text,boxes,conf=_read(prep,"파판14",language,psm=6)
+    return text,_offset(boxes,0,0,3),conf
+
 def ffxiv(img, language, precise, world, icons):
     lines=_fixed_lines(img)
     out=[]; raw=[]; metadata=[]; hits=[]
@@ -124,6 +142,12 @@ def ffxiv(img, language, precise, world, icons):
         crop=img.crop((0,top,img.width,bottom))
         value,items,score=_variants(crop,"파판14",language,precise)
         if not value:continue
+        masked,mask_boxes,mask_conf=_pvp_color_read(crop,language)
+        if masked and mask_conf>=38:
+            # Prefer the PvP color-isolated transcription only when it
+            # recovers an otherwise missing double-parenthesis speaker.
+            if ("))" in masked or ") )" in masked) and not ("))" in value or ") )" in value):
+                value=masked;items=mask_boxes;score=mask_conf/20
         # The FF14 channel is rendered in a dense monospaced overlay.
         # When a Korean line is fragmented, compare a full-row PSM6 read.
         from tess_backend import read as _read_tess
