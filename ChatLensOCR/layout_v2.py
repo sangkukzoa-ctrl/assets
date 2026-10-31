@@ -269,35 +269,35 @@ def kakao(img,language,precise):
         return generic(img,language,precise)
     return "카카오톡","\n".join(results),[],metadata,raw
 
-def generic(img, language, precise):
-    # Colored support chat blocks: detect horizontal text baselines by red/blue ink.
+def generic(img,language,precise):
+    """Text-page OCR: recover visible lines and paragraph gaps before recognition.
+    This avoids whole-page OCR dropping bold numbered headings and bullets.
+    """
     a=np.asarray(img.convert("RGB"))
-    flat=np.median(a,axis=(0,1))
-    # Text on a pale uniform background can be processed line by line.
-    all_lines=[]
-    if (flat>175).all():
-        red=_fixed_lines(img,"red")
-        blue=_fixed_lines(img,"blue")
-        both=sorted(red+blue)
-        for y0,y1 in both:
-            if all_lines and y0<all_lines[-1][1]+5:
-                old=all_lines.pop();all_lines.append((min(old[0],y0),max(old[1],y1)))
-            else: all_lines.append((y0,y1))
-    if len(all_lines)<3:
-        from app import recognize,merge_rows
-        items=recognize(img,language,precise)
-        rows=merge_rows(items)
-        return "범용","\n".join(v["text"] for v in rows),[],[{"confidence":v["score"]} for v in rows],items
-    results=[];raw=[];meta=[]
-    for y0,y1 in all_lines:
-        if y1-y0>42:continue
-        y=max(0,y0-4);end=min(img.height,y1+4)
-        part=img.crop((0,y,img.width,end))
-        content,items,score=_variants(part,"범용",language,precise)
-        if content:
-            results.append(content);raw.extend(_offset(items,0,y))
-            meta.append({"line_y":y,"ocr_score":score})
-    return "범용","\n".join(results),[],meta,raw
+    med=np.median(a.reshape(-1,3),axis=0)
+    if (med>184).all():
+        ink=(a[:,:,0]<180)&(a[:,:,1]<180)&(a[:,:,2]<180)
+        amount=ink.sum(axis=1)
+        bands=_runs(amount>=max(5,img.width//135),min_length=4,gap=0)
+        if len(bands)>=5:
+            out=[];raw=[];meta=[];prev_bottom=-1
+            for y0,y1 in bands:
+                if y1-y0>42:continue
+                y=max(0,y0-4);stop=min(img.height,y1+4)
+                text,items,score=_variants(img.crop((0,y,img.width,stop)),"범용",language,precise)
+                if not text.strip() or (len(text.strip())<2 and not text.strip().isdigit()):continue
+                if prev_bottom>=0 and y0-prev_bottom>29:out.append("")
+                out.append(text.strip())
+                raw.extend(_offset(items,0,y))
+                meta.append({"y":y0,"ocr_score":score})
+                prev_bottom=y1
+            if out:return "범용","\\n".join(out),[],meta,raw
+    # Dark or photographic layouts: preserve OCR's original spatial ordering.
+    from app import recognize,merge_rows
+    items=recognize(img,language,precise)
+    rows=merge_rows(items)
+    return "범용","\\n".join(v["text"] for v in rows),[],[{"confidence":v["score"]} for v in rows],items
+
 
 def analyze(img,mode,language,precise,world,icons):
     if mode=="자동":mode=detect_mode(img)
