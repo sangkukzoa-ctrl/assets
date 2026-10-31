@@ -5,6 +5,10 @@ from pathlib import Path
 from PIL import Image,ImageDraw,ImageFont
 sys.path.insert(0,str(Path(__file__).parent))
 from layout_v2 import _fixed_lines,_bubble_boxes,detect_mode,analyze
+from tess_backend import _assemble
+import py_compile
+py_compile.compile(str(Path(__file__).parent/"app.py"),doraise=True)
+py_compile.compile(str(Path(__file__).parent/"layout_v2.py"),doraise=True)
 
 font=ImageFont.truetype("C:/Windows/Fonts/malgun.ttf",14)
 def fill(text,im,x,y,ink):
@@ -52,4 +56,17 @@ assert detect_mode(gen)=="범용"
 result=analyze(gen,"자동","한국어",False,"모그리",NoIcons())
 print("GENERAL",repr(result[1])[:1500],flush=True)
 assert result[0]=="범용" and result[1].strip()
+
+# Physical glyph separation vs Tesseract's arbitrary Hangul word fragments.
+tokens=[{"text":"더","box":(0,0,10,12)},
+        {"text":"럽","box":(12,0,22,12)},
+        {"text":"게","box":(24,0,34,12)},
+        {"text":"꼬","box":(46,0,56,12)},
+        {"text":"이는군","box":(58,0,88,12)}]
+assert _assemble(tokens)=="더럽게 꼬이는군",_assemble(tokens)
+# The PvP header is distinct from angle-bracket chat and cannot be dropped.
+import re
+pvp=r"[22:28]((B 후치 펜리르)) 뒤로 물러나주세요"
+assert re.search(r"\(\s*\(?[^)]{3,65}\)\s*\)",pvp)
+
 print("Synthetic UI tests PASSED",flush=True)
