@@ -51,38 +51,41 @@ def _flatten_ocr(img, language="한국어", precise=True):
 
 def _variants(img,mode, language, precise):
     from app import recognize, merge_rows
+    from tess_backend import read as tesseract_read
     opts=[]
     scale=3 if img.height<55 else 2 if img.height<130 else 1.5
-    scale=min(scale, max(1,2200/max(img.width,1)))
-    # light/dark input, local crop avoids full-page text detection merging.
+    scale=min(scale,max(1.,2200/max(img.width,1)))
     ims=[img.convert("RGB")]
     if precise:
         base=img.convert("RGB")
         if mode=="파판14":
-            # Bright foreground on almost black background; retain anti-aliasing
-            a=np.asarray(base).astype(np.int16)
-            gray=cv2.cvtColor(a.astype(np.uint8),cv2.COLOR_RGB2GRAY)
+            gray=cv2.cvtColor(np.asarray(base),cv2.COLOR_RGB2GRAY)
             boosted=np.clip((gray.astype(np.float32)-25)*1.60,0,255).astype(np.uint8)
             ims.append(Image.fromarray(cv2.cvtColor(boosted,cv2.COLOR_GRAY2RGB)))
         else:
             ims.append(ImageOps.autocontrast(base,cutoff=1))
     for candidate in ims:
-        if scale>1: candidate=candidate.resize((max(1,int(candidate.width*scale)),max(1,int(candidate.height*scale))),Image.Resampling.LANCZOS)
-        from tess_backend import read as tesseract_read
+        if scale>1:
+            candidate=candidate.resize(
+                (max(1,round(candidate.width*scale)),max(1,round(candidate.height*scale))),
+                Image.Resampling.LANCZOS)
+        # Both engines return coordinates in the enlarged candidate.
+        # Normalize immediately to the original cropped image's pixel grid.
         tt,tboxes,tconf=tesseract_read(candidate,mode,language)
+        tboxes=_offset(tboxes,0,0,scale)
         if tt and tconf>=78 and (language!="한국어" or len(re.findall(r"[가-힣]",tt))>=2):
             return tt,tboxes,tconf/20
-        if tt:opts.append((tconf/28+min(1,len(tt)*.018),tt,tboxes))
-        res=recognize(candidate, language,False)
+        if tt:
+            opts.append((tconf/28+min(1,len(tt)*.018),tt,tboxes))
+        res=recognize(candidate,language,False)
         groups=merge_rows(res)
         content=" ".join(r["text"].strip() for r in groups if r["text"].strip())
-        # Coverage + Hangul ratio + OCR confidence, no dictionary guessing.
         if not content:continue
         hangul=len(re.findall(r"[가-힣]",content))
         nonsensical=len(re.findall(r"[|©€¤@{}]",content))
         mean_conf=sum(x["score"] for x in res)/max(1,len(res))
-        score=mean_conf*3 + min(1.5,len(content)*.019)+ min(1.1,hangul*.025) - nonsensical*.17
-        opts.append((score,content,res))
+        score=mean_conf*3+min(1.5,len(content)*.019)+min(1.1,hangul*.025)-nonsensical*.17
+        opts.append((score,content,_offset(res,0,0,scale)))
     if not opts:return "",[],0.
     opts.sort(key=lambda x:x[0],reverse=True)
     return opts[0][1],opts[0][2],opts[0][0]
@@ -121,7 +124,7 @@ def ffxiv(img, language, precise, world, icons):
         crop=img.crop((0,top,img.width,bottom))
         value,items,score=_variants(crop,"파판14",language,precise)
         if not value:continue
-        raw.extend(_offset(items,0,top,3 if crop.height<55 else 1))
+        raw.extend(_offset(items,0,top))
         value=re.sub(r"\s+([:：>〉）\]])",r"\1",value)
         match=_FFXIV.match(value)
         if match is None:
@@ -205,7 +208,7 @@ def kakao(img,language,precise):
         if not content:continue
         content=_HHMM.sub("",content).strip()
         if not content:continue
-        raw.extend(_offset(items,x+margin,y+4,3 if image.height<55 else 2 if image.height<130 else 1.5))
+        raw.extend(_offset(items,x+margin,y+4))
         who="나" if kind=="나" else nickname
         results.append(f"{who}: {content}")
         metadata.append({"speaker":who,"kind":"bubble","box":(x,y,x+w,y+h),"ocr_score":score})
@@ -239,7 +242,7 @@ def generic(img, language, precise):
         part=img.crop((0,y,img.width,end))
         content,items,score=_variants(part,"범용",language,precise)
         if content:
-            results.append(content);raw.extend(_offset(items,0,y,3 if part.height<55 else 1))
+            results.append(content);raw.extend(_offset(items,0,y))
             meta.append({"line_y":y,"ocr_score":score})
     return "범용","\n".join(results),[],meta,raw
 
