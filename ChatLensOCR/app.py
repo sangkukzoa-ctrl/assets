@@ -212,6 +212,18 @@ def selftest(outpath):
         tess_text,_,tess_conf=tess_read(img,"범용","한국어")
         info["checks"]["tesseract_text"]=tess_text
         if not tess_text:raise RuntimeError("Bundled Tesseract OCR failed")
+        # Test actual Korean glyph recognition, not only English strings
+        korean=Image.new("RGB",(1000,180),"white")
+        kfont_file=Path("C:/Windows/Fonts/malgun.ttf")
+        kfont=ImageFont.truetype(str(kfont_file),44) if kfont_file.exists() else font
+        ImageDraw.Draw(korean).text((25,44),"안녕하세요 한글 인식 테스트 1234",fill="black",font=kfont)
+        korean_text,_,_=tess_read(korean,"범용","한국어")
+        info["checks"]["korean_sample"]=korean_text
+        if "안녕하세요" not in korean_text.replace(" ",""):
+            raise RuntimeError("Bundled Korean text recognition failed: "+repr(korean_text))
+        models=list((BASE/"models").rglob("*.onnx"))
+        info["checks"]["onnx_model_count"]=len(models)
+        if len(models)<4:raise RuntimeError("Packaged OCR ONNX models missing")
         old=socket.socket.connect
         oldex=socket.socket.connect_ex
         oldcreate=socket.create_connection
