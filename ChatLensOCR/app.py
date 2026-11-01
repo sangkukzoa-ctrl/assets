@@ -221,6 +221,12 @@ def selftest(outpath):
         info["checks"]["korean_sample"]=korean_text
         if "안녕하세요" not in korean_text.replace(" ",""):
             raise RuntimeError("Bundled Korean text recognition failed: "+repr(korean_text))
+        line=Image.new("RGB",(800,120),"white")
+        ImageDraw.Draw(line).text((20,28),"더럽게 꼬이는군",fill="black",font=kfont)
+        space_text,_,_=tess_read(line,"파판14","한국어",psm=7)
+        info["checks"]["korean_spacing"]=space_text
+        if "꼬이는군" not in space_text.replace(" ",""):
+            raise RuntimeError("Korean character recognition regression: "+repr(space_text))
         models=list((BASE/"models").rglob("*.onnx"))
         info["checks"]["onnx_model_count"]=len(models)
         if len(models)<4:raise RuntimeError("Packaged OCR ONNX models missing")
