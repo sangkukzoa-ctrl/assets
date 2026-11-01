@@ -59,5 +59,13 @@ def read(image,mode,language,psm=None):
             parts.append(item)
             confs.append(confidence)
         lines=sorted(groups.values(),key=lambda a:min(t["box"][1] for t in a))
-        return " ".join(_assemble(row) for row in lines),parts,sum(confs)/max(1,len(confs))
+        # Tesseract's text renderer has already reconstructed Korean word
+        # boundaries at OCR time. Reassembling TSV tokens by box distance
+        # repeatedly introduced arbitrary syllable spaces (e.g. 꼬이 는군).
+        # Use native text as canonical transcription. Keep TSV for geometry.
+        native=pytesseract.image_to_string(
+            image,lang=lang,config=f"--psm {psm}",timeout=20).strip()
+        reconstructed="\n".join(_assemble(row) for row in lines)
+        transcript=native if native else reconstructed
+        return transcript,parts,sum(confs)/max(1,len(confs))
     except Exception:return "",[],0.
