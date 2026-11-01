@@ -84,7 +84,7 @@ jobs:
       - name: Create and validate release archive
         run: |
           $exe = (Resolve-Path "dist/ChatLensOCR.exe").Path
-          $zip = "dist/ChatLensOCR_v0.3.0_Windows_x64.zip"
+          $zip = "dist/ChatLensOCR_v0.3.1_Windows_x64.zip"
           $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           if ((Get-Item $exe).Length -lt 100MB) { throw "Executable unexpectedly small" }
           Compress-Archive -Path $exe -DestinationPath $zip -CompressionLevel Optimal -Force
@@ -96,7 +96,7 @@ jobs:
           $zipSha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
           @(
             "$sha  ChatLensOCR.exe"
-            "$zipSha  ChatLensOCR_v0.3.0_Windows_x64.zip"
+            "$zipSha  ChatLensOCR_v0.3.1_Windows_x64.zip"
           ) | Set-Content "dist/SHA256SUMS.txt" -Encoding ascii
           Get-Content "dist/SHA256SUMS.txt"
           Write-Host "EXE bytes: $((Get-Item $exe).Length)"
@@ -106,9 +106,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag="chatlens-v0.3.0"
-          $assets=@("dist/ChatLensOCR.exe","dist/ChatLensOCR_v0.3.0_Windows_x64.zip","dist/SHA256SUMS.txt","selftest.json")
-          gh release create $tag $assets --title "ChatLens OCR v0.3.0 Windows x64" --target "$env:GITHUB_SHA" --notes "v0.3.0: Delete-key image unload; Hangul word spacing based on glyph positions; multi-line KakaoTalk bubble segmentation; dedicated FFXIV PvP color/header handling; document heading preservation. Includes standalone RapidOCR + Tesseract. Windows executable and ZIP SHA256 verified."
+          $tag="chatlens-v0.3.1"
+          $assets=@("dist/ChatLensOCR.exe","dist/ChatLensOCR_v0.3.1_Windows_x64.zip","dist/SHA256SUMS.txt","selftest.json")
+          gh release create $tag $assets --title "ChatLens OCR v0.3.1 Windows x64" --target "$env:GITHUB_SHA" --notes "v0.3.1: Delete-key image unload; Hangul word spacing based on glyph positions; multi-line KakaoTalk bubble segmentation; dedicated FFXIV PvP color/header handling; document heading preservation. Includes standalone RapidOCR + Tesseract. Windows executable and ZIP SHA256 verified."
           if ($LASTEXITCODE -ne 0) { throw "Release creation failed" }
           $verify=Join-Path $env:RUNNER_TEMP "release_download"
           New-Item -ItemType Directory -Path $verify -Force | Out-Null
@@ -124,7 +124,7 @@ jobs:
           name: ChatLensOCR-Windows-x64
           path: |
             dist/ChatLensOCR.exe
-            dist/ChatLensOCR_v0.3.0_Windows_x64.zip
+            dist/ChatLensOCR_v0.3.1_Windows_x64.zip
             dist/SHA256SUMS.txt
             selftest.json
           if-no-files-found: warn
