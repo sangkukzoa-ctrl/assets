@@ -140,6 +140,16 @@ def ffxiv(img, language, precise, world, icons):
         if y1-y0>36:continue
         top=max(0,y0-2);bottom=min(img.height,y1+2)
         crop=img.crop((0,top,img.width,bottom))
+        # PvP role/job badge, colored nickname and orange message are
+        # independently recognized before any ordinary chat-header parser.
+        from pvp_v2 import transcribe as transcribe_pvp
+        pvp=transcribe_pvp(crop,img,top,language,world,icons)
+        if pvp is not None:
+            line,meta,hit=pvp
+            out.append(line)
+            metadata.append(meta)
+            if hit:hits.append(hit)
+            continue
         value,items,score=_variants(crop,"파판14",language,precise)
         if not value:continue
         masked,mask_boxes,mask_conf=_pvp_color_read(crop,language)
@@ -165,8 +175,10 @@ def ffxiv(img, language, precise, world, icons):
         raw.extend(_offset(items,0,top))
         value=re.sub(r"\s+([:：>〉）\]])",r"\1",value)
         match=_FFXIV.match(value)
-        if match is None:
-            match=_FFXIV_LOOSE.search(value)
+        if match is None and re.match(r"^\\s*[\\[［【]\\s*\\d{1,2}\\s*[:：]\\s*\\d{2}",value):
+            candidate=_FFXIV_LOOSE.search(value)
+            if candidate and not re.fullmatch(r"(?i)se[.．]?[0-9]{1,3}",candidate.group(1).strip()):
+                match=candidate
         if match:
             nickname=match.group(1).strip()
             message=match.group(2).strip()
