@@ -69,4 +69,15 @@ import re
 pvp=r"[22:28]((B 후치 펜리르)) 뒤로 물러나주세요"
 assert re.search(r"\(\s*\(?[^)]{3,65}\)\s*\)",pvp)
 
+# PvP speaker colours plus orange messages distinguish actual player chat
+# from battle-system notices without any user screenshot in source control.
+from pvp_v2 import is_pvp_row
+pvpimg=Image.new("RGB",(463,26),(13,13,15))
+fill("후치 펜리르",pvpimg,100,4,(34,155,240))
+fill("지면표식 따라서 이동합니다",pvpimg,218,4,(251,157,31))
+assert is_pvp_row(pvpimg)
+systemimg=Image.new("RGB",(463,26),(13,13,15))
+fill("B급 순결한 땅이 유효 상태입니다",systemimg,85,4,(240,235,235))
+assert not is_pvp_row(systemimg)
+
 print("Synthetic UI tests PASSED",flush=True)
