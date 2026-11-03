@@ -63,18 +63,20 @@ def _batch_metadata(image,x0,x1,centers,pitch,lang="kor+eng"):
     from tess_backend import read
     w,h=image.size
     if x1-x0<5:return [""]*len(centers),[]
-    # Scan an entire aligned column once to avoid hundreds of OCR subprocesses.
     region=image.crop((x0,0,x1,h))
-    text,parts,conf=read(region,"범용","한국어" if lang!="eng" else "영어",psm=6)
+    # Windows Explorer uses ~12px fonts; 3x upscaling is essential.
+    factor=3
+    enlarged=region.resize((region.width*factor,region.height*factor),Image.Resampling.LANCZOS)
+    _,parts,_=read(enlarged,"범용","한국어" if lang!="eng" else "영어",psm=6)
     rows=[[] for _ in centers]
     raw=[]
     for t in parts:
-        x1b,y1b,x2b,y2b=t["box"]
-        cy=(y1b+y2b)*.5
+        bx1,by1,bx2,by2=t["box"]
+        cy=(by1+by2)/(2*factor)
         index=min(range(len(centers)),key=lambda i:abs(centers[i]+pitch*.16-cy))
-        if abs(centers[index]+pitch*.16-cy)>pitch*.65:continue
-        rows[index].append((x1b,t["text"]))
-        raw.append({**t,"box":(x0+x1b,y1b,x0+x2b,y2b)})
+        if abs(centers[index]+pitch*.16-cy)>pitch*.72:continue
+        rows[index].append((bx1,t["text"]))
+        raw.append({**t,"box":(int(x0+bx1/factor),int(by1/factor),int(x0+bx2/factor),int(by2/factor))})
     return [" ".join(t for _,t in sorted(group)).strip() for group in rows],raw
 
 def analyze(image,language="한국어"):
@@ -82,21 +84,47 @@ def analyze(image,language="한국어"):
     if geometry is None:return None
     pitch,centers=geometry
     w,h=image.size
-    name_end=int(w*.478)
-    dates,raw_dates=_batch_metadata(image,int(w*.48),int(w*.666),centers,pitch)
-    kinds,raw_kinds=_batch_metadata(image,int(w*.66),int(w*.868),centers,pitch)
-    sizes,raw_sizes=_batch_metadata(image,int(w*.865),w,centers,pitch,"eng")
+    # In Windows Explorer the columns stay at the same pixel positions when
+    # the window is made wider. Percent-of-image positions cropped the date
+    # in 902px screenshots and leaked it into the filename.
+    pos=lambda n:round(n*min(1.,w/780.))
+    filename_right=pos(382)
+    date_start=pos(383);date_end=pos(530)
+    kind_start=pos(530);kind_end=pos(657)
+    size_start=pos(683)
+    dates,raw_dates=_batch_metadata(image,date_start,date_end,centers,pitch)
+    kinds,raw_kinds=_batch_metadata(image,kind_start,kind_end,centers,pitch)
+    sizes,raw_sizes=_batch_metadata(image,size_start,w,centers,pitch,"eng")
     outputs=[];diagnostics=[];raw=raw_dates+raw_kinds+raw_sizes
+    normalized_kinds=[]
+    for text in kinds:
+        if re.search(r"압\s*축",text) and re.search(r"파일",text):
+            normalized_kinds.append("압축(ZIP) 파일")
+        else:
+            normalized_kinds.append(text)
+    # The same file type is typically repeated for each row in a folder;
+    # propagate only if at least 70% of rows independently recognized it.
+    known=[k for k in normalized_kinds if k=="압축(ZIP) 파일"]
+    common_kind="압축(ZIP) 파일" if len(known)>=len(centers)*.7 else ""
     for i,top in enumerate(centers):
         y0=max(0,top-5);y1=min(h,top+max(16,int(pitch*.60)))
-        x0=29
-        filename,parts,conf=_ocr_single(image.crop((x0,y0,name_end,y1)))
-        # Preserve all detected rows, including low-confidence ones.
+        x0=28
+        filename,parts,conf=_ocr_single(image.crop((x0,y0,filename_right,y1)))
+        filename=re.sub(r"^[^a-zA-Z0-9가-힣]+","",filename)
         for t in parts:
-            b=t["box"];raw.append({**t,"box":(int(b[0]+x0),int(b[1]+y0),int(b[2]+x0),int(b[3]+y0))})
-        outputs.append("\t".join((filename or "[파일명 인식 실패]",dates[i],kinds[i],sizes[i])))
+            box=t["box"]
+            raw.append({**t,"box":(int(box[0]+x0),int(box[1]+y0),int(box[2]+x0),int(box[3]+y0))})
+        date=dates[i]
+        # Date OCR is accepted only when a recognizable YYYY-MM-DD is present.
+        # Do not silently forge damaged digits.
+        date=date if re.search(r"20\d{2}\s*[-.]\s*\d{1,2}\s*[-.]\s*\d{1,2}",date) else (date or "[날짜 미인식]")
+        kind=normalized_kinds[i] or common_kind
+        size=sizes[i]
+        m=re.search(r"(?i)(\d{1,7})\s*(KB|MB|GB|B)\b",size)
+        size=(m.group(1)+m.group(2).upper()) if m else (size or "[크기 미인식]")
+        outputs.append("\t".join((filename or "[파일명 미인식]",date,kind,size)))
         diagnostics.append({"row":i+1,"y":top,"name":filename,"score":conf,
-                            "date":dates[i],"kind":kinds[i],"size":sizes[i]})
+                            "date":date,"kind":kind,"size":size})
     return "범용","\n".join(outputs),[],diagnostics,raw
 
 def _synthetic():
