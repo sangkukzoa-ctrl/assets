@@ -6,9 +6,14 @@ from PIL import Image,ImageDraw,ImageFont
 sys.path.insert(0,str(Path(__file__).parent))
 from layout_v2 import _fixed_lines,_bubble_boxes,detect_mode,analyze
 from tess_backend import _assemble
+from kakao_stickers import _synthetic as sticker_synthetic
+from explorer_v1 import _batch_metadata
 import py_compile
 py_compile.compile(str(Path(__file__).parent/"app.py"),doraise=True)
 py_compile.compile(str(Path(__file__).parent/"layout_v2.py"),doraise=True)
+py_compile.compile(str(Path(__file__).parent/"kakao_stickers.py"),doraise=True)
+py_compile.compile(str(Path(__file__).parent/"explorer_v1.py"),doraise=True)
+assert sticker_synthetic(), "Sticker shape detection failed"
 
 font=ImageFont.truetype("C:/Windows/Fonts/malgun.ttf",14)
 def fill(text,im,x,y,ink):
@@ -90,5 +95,19 @@ chat="[1:201[서초링 21<연일야> 부모님을 지킬 수 잇는 타자실력
 m=re.search(r"[<〈＜]\s*([가-힣A-Za-z0-9_＆&＠@ ]{2,32})\s*[>〉＞]\s*(.*)",chat)
 assert m and m.group(1)=="연일야" and "부모님" in m.group(2)
 print("Explorer 40-row geometry and 5 red-text lines PASSED",flush=True)
+
+# Generate two stickers in a synthetic Kakao background; verify that a
+# message bubble does not get misreported as illustrated sticker artwork.
+from kakao_stickers import find_stickers
+st=Image.new("RGB",(355,440),(186,206,224))
+draw=ImageDraw.Draw(st)
+for dy in (0,210):
+    draw.ellipse((88,85+dy,149,143+dy),fill=(248,248,237),outline="black",width=3)
+    draw.ellipse((91,79+dy,134,116+dy),fill=(246,168,18),outline="black",width=2)
+    draw.rounded_rectangle((91,39+dy,150,74+dy),radius=9,fill="white",outline="black",width=2)
+draw.rounded_rectangle((211,368,347,405),radius=7,fill=(254,229,0))
+sticker_events=find_stickers(st,[(211,368,136,37,"나")])
+assert len(sticker_events)==2,sticker_events
+assert all(e["description"] for e in sticker_events)
 
 print("Synthetic UI tests PASSED",flush=True)
