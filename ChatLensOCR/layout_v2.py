@@ -249,7 +249,7 @@ def _bubble_boxes(img):
             if name=="상대" and x<min(38,img.width*.10):continue # profile pictures
             if name=="나" and x+w<img.width*.48:continue
             # Disallow white holes in emoji stickers by rectangle fill ratio
-            if area/(w*h)<.56: continue
+            if area/(w*h)<.76: continue
             found.append((int(x),int(y),int(w),int(h),name))
     # one bubble per connected flat-colored surface
     return sorted(found,key=lambda v:(v[1],v[0]))
@@ -275,38 +275,62 @@ def _bubble_text(image,language,precise):
     return " ".join(lines),all_boxes,sum(sc)/max(1,len(sc))
 
 def kakao(img,language,precise):
+    from collections import Counter
+    from kakao_stickers import find_stickers
     boxes=_bubble_boxes(img)
-    results=[];raw=[];metadata=[]
-    # Names appear above the first white bubble of each group. Extract from
-    # fixed label ROI and vote across repetitions, rather than OCRing avatars
-    # and timestamps in the same large detection image.
+    stickers=find_stickers(img,boxes)
+    results=[];raw=[];metadata=[];events=[]
     candidate_names=[]
+    # Read labels above actual text bubbles, not profile images.
     previous_bottom=-100
     for x,y,w,h,kind in boxes:
-        if kind!="상대": continue
+        if kind!="상대":continue
         if y-previous_bottom>=12 and y>16:
-            name_area=img.crop((max(0,x-8),max(0,y-29),min(img.width,x+95),max(0,y-5)))
+            name_area=img.crop((max(0,x-8),max(0,y-30),min(img.width,x+95),max(1,y-5)))
             name_txt,_,_= _variants(name_area,"카카오톡",language,False)
             cleaned=re.sub(r"[^가-힣A-Za-z0-9_]","",name_txt)
-            if 2<=len(cleaned)<=12 and re.search(r"[가-힣]",cleaned):
+            if 2<=len(cleaned)<=10 and re.search(r"[가-힣]{2,}",cleaned):
                 candidate_names.append(cleaned)
         previous_bottom=y+h
-    from collections import Counter
+    # Sticker messages can be the first visible message: the sender label
+    # is usually directly ABOVE the drawn character (not in a white bubble).
+    from tess_backend import read as tesseract_read
+    for sticker in stickers:
+        x0,y0,x1,y1=sticker["box"]
+        if y0>=15:
+            roi=img.crop((52,max(0,y0-38),min(img.width,165),max(1,y0-3)))
+            roi=roi.resize((roi.width*3,roi.height*3),Image.Resampling.LANCZOS)
+            label,_,conf=tesseract_read(roi,"카카오톡",language,psm=7)
+            clean=re.sub(r"[^가-힣A-Za-z0-9_]","",label)
+            if 2<=len(clean)<=8 and re.fullmatch(r"[가-힣]{2,8}",clean) and conf>=35:
+                candidate_names.extend([clean,clean])
     nickname=Counter(candidate_names).most_common(1)[0][0] if candidate_names else "상대"
     for x,y,w,h,kind in boxes:
+        # Ignore an ordinary bubble intersecting sticker artwork.
+        if any(
+            max(0,min(x+w,z["box"][2])-max(x,z["box"][0]))*
+            max(0,min(y+h,z["box"][3])-max(y,z["box"][1])) > (w*h)*.35
+            for z in stickers
+        ):continue
         margin=7 if w>55 else 3
-        image=img.crop((x+margin,y+4,x+w-3,y+h-3))
-        if image.width<5 or image.height<5:continue
-        content,items,score=_bubble_text(image,language,precise)
+        crop=img.crop((x+margin,y+4,x+w-3,y+h-3))
+        if crop.width<5 or crop.height<5:continue
+        content,items,score=_bubble_text(crop,language,precise)
         if not content:continue
         content=_HHMM.sub("",content).strip()
         if not content:continue
         raw.extend(_offset(items,x+margin,y+4))
         who="나" if kind=="나" else nickname
-        results.append(f"{who}: {content}")
-        metadata.append({"speaker":who,"kind":"bubble","box":(x,y,x+w,y+h),"ocr_score":score})
-    if not results:
-        return generic(img,language,precise)
+        events.append((y, f"{who}: {content}",
+                       {"speaker":who,"kind":"bubble","box":(x,y,x+w,y+h),"ocr_score":score}))
+    for sticker in stickers:
+        box=sticker["box"]
+        events.append((sticker["y"],f'{nickname}: [이모티콘: {sticker["description"]}]',
+                       {"speaker":nickname,"kind":"sticker","box":box,"anchor_pixels":sticker["anchor_pixels"]}))
+    for _,content,details in sorted(events,key=lambda x:x[0]):
+        results.append(content)
+        metadata.append(details)
+    if not results:return generic(img,language,precise)
     return "카카오톡","\n".join(results),[],metadata,raw
 
 def generic(img,language,precise):
