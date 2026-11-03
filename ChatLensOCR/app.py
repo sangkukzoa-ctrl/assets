@@ -204,6 +204,10 @@ def selftest(outpath):
         if not tesspath.is_file():raise RuntimeError("Bundled Tesseract missing")
         from layout_v2 import _test_detection
         info["checks"]["pixel_layout"]=bool(_test_detection())
+        from explorer_v1 import _synthetic as explorer_synthetic
+        from colored_page import _synthetic as color_synthetic
+        info["checks"]["file_explorer_rows"]=bool(explorer_synthetic())
+        info["checks"]["colored_text_page"]=bool(color_synthetic())
         if len(icons)<40:raise RuntimeError("Job icon resources missing")
         img=Image.new("RGB",(800,160),"white")
         font_file=Path("C:/Windows/Fonts/arial.ttf")
@@ -257,7 +261,7 @@ def gui():
     import tkinter as tk
     from tkinter import ttk, filedialog, messagebox, simpledialog
     from PIL import Image, ImageGrab, ImageTk, ImageDraw
-    root=tk.Tk();root.title("ChatLens OCR v0.3.1  |  파판14 · 카카오톡 · 범용")
+    root=tk.Tk();root.title("ChatLens OCR v0.3.2  |  파판14 · 카카오톡 · 범용")
     root.geometry("1380x845");root.minsize(1000,625);root.configure(bg="#141c26")
     style=ttk.Style(root);style.theme_use("clam")
     style.configure("TFrame",background="#141c26")
@@ -311,7 +315,7 @@ def gui():
         worker[0]=threading.Thread(target=compute,daemon=True)
         worker[0].start();status.set("OCR 분석 중...")
     button(bar,"🔎 분석",lambda:run(False));button(bar,"전체 분석",lambda:run(True))
-    label(bar,"모드");ttk.Combobox(bar,textvariable=mode,values=["자동","파판14","카카오톡","범용"],width=9,state="readonly").pack(side="left")
+    label(bar,"모드");ttk.Combobox(bar,textvariable=mode,values=["자동","파판14","카카오톡","파일 탐색기","범용"],width=9,state="readonly").pack(side="left")
     label(bar,"언어");ttk.Combobox(bar,textvariable=language,values=["한국어","영어","일본어"],width=7,state="readonly").pack(side="left")
     label(bar,"기준 서버");ttk.Entry(bar,textvariable=world,width=9).pack(side="left")
     ttk.Checkbutton(bar,text="정밀 2회 인식",variable=precise).pack(side="left",padx=9)
