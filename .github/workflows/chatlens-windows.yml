@@ -1,7 +1,7 @@
 name: ChatLens OCR Windows standalone
 on:
   push:
-    branches: [chatlens-v032-quality]
+    branches: [chatlens-v033-sticker-quality]
     paths: ['ChatLensOCR/**', '.github/workflows/chatlens-windows.yml']
   workflow_dispatch:
 permissions:
@@ -73,30 +73,30 @@ jobs:
         run: python ChatLensOCR/test_layout_v2.py
       - name: Build single Windows GUI executable
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name ChatLensOCR_v0.3.2 --collect-all rapidocr --collect-all onnxruntime --collect-all cv2 --hidden-import=pytesseract --hidden-import=explorer_v1 --hidden-import=colored_page --hidden-import=pvp_v2 --add-data "$env:ProgramFiles\Tesseract-OCR;tesseract" --add-data "ChatLensOCR/assets;assets" --add-data "ChatLensOCR/models;models" --hidden-import=rapidocr --hidden-import=onnxruntime ChatLensOCR/app.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name ChatLensOCR_v0.3.3 --collect-all rapidocr --collect-all onnxruntime --collect-all cv2 --hidden-import=pytesseract --hidden-import=explorer_v1 --hidden-import=colored_page --hidden-import=pvp_v2 --hidden-import=kakao_stickers --add-data "$env:ProgramFiles\Tesseract-OCR;tesseract" --add-data "ChatLensOCR/assets;assets" --add-data "ChatLensOCR/models;models" --hidden-import=rapidocr --hidden-import=onnxruntime ChatLensOCR/app.py
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
       - name: Verify frozen executable with network blocked
         run: |
-          $p = Start-Process -FilePath (Resolve-Path ".\dist\ChatLensOCR_v0.3.2.exe") -ArgumentList "--self-test", (Join-Path $PWD "selftest.json") -Wait -PassThru
+          $p = Start-Process -FilePath (Resolve-Path ".\dist\ChatLensOCR_v0.3.3.exe") -ArgumentList "--self-test", (Join-Path $PWD "selftest.json") -Wait -PassThru
           if (Test-Path selftest.json) { Get-Content selftest.json }
           if ($p.ExitCode -ne 0) { throw "OCR frozen selftest failed: $($p.ExitCode)" }
           Get-Content selftest.json
       - name: Create and validate release archive
         run: |
-          $exe = (Resolve-Path "dist/ChatLensOCR_v0.3.2.exe").Path
-          $zip = "dist/ChatLensOCR_v0.3.2_Windows_x64.zip"
+          $exe = (Resolve-Path "dist/ChatLensOCR_v0.3.3.exe").Path
+          $zip = "dist/ChatLensOCR_v0.3.3_Windows_x64.zip"
           $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           if ((Get-Item $exe).Length -lt 100MB) { throw "Executable unexpectedly small" }
           Compress-Archive -Path $exe -DestinationPath $zip -CompressionLevel Optimal -Force
           $check = Join-Path $env:RUNNER_TEMP "ChatLensVerify"
           New-Item -ItemType Directory -Force -Path $check | Out-Null
           Expand-Archive -Path $zip -DestinationPath $check -Force
-          $extracted = (Get-FileHash (Join-Path $check "ChatLensOCR_v0.3.2.exe") -Algorithm SHA256).Hash.ToLowerInvariant()
+          $extracted = (Get-FileHash (Join-Path $check "ChatLensOCR_v0.3.3.exe") -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($sha -ne $extracted) { throw "Archive checksum mismatch" }
           $zipSha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
           @(
-            "$sha  ChatLensOCR_v0.3.2.exe"
-            "$zipSha  ChatLensOCR_v0.3.2_Windows_x64.zip"
+            "$sha  ChatLensOCR_v0.3.3.exe"
+            "$zipSha  ChatLensOCR_v0.3.3_Windows_x64.zip"
           ) | Set-Content "dist/SHA256SUMS.txt" -Encoding ascii
           Get-Content "dist/SHA256SUMS.txt"
           Write-Host "EXE bytes: $((Get-Item $exe).Length)"
@@ -106,25 +106,25 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag="chatlens-v0.3.2"
-          $assets=@("dist/ChatLensOCR_v0.3.2.exe","dist/ChatLensOCR_v0.3.2_Windows_x64.zip","dist/SHA256SUMS.txt","selftest.json")
-          gh release create $tag $assets --title "ChatLens OCR v0.3.2 Windows x64" --target "$env:GITHUB_SHA" --notes "v0.3.2: Screen-specific OCR for Windows Explorer file rows (name/date/type/size) and red checkout notices; recover FFXIV speaker tags from damaged timestamp brackets. Verifiable offline PyInstaller executable with version in EXE filename. Includes RapidOCR and Korean Tesseract."
+          $tag="chatlens-v0.3.3"
+          $assets=@("dist/ChatLensOCR_v0.3.3.exe","dist/ChatLensOCR_v0.3.3_Windows_x64.zip","dist/SHA256SUMS.txt","selftest.json")
+          gh release create $tag $assets --title "ChatLens OCR v0.3.3 Windows x64" --target "$env:GITHUB_SHA" --notes "v0.3.3: New offline KakaoTalk emoji/sticker shape detection, chronological sticker events, and persistent user-taught sticker descriptions. Explorer column coordinates fixed for 13-image regression set, 3x Korean/English metadata OCR. Includes RapidOCR + Korean Tesseract; versioned standalone EXE with SHA256 roundtrip validation."
           if ($LASTEXITCODE -ne 0) { throw "Release creation failed" }
           $verify=Join-Path $env:RUNNER_TEMP "release_download"
           New-Item -ItemType Directory -Path $verify -Force | Out-Null
-          gh release download $tag --pattern "ChatLensOCR_v0.3.2.exe" --dir $verify
+          gh release download $tag --pattern "ChatLensOCR_v0.3.3.exe" --dir $verify
           if ($LASTEXITCODE -ne 0) { throw "Release EXE redownload failed" }
-          $got = (Get-FileHash (Join-Path $verify "ChatLensOCR_v0.3.2.exe") -Algorithm SHA256).Hash.ToLowerInvariant()
-          $want = (Get-FileHash "dist/ChatLensOCR_v0.3.2.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
+          $got = (Get-FileHash (Join-Path $verify "ChatLensOCR_v0.3.3.exe") -Algorithm SHA256).Hash.ToLowerInvariant()
+          $want = (Get-FileHash "dist/ChatLensOCR_v0.3.3.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($got -ne $want) { throw "GitHub release asset digest mismatch" }
           Write-Host "Release round-trip SHA256 verified: $got"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ChatLensOCR-v0.3.2-Windows-x64
+          name: ChatLensOCR-v0.3.3-Windows-x64
           path: |
-            dist/ChatLensOCR_v0.3.2.exe
-            dist/ChatLensOCR_v0.3.2_Windows_x64.zip
+            dist/ChatLensOCR_v0.3.3.exe
+            dist/ChatLensOCR_v0.3.3_Windows_x64.zip
             dist/SHA256SUMS.txt
             selftest.json
           if-no-files-found: warn
