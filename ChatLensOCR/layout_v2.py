@@ -175,10 +175,14 @@ def ffxiv(img, language, precise, world, icons):
         raw.extend(_offset(items,0,top))
         value=re.sub(r"\s+([:：>〉）\]])",r"\1",value)
         match=_FFXIV.match(value)
-        if match is None and re.match(r"^\\s*[\\[［【]\\s*\\d{1,2}\\s*[:：]\\s*\\d{2}",value):
-            candidate=_FFXIV_LOOSE.search(value)
-            if candidate and not re.fullmatch(r"(?i)se[.．]?[0-9]{1,3}",candidate.group(1).strip()):
-                match=candidate
+        # An intact <Hangul name> is stronger evidence of a chat speaker than
+        # the timestamp, whose closing bracket OCR often turns into "1".
+        if match is None:
+            candidate=re.search(r"[<〈＜]\s*([가-힣A-Za-z0-9_＆&＠@ ]{2,32})\s*[>〉＞]\s*(.*)",value)
+            if candidate:
+                nick=candidate.group(1).strip()
+                if re.search(r"[가-힣]",nick) and not re.search(r"(?i)^se[.．]?\d",nick):
+                    match=candidate
         if match:
             nickname=match.group(1).strip()
             message=match.group(2).strip()
@@ -336,6 +340,22 @@ def generic(img,language,precise):
 
 
 def analyze(img,mode,language,precise,world,icons):
+    if mode in ("자동","파일 탐색기"):
+        from explorer_v1 import analyze as explorer_analyze
+        result=explorer_analyze(img,language)
+        if result is not None:
+            detected,output,hits,metadata,lines=result
+            from app import merge_rows
+            return detected,output,hits,metadata,merge_rows(lines),lines
+        if mode=="파일 탐색기":
+            mode="범용"
+    if mode in ("자동","범용"):
+        from colored_page import analyze as colored_analyze
+        result=colored_analyze(img,language,precise)
+        if result is not None:
+            detected,output,hits,metadata,lines=result
+            from app import merge_rows
+            return detected,output,hits,metadata,merge_rows(lines),lines
     if mode=="자동":mode=detect_mode(img)
     if mode=="파판14":
         result=ffxiv(img,language,precise,world,icons)
