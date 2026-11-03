@@ -261,7 +261,7 @@ def gui():
     import tkinter as tk
     from tkinter import ttk, filedialog, messagebox, simpledialog
     from PIL import Image, ImageGrab, ImageTk, ImageDraw
-    root=tk.Tk();root.title("ChatLens OCR v0.3.2  |  파판14 · 카카오톡 · 범용")
+    root=tk.Tk();root.title("ChatLens OCR v0.3.3  |  파판14 · 카카오톡 · 범용")
     root.geometry("1380x845");root.minsize(1000,625);root.configure(bg="#141c26")
     style=ttk.Style(root);style.theme_use("clam")
     style.configure("TFrame",background="#141c26")
@@ -334,8 +334,8 @@ def gui():
         detail=simpledialog.askstring("스티커 설명",describe_sticker(active[0],selection[0])+"\n설명을 수정해 저장:")
         if detail:
             d=DATA/"sticker_samples";d.mkdir(parents=True,exist_ok=True)
-            img=active[0].crop(selection[0]);img.save(d/(uuid.uuid4().hex[:8]+".png"))
-            with (d/"descriptions.jsonl").open("a",encoding="utf-8") as f:f.write(json.dumps({"description":detail},ensure_ascii=False)+"\n")
+            img=active[0].crop(selection[0]);sample_file=uuid.uuid4().hex[:12]+".png";img.save(d/sample_file)
+            with (d/"descriptions.jsonl").open("a",encoding="utf-8") as f:f.write(json.dumps({"filename":sample_file,"description":detail},ensure_ascii=False)+"\n")
             status.set("스티커 설명 등록: "+detail)
     button(tools,"스티커 설명 등록",teach_sticker)
     box=ttk.Panedwindow(root,orient="horizontal");box.pack(fill="both",expand=True,padx=12,pady=(0,7))
