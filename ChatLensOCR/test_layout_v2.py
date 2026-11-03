@@ -80,4 +80,15 @@ systemimg=Image.new("RGB",(463,26),(13,13,15))
 fill("B급 순결한 땅이 유효 상태입니다",systemimg,85,4,(240,235,235))
 assert not is_pvp_row(systemimg)
 
+# Explorer and red shopping page cannot be treated as generic prose.
+from explorer_v1 import _synthetic as explorer_synthetic, _measure as explorer_measure
+from colored_page import _synthetic as colored_synthetic
+assert explorer_synthetic()
+assert colored_synthetic()
+# Broken timestamp close brackets must not convert a valid speaker into system.
+chat="[1:201[서초링 21<연일야> 부모님을 지킬 수 잇는 타자실력이잔아"
+m=re.search(r"[<〈＜]\s*([가-힣A-Za-z0-9_＆&＠@ ]{2,32})\s*[>〉＞]\s*(.*)",chat)
+assert m and m.group(1)=="연일야" and "부모님" in m.group(2)
+print("Explorer 40-row geometry and 5 red-text lines PASSED",flush=True)
+
 print("Synthetic UI tests PASSED",flush=True)
