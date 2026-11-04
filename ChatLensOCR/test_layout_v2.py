@@ -177,4 +177,20 @@ for name in ("app.py","kakao_names_v036.py","explorer_v1.py","layout_v2.py"):
     ast.parse((PathCheck(__file__).parent/name).read_text(encoding="utf-8"))
 print("v0.3.6 avatar names and Korean dialogue gate PASSED",flush=True)
 
+# v0.3.7 independent game-screen and photographed-document regressions.
+from ffxiv_combat_v037 import _synthetic as combat_test,rows as combat_rows
+from ffxiv_scoreboard_v037 import _synthetic as scoreboard_test
+from multicolumn_v037 import _synthetic as multicolumn_test
+from layout_v2 import _novice_chat,_looks_system_message
+assert combat_test(), "Timestamp-free battle log line segmentation failed"
+assert scoreboard_test(), "Frontline scoreboard cells/geometry failed"
+assert multicolumn_test(), "Photographed 4-column guide classification failed"
+assert _looks_system_message("[0:02] 흑와단에 투쟁심 상승 5 상태가 된 플레이어가 있습니다!")
+assert _looks_system_message("0:03] 쌍사당이 5급 순결한 땅 11과 계약했습니다!")
+novice=_novice_chat("[17:11][초보자] ♜ 베나나 🦋 초코보: 헐 맛있겠다","모그리")
+assert novice=="(직업미확인)베나나&초코보: 헐 맛있겠다",novice
+for module in ("ffxiv_combat_v037.py","ffxiv_scoreboard_v037.py","multicolumn_v037.py"):
+    ast.parse((PathCheck(__file__).parent/module).read_text(encoding="utf-8"))
+print("v0.3.7 scoreboard + 17-row combat + multi-column + novice network PASSED",flush=True)
+
 print("Synthetic UI tests PASSED",flush=True)
