@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from PIL import Image,ImageDraw,ImageFont
 sys.path.insert(0,str(Path(__file__).parent))
-from layout_v2 import _fixed_lines,_bubble_boxes,detect_mode,analyze
+from layout_v2 import _fixed_lines,_bubble_boxes,detect_mode,analyze,_prefer_korean_ffxiv_message
 from tess_backend import _assemble
 from kakao_stickers import _synthetic as sticker_synthetic
 from explorer_v1 import _batch_metadata
@@ -109,5 +109,15 @@ draw.rounded_rectangle((211,368,347,405),radius=7,fill=(254,229,0))
 sticker_events=find_stickers(st,[(211,368,136,37,"나")])
 assert len(sticker_events)==2,sticker_events
 assert all(e["description"] for e in sticker_events)
+
+# Mixed-model FF14 recognition can damage Korean prose while keeping the
+# nickname correct; substitute dialogue only, never the visible speaker.
+a="[1:22][링크셸]<현시완> 전장 같이 가면 중용으로 BEES 해줄게"
+b="[1:22][링크셸]<연시완> 전장 같이 가면 중용으로 부둥부둥 해줄게"
+result=_prefer_korean_ffxiv_message(a,b,85)
+assert "<현시완>" in result and "부둥부둥" in result,result
+assert _prefer_korean_ffxiv_message(a,b,40)==a
+from kakao_korean import _synthetic as korean_bubble_test
+assert korean_bubble_test()
 
 print("Synthetic UI tests PASSED",flush=True)
