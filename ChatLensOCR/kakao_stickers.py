@@ -34,6 +34,33 @@ def _describe(crop):
         return "노란색과 주황색 부분이 있는 캐릭터가 그려진 스티커"
     return "말풍선과 함께 표시된 캐릭터 그림 스티커"
 
+def _read_speech(image,box):
+    """OCR the small balloon above a sticker, not the illustration beneath it."""
+    try:
+        from tess_backend import read
+        left,top,right,bottom=box
+        # Sticker text sits above the orange illustration in a narrow bubble.
+        x0=max(0,left+29)
+        x1=min(image.width,right-21)
+        y0=min(image.height,top+9)
+        y1=min(image.height,top+39)
+        if x1-x0<24 or y1-y0<14:return ""
+        roi=image.crop((x0,y0,x1,y1))
+        scale=4
+        big=roi.resize((roi.width*scale,roi.height*scale),Image.Resampling.LANCZOS)
+        text,boxes,confidence=read(big,"카카오톡","한국어",psm=7,tess_lang="kor")
+        clean=" ".join(text.split()).strip()
+        if confidence>=40 and len(re.findall(r"[가-힣]",clean))>=2 and len(clean)<=18:
+            return clean
+        from app import recognize
+        items=recognize(big,"한국어",False)
+        candidate=" ".join(item["text"] for item in items).strip()
+        if len(re.findall(r"[가-힣]",candidate))>=2 and len(candidate)<=18:
+            return candidate
+    except Exception:
+        pass
+    return ""
+
 def _signature(im):
     # Perceptual downsample for previously taught stickers; ignore scale.
     a=np.asarray(im.convert("RGB").resize((48,48),Image.Resampling.BILINEAR),dtype=np.float32)/255.0
@@ -96,7 +123,8 @@ def find_stickers(image,bubbles=()):
         box=(x1,top,x2,bottom)
         crop=image.crop(box)
         description=_bank_match(crop) or _describe(crop)
-        output.append({"box":box,"description":description,"y":top,"anchor_pixels":len(xs)})
+        speech=_read_speech(image,box)
+        output.append({"box":box,"description":description,"speech":speech,"y":top,"anchor_pixels":len(xs)})
     return output
 
 def _synthetic():
