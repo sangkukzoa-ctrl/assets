@@ -17,7 +17,7 @@ def _signals(image):
     r,g,b=near[:,:,0],near[:,:,1],near[:,:,2]
     pink=(r>145)&(r-g>45)&(b>90)&(b-g>25)
     cyan=(b-r>30)&(b>130)&(g>110)
-    if pink.sum()<350 or cyan.sum()<550:return None
+    if pink.sum()<180 or cyan.sum()<220:return None
     return a
 
 def _runs(rows,gap=1):
