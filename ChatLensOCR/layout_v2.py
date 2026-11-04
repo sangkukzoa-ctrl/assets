@@ -255,7 +255,10 @@ def _bubble_boxes(img):
     return sorted(found,key=lambda v:(v[1],v[0]))
 
 def _bubble_text(image,language,precise):
-    """Segment long chat balloons by actual dark-ink rows before OCR."""
+    """Prefer Korean-only OCR of the entire speech bubble; fall back to row OCR."""
+    from kakao_korean import read_bubble
+    result=read_bubble(image,language,precise)
+    if result is not None:return result
     a=np.asarray(image.convert("RGB"))
     gray=cv2.cvtColor(a,cv2.COLOR_RGB2GRAY)
     ink=(gray<155)
