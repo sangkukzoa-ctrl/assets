@@ -49,6 +49,25 @@ def _flatten_ocr(img, language="한국어", precise=True):
     rows=merge_rows(items)
     return " ".join(row["text"].strip() for row in rows if row["text"].strip()), items
 
+def _prefer_korean_ffxiv_message(mixed, korean, confidence):
+    """Protect the existing nickname, substitute only a better Hangul dialogue.
+
+    FF14 overlays place <speaker> and prose on the same row. Korean-only
+    Tesseract may improve the prose but damage the speaker name; preserving
+    the original header prevents that regression.
+    """
+    if confidence<55:return mixed
+    if ">" not in mixed or ">" not in korean:return mixed
+    head,body=mixed.split(">",1)
+    _,candidate=korean.split(">",1)
+    if not re.search(r"[가-힣]{2,}",head):return mixed
+    current_hangul=len(re.findall(r"[가-힣]",body))
+    better_hangul=len(re.findall(r"[가-힣]",candidate))
+    alien=re.findall(r"(?<![<.])[A-Za-z]{3,}",body)
+    if not alien or better_hangul<current_hangul+2:return mixed
+    if len(candidate.strip())<len(body.strip())*.55:return mixed
+    return head+">"+candidate
+
 def _variants(img,mode, language, precise):
     from app import recognize, merge_rows
     from tess_backend import read as tesseract_read
@@ -72,6 +91,9 @@ def _variants(img,mode, language, precise):
         # Both engines return coordinates in the enlarged candidate.
         # Normalize immediately to the original cropped image's pixel grid.
         tt,tboxes,tconf=tesseract_read(candidate,mode,language)
+        if mode=="파판14" and language=="한국어" and tt:
+            korean,_,kc=tesseract_read(candidate,mode,language,psm=6,tess_lang="kor")
+            tt=_prefer_korean_ffxiv_message(tt,korean,kc)
         tboxes=_offset(tboxes,0,0,scale)
         if tt and tconf>=78 and (language!="한국어" or len(re.findall(r"[가-힣]",tt))>=2):
             return tt,tboxes,tconf/20
