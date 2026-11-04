@@ -157,4 +157,24 @@ with tempfile.TemporaryDirectory() as folder:
         assert captions==["사용자 등록 A","사용자 등록 B"],(zoom,detected)
 print("Registered sticker captions and monochrome shape detection PASSED",flush=True)
 
+# v0.3.6 regressions: avatar anchored names, Korean-language FF14 dialogue,
+# repeated Explorer metadata, icon artefacts in file names.
+from kakao_names_v036 import _synthetic as avatar_names_test
+from layout_v2 import _accept_korean_dialogue
+assert avatar_names_test()
+assert _accept_korean_dialogue(
+    "전장 같이 가면 중용으로 BEES 해줄게",
+    "전장 같이 가면 중용으로 부둥부둥 해줄게",90)
+assert not _accept_korean_dialogue(
+    "오늘 RandomTickEvent 테스트",
+    "오늘 랜덤 이벤트 테스트",90)
+assert not _accept_korean_dialogue(
+    "전장 같이 가면 중용으로 BEES 해줄게",
+    "전장 가면 부둥",35)
+import ast
+from pathlib import Path as PathCheck
+for name in ("app.py","kakao_names_v036.py","explorer_v1.py","layout_v2.py"):
+    ast.parse((PathCheck(__file__).parent/name).read_text(encoding="utf-8"))
+print("v0.3.6 avatar names and Korean dialogue gate PASSED",flush=True)
+
 print("Synthetic UI tests PASSED",flush=True)
