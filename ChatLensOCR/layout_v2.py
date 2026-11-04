@@ -154,6 +154,35 @@ def _pvp_color_read(crop,language):
     text,boxes,conf=_read(prep,"파판14",language,psm=6)
     return text,_offset(boxes,0,0,3),conf
 
+def _accept_korean_dialogue(original,candidate,confidence):
+    """Replace only suspicious dialogue, never the speaker/header.
+    A common failure is RapidOCR reading Hangul as 'BEES' or 'AES'.
+    Genuine English messages must survive untouched.
+    """
+    if confidence<56:return False
+    old_h=len(re.findall(r"[가-힣]",original))
+    new_h=len(re.findall(r"[가-힣]",candidate))
+    old_latin=len(re.findall(r"[A-Za-z]{3,}",original))
+    new_latin=len(re.findall(r"[A-Za-z]{3,}",candidate))
+    if old_h<4 or old_latin==0 or new_latin>=old_latin:return False
+    if new_h<old_h+2:return False
+    if not candidate.strip() or len(candidate)<len(original)*.70:return False
+    return True
+
+def _recheck_ffxiv_dialogue(crop,original,language):
+    if language!="한국어":return original
+    if len(re.findall(r"[가-힣]",original))<4:return original
+    if not re.search(r"[A-Za-z]{3,}",original):return original
+    from tess_backend import read
+    big=crop.resize((crop.width*3,crop.height*3),Image.Resampling.LANCZOS)
+    native,_,conf=read(big,"파판14","한국어",psm=7,tess_lang="kor")
+    p=re.search(r"[>〉＞]",native)
+    if not p:return original
+    candidate=native[p.end():].strip()
+    if _accept_korean_dialogue(original,candidate,conf):
+        return candidate
+    return original
+
 def ffxiv(img, language, precise, world, icons):
     lines=_fixed_lines(img)
     out=[]; raw=[]; metadata=[]; hits=[]
@@ -208,6 +237,7 @@ def ffxiv(img, language, precise, world, icons):
         if match:
             nickname=match.group(1).strip()
             message=match.group(2).strip()
+            message=_recheck_ffxiv_dialogue(crop,message,language)
             # RapidOCR can insert spaces between individual Hangul syllables;
             # keep actual spaces in dialogue, remove only in the header name.
             nickname=re.sub(r"\s+","",nickname)
@@ -330,6 +360,9 @@ def kakao(img,language,precise):
             if 2<=len(clean)<=8 and re.fullmatch(r"[가-힣]{2,8}",clean) and conf>=35:
                 candidate_names.extend([clean,clean])
     nickname=Counter(candidate_names).most_common(1)[0][0] if candidate_names else "상대"
+    # Repeated avatar/name labels are independent of OCR bubble geometry.
+    from kakao_names_v036 import resolve as resolve_sender
+    nickname=resolve_sender(img,nickname)
     for x,y,w,h,kind in boxes:
         # Ignore an ordinary bubble intersecting sticker artwork.
         if any(
