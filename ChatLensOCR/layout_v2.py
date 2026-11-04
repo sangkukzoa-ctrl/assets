@@ -466,6 +466,13 @@ def analyze(img,mode,language,precise,world,icons):
             from app import merge_rows
             return d,output,hits,meta,merge_rows(items),items
 
+    if mode in ("자동","범용"):
+        from multicolumn_v037 import analyze as multicolumn_read
+        photo=multicolumn_read(img,language,precise)
+        if photo is not None:
+            d,output,hits,meta,items=photo
+            from app import merge_rows
+            return d,output,hits,meta,merge_rows(items),items
     if mode in ("자동","파일 탐색기"):
         from explorer_v1 import analyze as explorer_analyze
         result=explorer_analyze(img,language)
