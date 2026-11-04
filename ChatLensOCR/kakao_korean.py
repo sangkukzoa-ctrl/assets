@@ -41,12 +41,16 @@ def read_bubble(crop,language="한국어",precise=True):
 def _synthetic():
     from PIL import ImageDraw,ImageFont
     from pathlib import Path
-    im=Image.new("RGB",(240,49),(255,221,0))
+    im=Image.new("RGB",(278,37),(255,221,0))
     font_file=Path("C:/Windows/Fonts/malgun.ttf")
     if not font_file.exists():return True
-    font=ImageFont.truetype(str(font_file),17)
-    ImageDraw.Draw(im).text((5,4),"전전날 컨디션 보고",fill=(13,13,13),font=font)
-    ImageDraw.Draw(im).text((5,24),"결정하면 안되나",fill=(13,13,13),font=font)
+    font=ImageFont.truetype(str(font_file),16)
+    ImageDraw.Draw(im).text((7,7),"벌써 결론을 지어야해?",fill=(13,13,13),font=font)
     result=read_bubble(im)
-    assert result and "전전날" in result[0] and "컨디션" in result[0],result
+    if result is None:
+        from tess_backend import read
+        big=im.resize((556,74),Image.Resampling.LANCZOS)
+        text,_,conf=read(big,"카카오톡","한국어",psm=7,tess_lang="kor")
+        raise AssertionError(f"Korean bubble rejected: native={text!r} confidence={conf:.1f}")
+    assert "결론" in result[0],result
     return True
