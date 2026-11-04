@@ -57,7 +57,7 @@ def detect_mode(img):
     sample=rgb[int(h*.1):int(h*.9):max(1,h//120),::max(1,w//120)]
     bg=np.median(sample.reshape(-1,3),axis=0)
     yellow=((rgb[:,:,0]>225)&(rgb[:,:,1]>165)&(rgb[:,:,2]<145)).sum()
-    if yellow>140 and (bg[2]>bg[0]+10 or (rgb[:,:,:3].mean(axis=2)>220).mean()>.45):
+    if yellow>140 and bg[2]>bg[0]+12 and bg[1]>bg[0]+8 and bg[2]<245:
         return "카카오톡"
     # FFXIV chat window: mostly black/dark with dense 1-2 px high glyphs
     # and timestamps at the first few columns.
@@ -507,5 +507,8 @@ def _test_detection():
     assert detect_mode(f)=="파판14"
     assert detect_mode(k)=="카카오톡"
     assert detect_mode(g)=="범용"
+    bright=Image.new("RGB",(450,260),(240,239,239))
+    ImageDraw.Draw(bright).rectangle((120,40,260,60),fill=(251,200,30))
+    assert detect_mode(bright)=="범용", "Bright document with yellow text is not Kakao"
     assert len(_bubble_boxes(k))==2
     return True
