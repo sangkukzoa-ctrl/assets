@@ -24,9 +24,34 @@ def _runs(mask, min_length=2, gap=2):
     if last-start+1>=min_length:groups.append((start,last+1))
     return groups
 
+def _novice_chat(value,world):
+    """FFXIV novice-network messages use 'name WORLD: message', not <name>."""
+    m=re.search(r"[\[［【]\s*초보자\s*[\]］】]\s*(.*)$",value)
+    if not m:return None
+    tail=m.group(1)
+    m2=re.search(r"(.{2,64}?)[:：]\s*(.+)$",tail)
+    if not m2:return None
+    pre=m2.group(1).strip()
+    msg=m2.group(2).strip()
+    pieces=re.findall(r"[가-힣A-Za-z]{2,20}",pre)
+    if not pieces or not msg:return None
+    if len(pieces)>=2:
+        name,server=pieces[-2:]
+        return "(직업미확인)"+name+("&"+server if server!=world else "")+": "+msg
+    return "(직업미확인)"+pieces[-1]+": "+msg
+
+def _looks_system_message(value):
+    if re.search(r"투쟁심\s*상승|쌍사당|흑와단|불멸대|순결한\s*땅|알라그\s*석판|무효\s*상태|보유\s*한도|스크린샷|저장했",value):
+        return True
+    return bool(re.match(r"^\s*[［\[\(]?\s*\d{1,2}\s*[:：]\s*\d{2}\s*[\]］\)]",value))
+
 def detect_mode(img):
     rgb=np.asarray(img.convert("RGB"))
     h,w=rgb.shape[:2]
+    # Specialized game formats take precedence over Kakao yellow pixels.
+    from ffxiv_scoreboard_v037 import is_scoreboard
+    from ffxiv_combat_v037 import is_combat
+    if is_scoreboard(img) or is_combat(img):return "파판14"
     # KakaoTalk default desktop/mobile export theme: blue-gray background,
     # white and yellow rectangular bubbles. Pure pixel test, no OCR needed.
     sample=rgb[int(h*.1):int(h*.9):max(1,h//120),::max(1,w//120)]
@@ -225,6 +250,11 @@ def ffxiv(img, language, precise, world, icons):
                 score=alt_conf/20
         raw.extend(_offset(items,0,top))
         value=re.sub(r"\s+([:：>〉）\]])",r"\1",value)
+        novice=_novice_chat(value,world)
+        if novice:
+            out.append(novice)
+            metadata.append({"type":"novice_chat","y":top})
+            continue
         match=_FFXIV.match(value)
         # An intact <Hangul name> is stronger evidence of a chat speaker than
         # the timestamp, whose closing bracket OCR often turns into "1".
@@ -275,7 +305,7 @@ def ffxiv(img, language, precise, world, icons):
                     if icon:hits.append((icon,job))
                 else:out.append("[원문] "+value)
             else:out.append("[원문] "+value)
-        elif re.match(r"^\s*[\[［【]\s*\d{1,2}\s*[:：]\s*\d{2}",value):
+        elif _looks_system_message(value):
             out.append("[시스템] "+value)
         elif re.search(r"스크린샷|저장했|Screenshot",value):
             out.append("[시스템] "+value)
@@ -426,6 +456,16 @@ def generic(img,language,precise):
 
 
 def analyze(img,mode,language,precise,world,icons):
+    if mode in ("자동","파판14"):
+        from ffxiv_scoreboard_v037 import analyze as scoreboard_read
+        from ffxiv_combat_v037 import analyze as combat_read
+        special=scoreboard_read(img,language)
+        if special is None:special=combat_read(img,language,precise)
+        if special is not None:
+            d,output,hits,meta,items=special
+            from app import merge_rows
+            return d,output,hits,meta,merge_rows(items),items
+
     if mode in ("자동","파일 탐색기"):
         from explorer_v1 import analyze as explorer_analyze
         result=explorer_analyze(img,language)
