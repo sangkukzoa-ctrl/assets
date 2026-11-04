@@ -30,7 +30,7 @@ def _assemble(words):
         prev=w
     return "".join(pieces)
 
-def read(image,mode,language,psm=None):
+def read(image,mode,language,psm=None,tess_lang=None):
     try:
         import os
         import pytesseract
@@ -41,7 +41,7 @@ def read(image,mode,language,psm=None):
         if not exe.is_file() or not data.is_dir():return "",[],0.
         pytesseract.pytesseract.tesseract_cmd=str(exe)
         os.environ["TESSDATA_PREFIX"]=str(data)
-        lang="kor+eng" if language=="한국어" else "jpn+eng" if language=="일본어" else "eng"
+        lang=tess_lang or ("kor+eng" if language=="한국어" else "jpn+eng" if language=="일본어" else "eng")
         if psm is None:
             psm=6 if mode=="파판14" else 7 if image.height<52 else 6
         d=pytesseract.image_to_data(image,lang=lang,config=f"--psm {psm}",output_type=Output.DICT,timeout=20)
