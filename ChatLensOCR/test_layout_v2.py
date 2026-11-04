@@ -120,4 +120,41 @@ assert _prefer_korean_ffxiv_message(a,b,40)==a
 from kakao_korean import _synthetic as korean_bubble_test
 assert korean_bubble_test()
 
+# v0.3.5: white/black cartoon stickers must be detected without orange.
+# User-registered descriptions must survive screenshot scaling and coexist
+# with ordinary yellow chat bubbles. All test drawings are synthetic.
+import tempfile,json
+from sticker_match_v035 import _synthetic as monochrome_test,find as match_stickers
+assert monochrome_test()
+with tempfile.TemporaryDirectory() as folder:
+    from pathlib import Path as _Path
+    root=_Path(folder)
+    scene=Image.new("RGB",(355,470),(186,206,224))
+    d=ImageDraw.Draw(scene)
+    d.rounded_rectangle((65,70,146,100),radius=8,fill="white",outline="black",width=2)
+    d.text((80,77),"No",fill="black")
+    d.ellipse((81,110,155,175),fill="white",outline="black",width=3)
+    d.ellipse((87,109,137,146),fill="#f6a911",outline="black",width=2)
+    d.ellipse((68,260,134,337),fill="white",outline="black",width=4)
+    d.ellipse((115,282,167,346),fill="white",outline="black",width=4)
+    d.line((83,305,150,307),fill="black",width=5)
+    d.line((92,277,101,334),fill="black",width=4)
+    d.rounded_rectangle((208,390,341,425),radius=5,fill="#ffeb00")
+    scene.crop((61,67,161,180)).save(root/"one.png")
+    scene.crop((63,255,173,352)).save(root/"two.png")
+    records=[{"filename":"one.png","description":"사용자 등록 A"},
+             {"filename":"two.png","description":"사용자 등록 B"}]
+    (root/"descriptions.jsonl").write_text(
+        "\n".join(json.dumps(item,ensure_ascii=False) for item in records),
+        encoding="utf-8")
+    for zoom in (.8,1.,1.25):
+        scaled=scene.resize((round(scene.width*zoom),round(scene.height*zoom)),
+                            Image.Resampling.BILINEAR)
+        bubble=(round(208*zoom),round(390*zoom),
+                round(133*zoom),round(35*zoom),"나")
+        detected=match_stickers(scaled,[bubble],folder=root)
+        captions=[item.get("description") for item in detected]
+        assert captions==["사용자 등록 A","사용자 등록 B"],(zoom,detected)
+print("Registered sticker captions and monochrome shape detection PASSED",flush=True)
+
 print("Synthetic UI tests PASSED",flush=True)
