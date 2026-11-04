@@ -96,36 +96,18 @@ def _bank_match(crop):
     return None
 
 def find_stickers(image,bubbles=()):
-    arr=np.asarray(image.convert("RGB")).astype(np.int16)
-    h,w=arr.shape[:2]
-    if w<200 or h<100:return []
-    r,g,b=arr[:,:,0],arr[:,:,1],arr[:,:,2]
-    # Saturated orange hair/tail is an anchor, not a claim about which
-    # character appears. The larger sticker silhouette is expanded around it.
-    art=(r>170)&(g>90)&(b<145)&((r-g)>47)&((g-b)>35)
-    art[:,:max(45,int(w*.14))]=False
-    art[:,min(175,int(w*.53)):]=False
-    # Ignore flat-color message bubbles, whose antialiased glyphs otherwise
-    # resemble orange sticker pixels on yellow surfaces.
-    for x,y,bw,bh,_ in bubbles:
-        if bw>=20:
-            art[max(0,y-2):min(h,y+bh+2),max(0,x-2):min(w,x+bw+2)]=False
-    counts=art.sum(axis=1)
-    output=[]
-    for y0,y1 in _groups(np.flatnonzero(counts>=3)):
-        region=art[y0:y1+1]
-        ys,xs=np.nonzero(region)
-        if len(xs)<260 or y1-y0<24:continue
-        min_x=int(xs.min());max_x=int(xs.max())
-        x1=max(48,min_x-24);x2=min(w-2,max_x+48)
-        top=max(0,y0-54);bottom=min(h,y1+25)
-        if x2-x1<45 or bottom-top<64:continue
-        box=(x1,top,x2,bottom)
-        crop=image.crop(box)
-        description=_bank_match(crop) or _describe(crop)
-        speech=_read_speech(image,box)
-        output.append({"box":box,"description":description,"speech":speech,"y":top,"anchor_pixels":len(xs)})
-    return output
+    """Saved visual descriptions take priority. Discover black/white art too."""
+    from sticker_match_v035 import find
+    candidates=find(image,bubbles)
+    out=[]
+    for item in candidates:
+        box=item["box"]
+        known=item.get("source")=="registered"
+        # Registered captions contain the user's exact description.
+        description=item["description"] if known else _describe(image.crop(box))
+        speech="" if known else _read_speech(image,box)
+        out.append({**item,"description":description,"speech":speech})
+    return out
 
 def _synthetic():
     from PIL import ImageDraw
