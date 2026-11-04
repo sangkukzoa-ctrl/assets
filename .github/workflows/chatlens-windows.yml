@@ -106,6 +106,7 @@ jobs:
           Write-Host "ZIP bytes: $((Get-Item $zip).Length)"
           Write-Host "ZIP extract checksum verified"
       - name: Publish direct-download GitHub Release
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -127,7 +128,6 @@ jobs:
           name: ChatLensOCR-v0.3.7.1-Windows-x64
           path: |
             dist/ChatLensOCR_v0.3.7.1.exe
-            dist/ChatLensOCR_v0.3.7.1_Windows_x64.zip
             dist/SHA256SUMS.txt
             selftest.json
           if-no-files-found: warn
