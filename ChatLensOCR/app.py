@@ -222,6 +222,10 @@ def selftest(outpath):
         kfont=ImageFont.truetype(str(kfont_file),44) if kfont_file.exists() else font
         ImageDraw.Draw(korean).text((25,44),"안녕하세요 한글 인식 테스트 1234",fill="black",font=kfont)
         korean_text,_,_=tess_read(korean,"범용","한국어")
+        korean_only,_,_=tess_read(korean,"범용","한국어",tess_lang="kor")
+        info["checks"]["korean_only_model"]=korean_only
+        if "안녕하세요" not in korean_only.replace(" ",""):
+            raise RuntimeError("Bundled Korean-only OCR engine failed: "+repr(korean_only))
         info["checks"]["korean_sample"]=korean_text
         if "안녕하세요" not in korean_text.replace(" ",""):
             raise RuntimeError("Bundled Korean text recognition failed: "+repr(korean_text))
