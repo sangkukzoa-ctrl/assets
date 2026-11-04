@@ -67,7 +67,8 @@ def _batch_metadata(image,x0,x1,centers,pitch,lang="kor+eng"):
     # Windows Explorer uses ~12px fonts; 3x upscaling is essential.
     factor=3
     enlarged=region.resize((region.width*factor,region.height*factor),Image.Resampling.LANCZOS)
-    _,parts,_=read(enlarged,"범용","한국어" if lang!="eng" else "영어",psm=6)
+    _,parts,_=read(enlarged,"범용","한국어" if lang!="eng" else "영어",psm=6,
+                   tess_lang="kor" if lang=="kor" else None)
     rows=[[] for _ in centers]
     raw=[]
     for t in parts:
@@ -93,6 +94,14 @@ def analyze(image,language="한국어"):
     kind_start=pos(530);kind_end=pos(657)
     size_start=pos(683)
     dates,raw_dates=_batch_metadata(image,date_start,date_end,centers,pitch)
+    # Korean-only OCR often distinguishes 오전/오후 from the mixed-model
+    # corruption "2%" or "27". Re-read the same date column once.
+    dates_ko,_=_batch_metadata(image,date_start,date_end,centers,pitch,"kor")
+    for n in range(len(dates)):
+        native=dates_ko[n]
+        if re.search(r"20\d{2}[-.]\d{1,2}[-.]\d{1,2}",native) and re.search(r"오전|오후",native):
+            if not re.search(r"오전|오후",dates[n]):
+                dates[n]=native
     kinds,raw_kinds=_batch_metadata(image,kind_start,kind_end,centers,pitch)
     sizes,raw_sizes=_batch_metadata(image,size_start,w,centers,pitch,"eng")
     outputs=[];diagnostics=[];raw=raw_dates+raw_kinds+raw_sizes
@@ -106,11 +115,18 @@ def analyze(image,language="한국어"):
     # propagate only if at least 70% of rows independently recognized it.
     known=[k for k in normalized_kinds if k=="압축(ZIP) 파일"]
     common_kind="압축(ZIP) 파일" if len(known)>=len(centers)*.7 else ""
+    # Column-wide evidence can repair illegible repetitions of a fixed file
+    # type, but must not rewrite genuinely different file types.
+    stable_zip=bool(common_kind)
     for i,top in enumerate(centers):
         y0=max(0,top-5);y1=min(h,top+max(16,int(pitch*.60)))
         x0=28
         filename,parts,conf=_ocr_single(image.crop((x0,y0,filename_right,y1)))
         filename=re.sub(r"^[^a-zA-Z0-9가-힣]+","",filename)
+        # The '4', 'A', and 'j' prefixes were actually ZIP icon glyphs.
+        filename=re.sub(r"(?i)^[4Aj]\s+(?=rgbblocks[_ .])","",filename)
+        filename=re.sub(r"(?i)^RGBBIlocks(?=_)","RGBBlocks",filename)
+        filename=re.sub(r"(?i)\s+zip$",".zip",filename)
         for t in parts:
             box=t["box"]
             raw.append({**t,"box":(int(box[0]+x0),int(box[1]+y0),int(box[2]+x0),int(box[3]+y0))})
@@ -119,6 +135,10 @@ def analyze(image,language="한국어"):
         # Do not silently forge damaged digits.
         date=date if re.search(r"20\d{2}\s*[-.]\s*\d{1,2}\s*[-.]\s*\d{1,2}",date) else (date or "[날짜 미인식]")
         kind=normalized_kinds[i] or common_kind
+        if stable_zip and kind!="압축(ZIP) 파일":
+            # "LEP) 파일" is an OCR artifact for the same ZIP-file icon.
+            if re.search(r"파일",kind) or re.search(r"(?i)zip|lep",kind):
+                kind=common_kind
         size=sizes[i]
         m=re.search(r"(?i)(\d{1,7})\s*(KB|MB|GB|B)\b",size)
         size=(m.group(1)+m.group(2).upper()) if m else (size or "[크기 미인식]")
