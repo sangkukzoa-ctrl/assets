@@ -328,8 +328,12 @@ def kakao(img,language,precise):
                        {"speaker":who,"kind":"bubble","box":(x,y,x+w,y+h),"ocr_score":score}))
     for sticker in stickers:
         box=sticker["box"]
-        events.append((sticker["y"],f'{nickname}: [이모티콘: {sticker["description"]}]',
-                       {"speaker":nickname,"kind":"sticker","box":box,"anchor_pixels":sticker["anchor_pixels"]}))
+        label=sticker["description"]
+        if sticker.get("speech"):
+            label+=f' / 말풍선 글씨: {sticker["speech"]}'
+        events.append((sticker["y"],f'{nickname}: [이모티콘: {label}]',
+                       {"speaker":nickname,"kind":"sticker","box":box,"anchor_pixels":sticker["anchor_pixels"],
+                        "speech":sticker.get("speech","")}))
     for _,content,details in sorted(events,key=lambda x:x[0]):
         results.append(content)
         metadata.append(details)
