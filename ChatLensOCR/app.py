@@ -3,6 +3,7 @@
 Screenshots stay local. Supports FFXIV, KakaoTalk and general documents.
 """
 import os, sys, re, json, socket, traceback, threading, queue, uuid
+import debuglog_v0372 as debuglog
 from pathlib import Path
 
 BASE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
@@ -45,33 +46,53 @@ def engine(language="한국어"):
     return ocr
 
 def recognize(img, language="한국어", precise=True):
-    import numpy as np
-    import cv2
+    """Run RapidOCR on safe nonzero pixel dimensions with accurate boxes.
+
+    Long thin text regions are padded/split in ocr_guard_v0372, preventing
+    RapidOCR's reduce_max_side from producing 0-pixel dimensions.
+    """
     from PIL import Image, ImageEnhance
-    scale = 1.0 if (img.height < 140 and img.width >= 1100) else min(2.0, max(1., 850/max(1,img.height))) if img.height < 850 else 1.
-    enlarged = img.resize((int(img.width*scale),int(img.height*scale)),Image.Resampling.LANCZOS) if scale>1 else img
-    ocr = engine(language)
-    def pass_once(picture):
-        res=ocr(np.asarray(picture.convert("RGB")))
-        if res is None or res.boxes is None: return []
-        output=[]
-        for pts,txt,conf in zip(res.boxes,res.txts,res.scores):
-            a=np.asarray(pts)
-            x1,y1,x2,y2 = int(a[:,0].min()/scale),int(a[:,1].min()/scale),int(a[:,0].max()/scale),int(a[:,1].max()/scale)
-            if txt and x2>x1 and y2>y1:
-                output.append({"text":str(txt),"box":(x1,y1,x2,y2),"score":float(conf)})
-        return output
-    found=pass_once(enlarged)
+    from ocr_guard_v0372 import guarded_infer
+    if img is None or img.width<=0 or img.height<=0:
+        debuglog.warning("recognize_empty_image",size=getattr(img,"size",None))
+        return []
+    scale = (1.0 if img.height<140 and img.width>=1100
+             else min(2.0,max(1.,850/max(1,img.height))) if img.height<850 else 1.)
+    enlarged = img.resize(
+        (max(1,round(img.width*scale)),max(1,round(img.height*scale))),
+        Image.Resampling.LANCZOS) if scale>1 else img
+    ocr=engine(language)
+    def read_one(picture):
+        result=[]
+        for item in guarded_infer(ocr,picture):
+            x0,y0,x1,y1=item["box"]
+            left=max(0,int(x0/scale));top=max(0,int(y0/scale))
+            right=min(img.width,int(round(x1/scale)))
+            bottom=min(img.height,int(round(y1/scale)))
+            if right>left and bottom>top:
+                result.append({"text":item["text"],"score":item["score"],
+                               "box":(left,top,right,bottom)})
+        return result
+    found=read_one(enlarged)
     if precise:
-        improved=ImageEnhance.Contrast(enlarged).enhance(1.35)
-        found+=pass_once(improved)
-    found.sort(key=lambda t:-t["score"])
+        found+=read_one(ImageEnhance.Contrast(enlarged).enhance(1.35))
+    found.sort(key=lambda v:-v["score"])
     unique=[]
     for item in found:
-        a=item["box"]; area=(a[2]-a[0])*(a[3]-a[1])
-        if any((lambda b: max(0,min(a[2],b[2])-max(a[0],b[0]))*max(0,min(a[3],b[3])-max(a[1],b[1])) > .73*min(area,(b[2]-b[0])*(b[3]-b[1])))(v["box"]) for v in unique):continue
-        unique.append(item)
-    return sorted(unique,key=lambda a:(a["box"][1]//9,a["box"][0]))
+        box=item["box"]
+        area=max(1,(box[2]-box[0])*(box[3]-box[1]))
+        duplicate=False
+        for prev in unique:
+            p=prev["box"]
+            overlap=(max(0,min(box[2],p[2])-max(box[0],p[0]))*
+                     max(0,min(box[3],p[3])-max(box[1],p[1])))
+            other=max(1,(p[2]-p[0])*(p[3]-p[1]))
+            if overlap>.73*min(area,other):
+                duplicate=True
+                break
+        if not duplicate:unique.append(item)
+    return sorted(unique,key=lambda v:(v["box"][1]//9,v["box"][0]))
+
 
 def merge_rows(items):
     rows=[]
@@ -265,8 +286,15 @@ def gui():
     import tkinter as tk
     from tkinter import ttk, filedialog, messagebox, simpledialog
     from PIL import Image, ImageGrab, ImageTk, ImageDraw
-    root=tk.Tk();root.title("ChatLens OCR v0.3.7.1  |  파판14 · 카카오톡 · 범용")
+    root=tk.Tk();root.title("ChatLens OCR v0.3.7.2  |  파판14 · 카카오톡 · 범용")
     root.geometry("1380x845");root.minsize(1000,625);root.configure(bg="#141c26")
+    debuglog.note("gui_started")
+    def report_callback_exception(exc_type,exc,tb):
+        debuglog.exception("gui_callback_failure",exc)
+        status.set("UI 오류 발생 — [디버그 로그]에서 상세 확인")
+        messagebox.showerror("ChatLens OCR 오류",
+            "UI 오류가 발생했습니다. [디버그 로그] → [로그 복사]로 자세한 내용을 복사할 수 있습니다.")
+    root.report_callback_exception=report_callback_exception
     style=ttk.Style(root);style.theme_use("clam")
     style.configure("TFrame",background="#141c26")
     style.configure("TLabel",background="#141c26",foreground="#d9e6f5",font=("Malgun Gothic",10))
@@ -289,7 +317,9 @@ def gui():
     def open_file():
         for f in filedialog.askopenfilenames(filetypes=[("이미지","*.png *.jpg *.jpeg *.webp *.bmp *.tif"),("모든 파일","*.*")]):
             try:add_image(Image.open(f),Path(f).name)
-            except Exception as e:messagebox.showerror("이미지 오류",str(e))
+            except Exception as e:
+                debuglog.exception("image_open_failed",e,filename=str(f))
+                messagebox.showerror("이미지 오류",str(e)+"\n상세 내용은 [디버그 로그]에서 확인할 수 있습니다.")
     def paste():
         try:
             a=ImageGrab.grabclipboard()
@@ -306,16 +336,18 @@ def gui():
         if worker[0] and worker[0].is_alive():return
         jobs[0]=None; stamp=generation[0]; settings=(mode.get(),language.get(),precise.get(),world.get())
         todo=entries[:] if allfiles else [(entries[lb.curselection()[0]][0] if lb.curselection() else "선택 영역",get_selected())]
+        debuglog.note("analysis_requested",total=len(todo),mode=settings[0],
+                      language=settings[1],precise=bool(settings[2]))
         def compute():
             try:
-                xicons=Icons();results=[]
-                for name,img in todo:
-                    if img is None:continue
-                    from layout_v2 import analyze
-                    detected,output,hits,meta,rows,raw=analyze(img,settings[0],settings[1],settings[2],settings[3],xicons)
-                    results.append({"filename":name,"mode":detected,"result":output,"ocr_lines":raw,"messages":meta,"icons":hits,"rows":rows})
+                from batch_v0372 import analyze_batch
+                xicons=Icons()
+                results=analyze_batch(todo,settings,xicons)
                 events.put(("ok",stamp,results))
-            except Exception:events.put(("error",stamp,traceback.format_exc()))
+            except Exception as error:
+                debuglog.exception("analysis_worker_crash",error,total=len(todo),
+                                   mode=settings[0])
+                events.put(("error",stamp,str(error)))
         worker[0]=threading.Thread(target=compute,daemon=True)
         worker[0].start();status.set("OCR 분석 중...")
     button(bar,"🔎 분석",lambda:run(False));button(bar,"전체 분석",lambda:run(True))
@@ -401,7 +433,51 @@ def gui():
                 content=json.dumps(raw,ensure_ascii=False,indent=2,default=str)
             Path(f).write_text(content,encoding="utf-8")
             status.set("저장 완료: "+str(f))
+    def show_debug_log():
+        dialog=tk.Toplevel(root)
+        dialog.title("ChatLens OCR v0.3.7.2 | 디버그 로그")
+        dialog.geometry("960x650")
+        dialog.minsize(600,360)
+        dialog.transient(root)
+        ttk.Label(dialog,text="오류 로그 — 파일명, 이미지 크기, 처리 단계, 전체 오류 내용",
+                  padding=8).pack(anchor="w")
+        actions_log=ttk.Frame(dialog,padding=(8,0,8,6))
+        actions_log.pack(fill="x")
+        text_frame=ttk.Frame(dialog,padding=(8,0,8,8))
+        text_frame.pack(fill="both",expand=True)
+        view=tk.Text(text_frame,wrap="none",font=("Consolas",10),
+                     bg="#192433",fg="#ecf3fb",insertbackground="#ffffff")
+        vscroll=ttk.Scrollbar(text_frame,orient="vertical",command=view.yview)
+        hscroll=ttk.Scrollbar(text_frame,orient="horizontal",command=view.xview)
+        view.configure(yscrollcommand=vscroll.set,xscrollcommand=hscroll.set)
+        vscroll.pack(side="right",fill="y")
+        hscroll.pack(side="bottom",fill="x")
+        view.pack(fill="both",expand=True)
+        def refresh():
+            view.configure(state="normal")
+            view.delete("1.0","end")
+            view.insert("1.0",debuglog.recent_text())
+            view.see("end")
+            view.configure(state="disabled")
+        def copy_log():
+            content=debuglog.recent_text()
+            root.clipboard_clear()
+            root.clipboard_append(content)
+            root.update()
+            status.set("디버그 로그 전체를 클립보드에 복사했습니다")
+        def save_log():
+            filename=filedialog.asksaveasfilename(
+                defaultextension=".txt",initialfile="ChatLensOCR_v0.3.7.2_debug.txt",
+                filetypes=[("텍스트 파일","*.txt")],parent=dialog)
+            if filename:
+                Path(filename).write_text(debuglog.recent_text(),encoding="utf-8")
+                status.set("디버그 로그 저장 완료: "+filename)
+        button(actions_log,"로그 복사",copy_log)
+        button(actions_log,"로그 새로고침",refresh)
+        button(actions_log,"로그 TXT 저장",save_log)
+        refresh()
     button(actions,"복사",copy);button(actions,"TXT 저장",lambda:save("txt"));button(actions,"JSON 저장",lambda:save("json"))
+    button(actions,"🐞 디버그 로그",show_debug_log)
     ttk.Label(root,textvariable=status).pack(anchor="w",padx=12,pady=(0,6))
     def show():
         canvas.delete("all")
@@ -442,13 +518,20 @@ def gui():
             kind,stamp,info=events.get_nowait()
             if stamp!=generation[0]:
                 root.after(120,poll);return
-            if kind=="error":messagebox.showerror("분석 오류",info);status.set("오류 - 상세 내용을 확인하세요")
+            if kind=="error":
+                messagebox.showerror("분석 오류",
+                    "분석 중 오류가 발생했습니다. [디버그 로그]를 눌러 [로그 복사]로 내용을 복사하세요.\n"+str(info))
+                status.set("분석 오류 — 디버그 로그에서 확인")
             else:
                 last[0]=info
                 setfield(fields[0],"\n\n".join("--- "+v["filename"]+" ["+v["mode"]+"] ---\n"+v["result"] for v in info))
                 setfield(fields[1],"\n".join(f'{v["filename"]} {z["box"]} ({z["score"]:.2f}) {z["text"]}' for v in info for z in v["ocr_lines"]))
                 setfield(fields[2],json.dumps([{"filename":v["filename"],"mode":v["mode"],"icons":v["icons"],"messages":v["messages"]} for v in info],ensure_ascii=False,indent=2))
-                status.set(f"분석 완료: {len(info)}개 이미지")
+                failed=sum(bool(v.get("failed")) for v in info)
+                if failed:
+                    status.set(f"분석 완료 {len(info)}개 중 오류 {failed}개 | [디버그 로그] → [로그 복사]")
+                else:
+                    status.set(f"분석 완료: {len(info)}개 이미지")
                 show()
         except queue.Empty:pass
         root.after(120,poll)
