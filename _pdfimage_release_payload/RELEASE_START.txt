@@ -1,0 +1,1 @@
+PDF Image v1.3.0 — bilingual signed public release. Do not modify source payload while this workflow is running.
