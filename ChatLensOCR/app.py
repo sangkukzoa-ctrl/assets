@@ -296,7 +296,7 @@ def gui():
     import tkinter as tk
     from tkinter import ttk, filedialog, messagebox, simpledialog
     from PIL import Image, ImageGrab, ImageTk, ImageDraw
-    root=tk.Tk();root.title("ChatLens OCR v0.3.7.2  |  파판14 · 카카오톡 · 범용")
+    root=tk.Tk();root.title("ChatLens OCR v0.3.7.3  |  파판14 · 카카오톡 · 범용")
     root.geometry("1380x845");root.minsize(1000,625);root.configure(bg="#141c26")
     debuglog.note("gui_started")
     def report_callback_exception(exc_type,exc,tb):
@@ -434,8 +434,10 @@ def gui():
     def copy():
         root.clipboard_clear();root.clipboard_append(fields[0].get("1.0","end-1c"))
         status.set("결과를 클립보드에 복사했습니다")
-    def save(ext):
-        f=filedialog.asksaveasfilename(defaultextension="."+ext,filetypes=[("텍스트","*.txt")] if ext=="txt" else [("JSON","*.json")])
+    def save(ext, suggested_name=None):
+        opts={"defaultextension":"."+ext,"filetypes":[("텍스트","*.txt")] if ext=="txt" else [("JSON","*.json")]}
+        if suggested_name:opts["initialfile"]=suggested_name
+        f=filedialog.asksaveasfilename(**opts)
         if f:
             if ext=="txt":content=fields[0].get("1.0","end-1c")
             else:
@@ -445,7 +447,7 @@ def gui():
             status.set("저장 완료: "+str(f))
     def show_debug_log():
         dialog=tk.Toplevel(root)
-        dialog.title("ChatLens OCR v0.3.7.2 | 디버그 로그")
+        dialog.title("ChatLens OCR v0.3.7.3 | 디버그 로그")
         dialog.geometry("960x650")
         dialog.minsize(600,360)
         dialog.transient(root)
@@ -477,7 +479,7 @@ def gui():
             status.set("디버그 로그 전체를 클립보드에 복사했습니다")
         def save_log():
             filename=filedialog.asksaveasfilename(
-                defaultextension=".txt",initialfile="ChatLensOCR_v0.3.7.2_debug.txt",
+                defaultextension=".txt",initialfile="ChatLensOCR_v0.3.7.3_debug.txt",
                 filetypes=[("텍스트 파일","*.txt")],parent=dialog)
             if filename:
                 Path(filename).write_text(debuglog.recent_text(),encoding="utf-8")
@@ -488,6 +490,10 @@ def gui():
         refresh()
     button(actions,"복사",copy);button(actions,"TXT 저장",lambda:save("txt"));button(actions,"JSON 저장",lambda:save("json"))
     button(actions,"🐞 디버그 로그",show_debug_log)
+    # Next to the debug button: identical TXT contents, automatic version/date name.
+    from test_export_v0373 import default_test_result_filename
+    button(actions,"📄 테스트결과 내보내기",
+           lambda:save("txt",default_test_result_filename()))
     ttk.Label(root,textvariable=status).pack(anchor="w",padx=12,pady=(0,6))
     def show():
         canvas.delete("all")
