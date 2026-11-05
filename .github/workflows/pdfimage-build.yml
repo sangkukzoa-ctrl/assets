@@ -21,6 +21,9 @@ jobs:
           cat _ci_payload/part{1,2,3,4,5}.txt | base64 -d > /tmp/pdfimage-source.tar.bz2
           echo '528d7714dcd50f27dae26a7cffc7741d78351f1ba55cf62d11131d290d812dca  /tmp/pdfimage-source.tar.bz2' | sha256sum -c -
           tar -xjf /tmp/pdfimage-source.tar.bz2
+          # Apply two fixes identified by actual Android javac compilation.
+          sed -i 's/List<COSName> filters = stream.getFilters();/List<COSName> filters = ((PDImageXObject) obj).getStream().getFilters();/' app/src/main/java/com/hsiwan/pdfimage/OriginalJpegExtractor.java
+          sed -i 's/button.setTextAllCaps(false);/button.setAllCaps(false);/' app/src/main/java/com/hsiwan/pdfimage/MainActivity.java
       - name: Java 17
         uses: actions/setup-java@v4
         with:
