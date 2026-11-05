@@ -72,6 +72,7 @@ def guarded_infer(ocr,picture):
     if len(tiled)>1:
         note("long_strip_tiled",source=picture.size,tiles=len(tiled))
     for patch,x,y in tiled:
+        safe=None
         try:
             safe,px,py=_pad(patch)
             if safe is None:continue
