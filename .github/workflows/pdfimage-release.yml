@@ -4,6 +4,9 @@ on:
     branches:
       - 'pdfimage-ci/v1.3.0'
   workflow_dispatch:
+concurrency:
+  group: pdfimage-v1.3.0-public-release
+  cancel-in-progress: true
 permissions:
   contents: write
 jobs:
@@ -13,6 +16,14 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      - name: Prevent accidental re-signing of an existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.3.0 >/dev/null 2>&1; then
+            echo 'Release v1.3.0 already exists. Refusing to regenerate a signing key.'
+            exit 1
+          fi
       - name: Restore bilingual source
         shell: bash
         run: |
@@ -20,6 +31,7 @@ jobs:
           cat _pdfimage_release_payload/part*.txt | base64 -d > /tmp/pdfimage-v1.3.0.tar.bz2
           echo '65029081a0c0c985ebdf2dce2405c0f73209eeb324edddf32714a9dd182fd6e3  /tmp/pdfimage-v1.3.0.tar.bz2' | sha256sum -c -
           tar -xjf /tmp/pdfimage-v1.3.0.tar.bz2
+          rm -f gradle/wrapper/gradle-wrapper.jar
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
