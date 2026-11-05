@@ -229,6 +229,10 @@ def selftest(outpath):
         from colored_page import _synthetic as color_synthetic
         info["checks"]["file_explorer_rows"]=bool(explorer_synthetic())
         info["checks"]["colored_text_page"]=bool(color_synthetic())
+        from ocr_guard_v0372 import regression as guard_regression
+        from batch_v0372 import regression as batch_regression
+        info["checks"]["resize_guard"]=bool(guard_regression())
+        info["checks"]["batch_error_isolation"]=bool(batch_regression())
         if len(icons)<40:raise RuntimeError("Job icon resources missing")
         img=Image.new("RGB",(800,160),"white")
         font_file=Path("C:/Windows/Fonts/arial.ttf")
@@ -271,6 +275,12 @@ def selftest(outpath):
                 records=recognize(img,language,False)
                 info["checks"]["ocr_"+language]=len(records)
                 if not records:raise RuntimeError("OCR failed to recognize test image: "+language)
+            # Historically a very wide 2px-high crop caused RapidOCR
+            # reduce_max_side to produce a zero-sized resize dimension.
+            thin=Image.new("RGB",(2200,2),"white")
+            info["checks"]["thin_crop_safe"]=isinstance(recognize(thin,"한국어",False),list)
+            if not info["checks"]["thin_crop_safe"]:
+                raise RuntimeError("Thin-crop OCR guard failed")
         finally:
             socket.socket.connect=old
             socket.socket.connect_ex=oldex
