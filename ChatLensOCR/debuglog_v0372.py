@@ -14,7 +14,7 @@ import threading
 import traceback
 from pathlib import Path
 
-VERSION = "0.3.7.3"
+VERSION = "0.3.7.4"
 LOG_DIR = Path(os.environ.get("LOCALAPPDATA") or str(Path.home())) / "ChatLensOCR" / "logs"
 LOG_FILE = LOG_DIR / "ChatLensOCR.log"
 _LOGGER = logging.getLogger("ChatLensOCR.diagnostics")
