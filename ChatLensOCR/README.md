@@ -1,4 +1,10 @@
-# ChatLens OCR v0.4.0
+**Developer / 개발자:** 2bornot  ·  **Copyright © 2026 2bornot**  ·  **License:** [MIT](LICENSE)
+
+**Code signing policy:** [SignPath Foundation application plan](CODE_SIGNING_POLICY.md). The current v0.4.1 field-test build is a **pre-release** and may be unsigned until approved. Windows certificate Publisher will say SignPath Foundation if signing is eventually approved. It is separate from the project developer attribution.
+
+[Privacy](PRIVACY.md) · [Third-party notices](NOTICE.md)
+
+# ChatLens OCR v0.4.1
 
 **Windows x64 · 무료 오프라인 이미지 문자 인식 프로그램**
 
