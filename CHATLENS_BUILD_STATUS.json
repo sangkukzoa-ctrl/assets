@@ -1,1 +1,10 @@
-{"authenticode_signed":false,"recorded_utc":"2026-11-06T19:07:32.3230829Z","build_status":"success","release_page":"https://github.com/sangkukzoa-ctrl/assets/releases/tag/chatlens-v0.4.0","workflow_run":"https://github.com/sangkukzoa-ctrl/assets/actions/runs/42275638078","version":"0.4.0","source_sha":"362e584ad66495299b7bbb4e37e9eb05e6a31c97","app":"ChatLens OCR"}
+{
+  "app": "ChatLens OCR",
+  "version": "0.4.1",
+  "build_status": "pending",
+  "authenticode_signed": false,
+  "source_sha": "f2eda14fe1291eb2e55e3ec7a56e1d5b4f5e4d48",
+  "workflow_run": null,
+  "release_page": "https://github.com/sangkukzoa-ctrl/assets/releases/tag/chatlens-v0.4.1",
+  "note": "Waiting for GitHub Actions completion; not a verified release"
+}
