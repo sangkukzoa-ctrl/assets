@@ -466,6 +466,15 @@ def analyze(img,mode,language,precise,world,icons):
             from app import merge_rows
             return d,output,hits,meta,merge_rows(items),items
 
+    # Extract repeated product cards before generic line OCR; otherwise
+    # neighboring product names and prices are merged horizontally.
+    if mode in ("자동","범용"):
+        from catalog_v0374 import analyze as catalog_read
+        catalog=catalog_read(img,language,precise)
+        if catalog is not None:
+            d,output,hits,meta,items=catalog
+            from app import merge_rows
+            return d,output,hits,meta,merge_rows(items),items
     if mode in ("자동","범용"):
         from multicolumn_v037 import analyze as multicolumn_read
         photo=multicolumn_read(img,language,precise)
