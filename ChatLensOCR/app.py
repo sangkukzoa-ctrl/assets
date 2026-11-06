@@ -331,13 +331,13 @@ def gui():
     bar=ttk.Frame(root,padding=(12,6,12,8));bar.pack(fill="x")
     def show_about():
         messagebox.showinfo("ChatLens OCR 정보",
-            "ChatLens OCR v0.4.1\\n\\n"
-            "Developer: 2bornot\\n"
-            "Copyright © 2026 2bornot. All rights reserved under MIT License.\\n"
-            "License: MIT (application source code)\\n\\n"
-            "오프라인 이미지 문자 인식 / Offline OCR\\n"
-            "공식 소스 및 배포: github.com/sangkukzoa-ctrl/assets\\n"
-            "타사 라이브러리·이미지 및 상표는 각각의 권리자에게 귀속됩니다.\\n\\n"
+            "ChatLens OCR v0.4.1\n\n"
+            "Developer: 2bornot\n"
+            "Copyright © 2026 2bornot. All rights reserved under MIT License.\n"
+            "License: MIT (application source code)\n\n"
+            "오프라인 이미지 문자 인식 / Offline OCR\n"
+            "공식 소스 및 배포: github.com/sangkukzoa-ctrl/assets\n"
+            "타사 라이브러리·이미지 및 상표는 각각의 권리자에게 귀속됩니다.\n\n"
             "Windows 실행파일 서명 여부는 배포 페이지에서 확인하세요.",
             parent=root)
     ttk.Button(header,text="프로그램 정보 / About",command=show_about).pack(side="right",padx=9)
