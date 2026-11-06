@@ -139,6 +139,12 @@ def analyze(image,language="한국어"):
             # "LEP) 파일" is an OCR artifact for the same ZIP-file icon.
             if re.search(r"파일",kind) or re.search(r"(?i)zip|lep",kind):
                 kind=common_kind
+        # An independently visible .zip filename is sufficient to repair
+        # the specific recurring OCR confusion "LEP) 파일"; never replace
+        # unrelated extension or type labels.
+        if filename.lower().endswith(".zip") and re.fullmatch(
+                r"(?i)\s*[l1i]?e[pb]\)?\s*파일\s*",kind):
+            kind="압축(ZIP) 파일"
         size=sizes[i]
         m=re.search(r"(?i)(\d{1,7})\s*(KB|MB|GB|B)\b",size)
         size=(m.group(1)+m.group(2).upper()) if m else (size or "[크기 미인식]")
