@@ -395,6 +395,7 @@ def gui():
     mode.trace_add("write",update_advanced)
     update_advanced()
     tools=ttk.Frame(root,padding=(12,0,12,8));tools.pack(fill="x")
+    special_tools=ttk.Frame(tools)
     button(tools,"영역 해제",lambda:(selection.__setitem__(0,None),show()))
     def teach_icon():
         if not selection[0] or active[0] is None:messagebox.showinfo("영역","아이콘을 드래그로 선택하세요.");return
@@ -403,7 +404,7 @@ def gui():
         d=DATA/"job_samples";d.mkdir(parents=True,exist_ok=True)
         active[0].crop(selection[0]).save(d/(name+"__"+uuid.uuid4().hex[:8]+".png"))
         status.set("직업 아이콘 샘플 저장됨: "+name)
-    button(tools,"직업 아이콘 학습",teach_icon)
+    button(special_tools,"직업 아이콘 학습",teach_icon)
     def teach_sticker():
         if not selection[0] or active[0] is None:messagebox.showinfo("영역","스티커를 드래그로 선택하세요.");return
         detail=simpledialog.askstring("스티커 설명",describe_sticker(active[0],selection[0])+"\n설명을 수정해 저장:")
@@ -412,7 +413,13 @@ def gui():
             img=active[0].crop(selection[0]);sample_file=uuid.uuid4().hex[:12]+".png";img.save(d/sample_file)
             with (d/"descriptions.jsonl").open("a",encoding="utf-8") as f:f.write(json.dumps({"filename":sample_file,"description":detail},ensure_ascii=False)+"\n")
             status.set("스티커 설명 등록: "+detail)
-    button(tools,"스티커 설명 등록",teach_sticker)
+    button(special_tools,"스티커 설명 등록",teach_sticker)
+    def update_special_tools(*_):
+        if mode.get() in ("파판14","카카오톡"):
+            special_tools.pack(side="left")
+        else:special_tools.pack_forget()
+    mode.trace_add("write",update_special_tools)
+    update_special_tools()
     ttk.Label(tools,text="  단축키  Ctrl+O 열기 · Ctrl+V 붙여넣기 · Delete 언로드",
               foreground="#94aac0").pack(side="right",padx=8)
     box=ttk.Panedwindow(root,orient="horizontal");box.pack(fill="both",expand=True,padx=12,pady=(0,7))
@@ -457,7 +464,7 @@ def gui():
     actions=ttk.Frame(right);actions.pack(fill="x")
     tabs=ttk.Notebook(right);tabs.pack(fill="both",expand=True,pady=6)
     fields=[]
-    for title in ["대화 정리","원문 OCR","인식 진단"]:
+    for title in ["분석 결과","원문 OCR","인식 진단"]:
         frame=ttk.Frame(tabs);tabs.add(frame,text=title)
         item=tk.Text(frame,wrap="word",undo=True,bg="#202b39",fg="#eff6ff",insertbackground="white",relief="flat",font=("Malgun Gothic",11),padx=10,pady=10)
         scroll=ttk.Scrollbar(frame,command=item.yview);item.configure(yscrollcommand=scroll.set)
