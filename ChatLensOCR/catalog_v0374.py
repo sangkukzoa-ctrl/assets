@@ -82,6 +82,23 @@ def _price_anchors(image,columns):
                 if 40<y<image.height-10:anchors.append(y)
     return sorted(set(anchors))
 
+def _blue_price_bands(image):
+    """Fallback for tiny blue prices: two nearby colored text rows are needed."""
+    a=np.asarray(image.convert("RGB")).astype(np.int16)
+    r,g,b=a[:,:,0],a[:,:,1],a[:,:,2]
+    blue=(b>95)&(b-r>35)&(b-g>12)&(r<120)
+    counts=blue.sum(axis=1)
+    ids=np.flatnonzero(counts>=max(12,int(image.width*.018)))
+    if not len(ids):return []
+    runs=[];first=last=int(ids[0])
+    for value in ids[1:]:
+        value=int(value)
+        if value-last>3:
+            runs.append((first,last+1));first=value
+        last=value
+    runs.append((first,last+1))
+    return [first for first,last in runs if 7<=last-first<=23 and first>70]
+
 def _blank_gaps(image):
     gray=_gray(image)
     h,w=gray.shape
@@ -103,6 +120,7 @@ def _row_spans(image,columns):
     h=image.height
     prices=_price_anchors(image,columns)
     gaps=_blank_gaps(image)
+    blue_bands=_blue_price_bands(image)
     separators=[]
     last=0
     for a,b in gaps:
@@ -111,6 +129,14 @@ def _row_spans(image,columns):
         # spacer. This prevents mistaking the gap INSIDE a photograph for
         # the gap BETWEEN two product cards.
         price_before=any(last+75<=p<a-14 and a-p<=170 for p in prices)
+        if not price_before:
+            # A clipped upper row can lose the price digits in OCR while
+            # retaining two closely stacked blue price/shipping text rows.
+            candidates=[y for y in blue_bands
+                        if last+75<=y<a-14 and a-y<=170]
+            price_before=any(
+                12<=abs(y-other)<=60 for y in candidates
+                for other in blue_bands if other!=y and last+75<=other<a)
         if price_before:
             center=(a+b)//2
             separators.append(center)
