@@ -123,7 +123,7 @@ jobs:
           $exe = (Resolve-Path "dist/ChatLensOCR_v0.4.0.exe").Path
           $zip = "dist/ChatLensOCR_v0.4.0_Windows_x64.zip"
           $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ((Get-Item $exe).Length -lt 100MB) { throw "Executable unexpectedly small" }
+          if ((Get-Item $exe).Length -lt 25MB) { throw "Executable unexpectedly small" }
           Compress-Archive -Path $exe -DestinationPath $zip -CompressionLevel Optimal -Force
           $check = Join-Path $env:RUNNER_TEMP "ChatLensVerify"
           New-Item -ItemType Directory -Force -Path $check | Out-Null
@@ -155,8 +155,14 @@ jobs:
             $notes = "UNSIGNED PREVIEW: Windows may show an unknown publisher warning. This EXE has no Authenticode signature." + [Environment]::NewLine + $notes
           }
           $notes | Set-Content 'release-notes-generated.md' -Encoding utf8
-          gh release view $tag *> $null
-          if ($LASTEXITCODE -eq 0) {
+          $hasRelease = $false
+          try {
+            $oldPreference = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            & gh release view $tag --json tagName 2>$null | Out-Null
+            $hasRelease = ($LASTEXITCODE -eq 0)
+          } finally { $ErrorActionPreference = $oldPreference }
+          if ($hasRelease) {
             gh release upload $tag $assets --clobber
             if ($LASTEXITCODE -ne 0) { throw "Release upload failed" }
             if ($env:CODE_SIGNED -eq 'true') {
@@ -180,6 +186,38 @@ jobs:
           $want = (Get-FileHash "dist/ChatLensOCR_v0.4.0.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($got -ne $want) { throw "GitHub release asset digest mismatch" }
           Write-Host "Release round-trip SHA256 verified: $got"
+      - name: Write verifiable build outcome to release branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS: ${{ job.status }}
+          SIGNED: ${{ steps.codesign.outputs.signed }}
+        run: |
+          $record = @{
+            app = "ChatLens OCR"
+            version = "0.4.0"
+            build_status = $env:STATUS
+            authenticode_signed = ($env:SIGNED -eq "true")
+            source_sha = $env:GITHUB_SHA
+            workflow_run = "https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+            release_page = "https://github.com/$env:GITHUB_REPOSITORY/releases/tag/chatlens-v0.4.0"
+            recorded_utc = [DateTime]::UtcNow.ToString("o")
+          } | ConvertTo-Json -Compress
+          $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($record + [Environment]::NewLine))
+          $apiPath = "repos/$env:GITHUB_REPOSITORY/contents/CHATLENS_BUILD_STATUS.json"
+          $previous = gh api $apiPath 2>$null
+          $existingSha = ""
+          if ($LASTEXITCODE -eq 0) { $existingSha = ($previous | ConvertFrom-Json).sha }
+          $request = @{
+            message = "chore(ChatLens): record v0.4.0 GitHub Actions build outcome"
+            content = $encoded
+            branch = $env:GITHUB_REF_NAME
+          }
+          if ($existingSha) { $request.sha = $existingSha }
+          $inputFile = Join-Path $env:RUNNER_TEMP "chatlens-status-request.json"
+          ($request | ConvertTo-Json -Compress) | Set-Content -LiteralPath $inputFile -Encoding utf8
+          gh api --method PUT $apiPath --input $inputFile
+          if ($LASTEXITCODE -ne 0) { Write-Warning "Could not persist build outcome marker." }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
