@@ -1,0 +1,150 @@
+name: Just PDF to Image v1.3.1 - signed public release
+on:
+  push:
+    branches: ['pdfimage-ci/v1.3.1']
+  workflow_dispatch:
+concurrency:
+  group: just-pdf-to-image-v1.3.1-release
+  cancel-in-progress: false
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse to overwrite a published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.3.1 >/dev/null 2>&1; then
+            echo 'Release v1.3.1 already exists: refusing to overwrite'
+            exit 1
+          fi
+      - name: Restore bilingual v1.3.0 source and rebrand
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat _pdfimage_release_payload/part*.txt | base64 -d > /tmp/pdfimage-v1.3.0.tar.bz2
+          echo '65029081a0c0c985ebdf2dce2405c0f73209eeb324edddf32714a9dd182fd6e3  /tmp/pdfimage-v1.3.0.tar.bz2' | sha256sum -c -
+          tar -xjf /tmp/pdfimage-v1.3.0.tar.bz2
+          python3 .github/scripts/rebrand-pdfimage-v131.py
+          rm -f gradle/wrapper/gradle-wrapper.jar
+          grep -E 'versionCode|versionName|applicationId' app/build.gradle
+          grep 'android:label' app/src/main/AndroidManifest.xml
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          test -n "$SDKMANAGER"
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-36' 'build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Java tests and Android release builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pdf-tests
+          javac -d /tmp/pdf-tests app/src/main/java/com/hsiwan/pdfimage/L10n.java app/src/main/java/com/hsiwan/pdfimage/PageSelection.java tests/PageSelectionTest.java
+          java -cp /tmp/pdf-tests PageSelectionTest
+          gradle --no-daemon :app:assembleRelease :app:bundleRelease --stacktrace
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+          test -s app/build/outputs/bundle/release/app-release.aab
+      - name: Generate temporary certificate for protected signing-key transfer
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl req -x509 -newkey rsa:3072 -nodes -days 1 -sha256 \
+            -subj "/CN=PDFImage-CI-$GITHUB_RUN_ID" \
+            -keyout "$RUNNER_TEMP/release-ephemeral.key" \
+            -out "$RUNNER_TEMP/release-ephemeral.crt" >/dev/null 2>&1
+          cp "$RUNNER_TEMP/release-ephemeral.crt" ./signing-request-public.crt
+      - uses: actions/upload-artifact@v4
+        name: Export one-use public key (not private)
+        with:
+          name: JustPDFtoImage-v1.3.1-key-request
+          path: signing-request-public.crt
+          retention-days: 1
+          if-no-files-found: error
+      - name: Receive encrypted v1.3.0 signing identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ENTRY="_pdfimage_key_inbox/key-$GITHUB_RUN_ID.txt"
+          RECEIVED=0
+          for attempt in $(seq 1 120); do
+            if gh api "repos/$GITHUB_REPOSITORY/contents/$ENTRY?ref=pdfimage-key-inbox" >/dev/null 2>&1; then
+              gh api "repos/$GITHUB_REPOSITORY/contents/$ENTRY?ref=pdfimage-key-inbox" --jq '.content' |
+                base64 -d | base64 -d > "$RUNNER_TEMP/encrypted-key.p7m"
+              openssl cms -decrypt -inform DER \
+                -in "$RUNNER_TEMP/encrypted-key.p7m" \
+                -recip "$RUNNER_TEMP/release-ephemeral.crt" \
+                -inkey "$RUNNER_TEMP/release-ephemeral.key" \
+                -out "$RUNNER_TEMP/signing.tar.gz"
+              tar -xzf "$RUNNER_TEMP/signing.tar.gz" -C "$RUNNER_TEMP"
+              test -s "$RUNNER_TEMP/pdfimage-upload.p12"
+              test -s "$RUNNER_TEMP/ks_pass"
+              RECEIVED=1
+              break
+            fi
+            echo "Waiting for encrypted signing key (attempt $attempt)"
+            sleep 5
+          done
+          test "$RECEIVED" = 1
+          chmod 600 "$RUNNER_TEMP/pdfimage-upload.p12" "$RUNNER_TEMP/ks_pass"
+      - name: Sign Android APK and AAB with existing v1.3.0 certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          PASS="$(cat "$RUNNER_TEMP/ks_pass")"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
+            --ks "$RUNNER_TEMP/pdfimage-upload.p12" --ks-key-alias pdfimage \
+            --ks-pass "pass:$PASS" --key-pass "pass:$PASS" \
+            --out JustPDFtoImage-v1.3.1.apk \
+            app/build/outputs/apk/release/app-release-unsigned.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs JustPDFtoImage-v1.3.1.apk
+          jarsigner -keystore "$RUNNER_TEMP/pdfimage-upload.p12" \
+            -storepass "$PASS" -keypass "$PASS" \
+            -signedjar JustPDFtoImage-v1.3.1.aab \
+            app/build/outputs/bundle/release/app-release.aab pdfimage
+          jarsigner -verify JustPDFtoImage-v1.3.1.aab
+          unset PASS
+      - name: Package source, bilingual notes and hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip -q -r JustPDFtoImage-v1.3.1-Source.zip app/src app/build.gradle build.gradle settings.gradle gradle.properties gradle gradlew gradlew.bat README.md RELEASE_NOTES.md STORE_LISTING_KO_EN.md LICENSE NOTICE.md tests docs .github/scripts/rebrand-pdfimage-v131.py .github/workflows/pdfimage-release-v131.yml
+          sha256sum JustPDFtoImage-v1.3.1.apk JustPDFtoImage-v1.3.1.aab JustPDFtoImage-v1.3.1-Source.zip > SHA256SUMS.txt
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create v1.3.1 JustPDFtoImage-v1.3.1.apk JustPDFtoImage-v1.3.1.aab JustPDFtoImage-v1.3.1-Source.zip SHA256SUMS.txt \
+            --target "$GITHUB_SHA" \
+            --title 'Just PDF to Image v1.3.1 — by 2bornot (KR / EN)' \
+            --notes-file RELEASE_NOTES.md \
+            --latest
+          gh release view v1.3.1
+      - name: Delete spent encrypted inbox file
+        if: success()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          ENTRY="_pdfimage_key_inbox/key-$GITHUB_RUN_ID.txt"
+          SHA="$(gh api "repos/$GITHUB_REPOSITORY/contents/$ENTRY?ref=pdfimage-key-inbox" --jq '.sha')"
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/contents/$ENTRY" \
+            -f "message=Remove consumed encrypted signing payload" \
+            -f "sha=$SHA" -f "branch=pdfimage-key-inbox" >/dev/null
