@@ -229,6 +229,8 @@ def selftest(outpath):
         from colored_page import _synthetic as color_synthetic
         info["checks"]["file_explorer_rows"]=bool(explorer_synthetic())
         info["checks"]["colored_text_page"]=bool(color_synthetic())
+        from catalog_v0374 import _synthetic as catalog_synthetic
+        info["checks"]["product_card_layout"]=bool(catalog_synthetic())
         from ocr_guard_v0372 import regression as guard_regression
         from batch_v0372 import regression as batch_regression
         info["checks"]["resize_guard"]=bool(guard_regression())
@@ -296,7 +298,7 @@ def gui():
     import tkinter as tk
     from tkinter import ttk, filedialog, messagebox, simpledialog
     from PIL import Image, ImageGrab, ImageTk, ImageDraw
-    root=tk.Tk();root.title("ChatLens OCR v0.3.7.3  |  파판14 · 카카오톡 · 범용")
+    root=tk.Tk();root.title("ChatLens OCR v0.3.7.4  |  파판14 · 카카오톡 · 범용")
     root.geometry("1380x845");root.minsize(1000,625);root.configure(bg="#141c26")
     debuglog.note("gui_started")
     def report_callback_exception(exc_type,exc,tb):
@@ -447,7 +449,7 @@ def gui():
             status.set("저장 완료: "+str(f))
     def show_debug_log():
         dialog=tk.Toplevel(root)
-        dialog.title("ChatLens OCR v0.3.7.3 | 디버그 로그")
+        dialog.title("ChatLens OCR v0.3.7.4 | 디버그 로그")
         dialog.geometry("960x650")
         dialog.minsize(600,360)
         dialog.transient(root)
@@ -479,7 +481,7 @@ def gui():
             status.set("디버그 로그 전체를 클립보드에 복사했습니다")
         def save_log():
             filename=filedialog.asksaveasfilename(
-                defaultextension=".txt",initialfile="ChatLensOCR_v0.3.7.3_debug.txt",
+                defaultextension=".txt",initialfile="ChatLensOCR_v0.3.7.4_debug.txt",
                 filetypes=[("텍스트 파일","*.txt")],parent=dialog)
             if filename:
                 Path(filename).write_text(debuglog.recent_text(),encoding="utf-8")
