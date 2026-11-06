@@ -466,6 +466,17 @@ def analyze(img,mode,language,precise,world,icons):
             from app import merge_rows
             return d,output,hits,meta,merge_rows(items),items
 
+    # Catalog cards must be segmented *before* generic OCR row grouping.
+    if mode in ("자동","범용","쇼핑몰 목록"):
+        from shop_grid_v0374 import analyze as shop_analyze
+        catalog = shop_analyze(img,language,precise,forced=(mode=="쇼핑몰 목록"))
+        if catalog is not None:
+            d,output,hits,meta,items=catalog
+            from app import merge_rows
+            return d,output,hits,meta,merge_rows(items),items
+        if mode=="쇼핑몰 목록":
+            mode="범용"
+
     if mode in ("자동","범용"):
         from multicolumn_v037 import analyze as multicolumn_read
         photo=multicolumn_read(img,language,precise)
