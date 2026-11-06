@@ -229,6 +229,8 @@ def selftest(outpath):
         from colored_page import _synthetic as color_synthetic
         info["checks"]["file_explorer_rows"]=bool(explorer_synthetic())
         info["checks"]["colored_text_page"]=bool(color_synthetic())
+        from shop_grid_v0374 import _synthetic as shop_synthetic
+        info["checks"]["shop_card_grid"]=bool(shop_synthetic())
         from ocr_guard_v0372 import regression as guard_regression
         from batch_v0372 import regression as batch_regression
         info["checks"]["resize_guard"]=bool(guard_regression())
@@ -296,8 +298,8 @@ def gui():
     import tkinter as tk
     from tkinter import ttk, filedialog, messagebox, simpledialog
     from PIL import Image, ImageGrab, ImageTk, ImageDraw
-    root=tk.Tk();root.title("ChatLens OCR v0.3.7.3  |  파판14 · 카카오톡 · 범용")
-    root.geometry("1380x845");root.minsize(1000,625);root.configure(bg="#141c26")
+    root=tk.Tk();root.title("ChatLens OCR v0.4.0  |  이미지 문자 인식")
+    root.geometry("1420x860");root.minsize(1060,680);root.configure(bg="#101722")
     debuglog.note("gui_started")
     def report_callback_exception(exc_type,exc,tb):
         debuglog.exception("gui_callback_failure",exc)
@@ -306,8 +308,9 @@ def gui():
             "UI 오류가 발생했습니다. [디버그 로그] → [로그 복사]로 자세한 내용을 복사할 수 있습니다.")
     root.report_callback_exception=report_callback_exception
     style=ttk.Style(root);style.theme_use("clam")
-    style.configure("TFrame",background="#141c26")
-    style.configure("TLabel",background="#141c26",foreground="#d9e6f5",font=("Malgun Gothic",10))
+    style.configure("TFrame",background="#101722")
+    style.configure("Primary.TButton",padding=(14,8),font=("Malgun Gothic",10,"bold"))
+    style.configure("TLabel",background="#101722",foreground="#d9e6f5",font=("Malgun Gothic",10))
     style.configure("TButton",padding=(8,6),font=("Malgun Gothic",10))
     style.configure("TCombobox",padding=(5,4))
     mode=tk.StringVar(value="자동"); language=tk.StringVar(value="한국어")
@@ -317,7 +320,14 @@ def gui():
     origin=[0,0]; jobs=[None]; events=queue.Queue(); worker=[None]; generation=[0]
     def label(parent,s):ttk.Label(parent,text=s).pack(side="left",padx=(8,3))
     def button(parent,s,cb):ttk.Button(parent,text=s,command=cb).pack(side="left",padx=3)
-    bar=ttk.Frame(root,padding=9);bar.pack(fill="x")
+    header=ttk.Frame(root,padding=(16,12,16,5));header.pack(fill="x")
+    ttk.Label(header,text="ChatLens OCR",font=("Malgun Gothic",18,"bold"),
+              foreground="#f1f6ff").pack(side="left")
+    ttk.Label(header,text="v0.4.0  ·  로컬 이미지 OCR",foreground="#95adc4").pack(side="left",padx=14)
+    tagline=ttk.Frame(root,padding=(16,0,16,10));tagline.pack(fill="x")
+    ttk.Label(tagline,text="스크린샷을 열어 글자와 대화, 상품 목록을 추출하세요. 이미지는 외부로 전송되지 않습니다.",
+              foreground="#aac0d5").pack(anchor="w")
+    bar=ttk.Frame(root,padding=(12,6,12,8));bar.pack(fill="x")
     def add_image(im,name):
         im=im.convert("RGB");entries.append((name,im))
         lb.insert("end",name);lb.selection_clear(0,"end");lb.selection_set("end");lb.see("end")
@@ -345,7 +355,12 @@ def gui():
         if not entries:messagebox.showinfo("대상 없음","먼저 이미지를 열어 주세요.");return
         if worker[0] and worker[0].is_alive():return
         jobs[0]=None; stamp=generation[0]; settings=(mode.get(),language.get(),precise.get(),world.get())
-        todo=entries[:] if allfiles else [(entries[lb.curselection()[0]][0] if lb.curselection() else "선택 영역",get_selected())]
+        if allfiles:
+            todo=entries[:]
+        else:
+            idx=lb.curselection()[0] if lb.curselection() else len(entries)-1
+            name=entries[idx][0]
+            todo=[(name + " [선택 영역]" if selection[0] else name,get_selected())]
         debuglog.note("analysis_requested",total=len(todo),mode=settings[0],
                       language=settings[1],precise=bool(settings[2]))
         def compute():
@@ -360,12 +375,26 @@ def gui():
                 events.put(("error",stamp,str(error)))
         worker[0]=threading.Thread(target=compute,daemon=True)
         worker[0].start();status.set("OCR 분석 중...")
-    button(bar,"🔎 분석",lambda:run(False));button(bar,"전체 분석",lambda:run(True))
-    label(bar,"모드");ttk.Combobox(bar,textvariable=mode,values=["자동","파판14","카카오톡","파일 탐색기","범용"],width=9,state="readonly").pack(side="left")
-    label(bar,"언어");ttk.Combobox(bar,textvariable=language,values=["한국어","영어","일본어"],width=7,state="readonly").pack(side="left")
-    label(bar,"기준 서버");ttk.Entry(bar,textvariable=world,width=9).pack(side="left")
-    ttk.Checkbutton(bar,text="정밀 2회 인식",variable=precise).pack(side="left",padx=9)
-    tools=ttk.Frame(root,padding=(9,0,9,7));tools.pack(fill="x")
+    button(bar,"🔎 선택 분석",lambda:run(False));button(bar,"전체 이미지 분석",lambda:run(True))
+    label(bar,"이미지 유형");mode_box=ttk.Combobox(bar,textvariable=mode,
+        values=["자동","범용","쇼핑몰 목록","카카오톡","파판14","파일 탐색기"],
+        width=13,state="readonly")
+    mode_box.pack(side="left")
+    label(bar,"인식 언어");ttk.Combobox(bar,textvariable=language,
+        values=["한국어","영어","일본어"],width=8,state="readonly").pack(side="left")
+    ttk.Checkbutton(bar,text="정밀 인식",variable=precise).pack(side="left",padx=9)
+    advanced=ttk.Frame(root,padding=(12,0,12,5));advanced.pack(fill="x")
+    ttk.Label(advanced,text="파판14 기준 서버").pack(side="left")
+    world_entry=ttk.Entry(advanced,textvariable=world,width=11)
+    world_entry.pack(side="left",padx=(6,12))
+    ttk.Label(advanced,text="기준 서버와 동일한 채팅 발언자의 서버명은 생략합니다.",
+              foreground="#91a8be").pack(side="left")
+    def update_advanced(*_):
+        if mode.get()=="파판14":advanced.pack(fill="x",after=bar)
+        else:advanced.pack_forget()
+    mode.trace_add("write",update_advanced)
+    update_advanced()
+    tools=ttk.Frame(root,padding=(12,0,12,8));tools.pack(fill="x")
     button(tools,"영역 해제",lambda:(selection.__setitem__(0,None),show()))
     def teach_icon():
         if not selection[0] or active[0] is None:messagebox.showinfo("영역","아이콘을 드래그로 선택하세요.");return
@@ -384,9 +413,12 @@ def gui():
             with (d/"descriptions.jsonl").open("a",encoding="utf-8") as f:f.write(json.dumps({"filename":sample_file,"description":detail},ensure_ascii=False)+"\n")
             status.set("스티커 설명 등록: "+detail)
     button(tools,"스티커 설명 등록",teach_sticker)
+    ttk.Label(tools,text="  단축키  Ctrl+O 열기 · Ctrl+V 붙여넣기 · Delete 언로드",
+              foreground="#94aac0").pack(side="right",padx=8)
     box=ttk.Panedwindow(root,orient="horizontal");box.pack(fill="both",expand=True,padx=12,pady=(0,7))
     left=ttk.Frame(box);right=ttk.Frame(box);box.add(left,weight=6);box.add(right,weight=5)
-    ttk.Label(left,text="원본 화면 | 드래그로 분석 영역 선택").pack(anchor="w",pady=5)
+    ttk.Label(left,text="입력 이미지  |  드래그하여 인식 영역 선택",
+              font=("Malgun Gothic",10,"bold")).pack(anchor="w",pady=5)
     canvas=tk.Canvas(left,bg="#222c3a",highlightthickness=0,cursor="crosshair");canvas.pack(fill="both",expand=True)
     lb=tk.Listbox(left,height=4,background="#243143",foreground="#e2ebf4",exportselection=False)
     lb.pack(fill="x",pady=6)
@@ -420,6 +452,8 @@ def gui():
     root.bind("<Delete>",remove_key)
     root.bind("<KP_Delete>",remove_key)
     button(tools,"이미지 언로드 (Delete)",remove_selected)
+    ttk.Label(right,text="인식 결과  |  텍스트 복사 및 내보내기",
+              font=("Malgun Gothic",10,"bold")).pack(anchor="w",pady=5)
     actions=ttk.Frame(right);actions.pack(fill="x")
     tabs=ttk.Notebook(right);tabs.pack(fill="both",expand=True,pady=6)
     fields=[]
@@ -429,7 +463,7 @@ def gui():
         scroll=ttk.Scrollbar(frame,command=item.yview);item.configure(yscrollcommand=scroll.set)
         scroll.pack(side="right",fill="y");item.pack(fill="both",expand=True)
         fields.append(item)
-    fields[0].insert("1.0","이미지를 불러온 뒤 [분석]을 누르세요.\n\n(현자)현시완: 대화\n(무도가)닉네임&초코보: 대화")
+    fields[0].insert("1.0","왼쪽에서 이미지를 열거나 붙여넣으세요.\n\n[선택 분석]으로 현재 이미지 한 장을 분석하거나\n[전체 이미지 분석]으로 여러 이미지를 일괄 처리할 수 있습니다.\n\n화면 유형은 [자동]으로 시작하는 것을 권장합니다.")
     def setfield(widget,value):widget.delete("1.0","end");widget.insert("1.0",value)
     def copy():
         root.clipboard_clear();root.clipboard_append(fields[0].get("1.0","end-1c"))
@@ -447,7 +481,7 @@ def gui():
             status.set("저장 완료: "+str(f))
     def show_debug_log():
         dialog=tk.Toplevel(root)
-        dialog.title("ChatLens OCR v0.3.7.3 | 디버그 로그")
+        dialog.title("ChatLens OCR v0.4.0 | 디버그 로그")
         dialog.geometry("960x650")
         dialog.minsize(600,360)
         dialog.transient(root)
@@ -479,7 +513,7 @@ def gui():
             status.set("디버그 로그 전체를 클립보드에 복사했습니다")
         def save_log():
             filename=filedialog.asksaveasfilename(
-                defaultextension=".txt",initialfile="ChatLensOCR_v0.3.7.3_debug.txt",
+                defaultextension=".txt",initialfile="ChatLensOCR_v0.4.0_debug.txt",
                 filetypes=[("텍스트 파일","*.txt")],parent=dialog)
             if filename:
                 Path(filename).write_text(debuglog.recent_text(),encoding="utf-8")
@@ -488,13 +522,13 @@ def gui():
         button(actions_log,"로그 새로고침",refresh)
         button(actions_log,"로그 TXT 저장",save_log)
         refresh()
-    button(actions,"복사",copy);button(actions,"TXT 저장",lambda:save("txt"));button(actions,"JSON 저장",lambda:save("json"))
+    button(actions,"결과 복사",copy);button(actions,"TXT 저장",lambda:save("txt"));button(actions,"JSON 저장",lambda:save("json"))
     button(actions,"🐞 디버그 로그",show_debug_log)
     # Next to the debug button: identical TXT contents, automatic version/date name.
     from test_export_v0373 import default_test_result_filename
     button(actions,"📄 테스트결과 내보내기",
            lambda:save("txt",default_test_result_filename()))
-    ttk.Label(root,textvariable=status).pack(anchor="w",padx=12,pady=(0,6))
+    ttk.Label(root,textvariable=status,foreground="#95c9e6").pack(anchor="w",padx=14,pady=(0,9))
     def show():
         canvas.delete("all")
         im=active[0]
@@ -503,10 +537,12 @@ def gui():
         z=min(w/im.width,h/im.height);scale[0]=z
         size=(max(1,round(im.width*z)),max(1,round(im.height*z)))
         drawing=im.copy()
-        if last[0]:
+        current_name = entries[lb.curselection()[0]][0] if lb.curselection() else ""
+        overlay=next((r for r in (last[0] or []) if r.get("filename")==current_name), None)
+        if overlay:
             draw=ImageDraw.Draw(drawing)
-            for line in last[0][0].get("ocr_lines",[]):draw.rectangle(line["box"],outline="#3ea9ff",width=max(1,int(im.width/800)))
-            for rect,job in last[0][0].get("icons",[]):draw.rectangle(rect,outline="#48ef9a",width=max(2,int(im.width/700)))
+            for line in overlay.get("ocr_lines",[]):draw.rectangle(line["box"],outline="#3ea9ff",width=max(1,int(im.width/800)))
+            for rect,job in overlay.get("icons",[]):draw.rectangle(rect,outline="#48ef9a",width=max(2,int(im.width/700)))
         photo[0]=ImageTk.PhotoImage(drawing.resize(size,Image.Resampling.LANCZOS))
         origin[0]=(canvas.winfo_width()-size[0])/2;origin[1]=(canvas.winfo_height()-size[1])/2
         canvas.create_image(origin[0],origin[1],image=photo[0],anchor="nw")
