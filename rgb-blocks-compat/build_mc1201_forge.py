@@ -449,6 +449,14 @@ patch(plugin,lambda s:s.replace('mixinClassName.contains("Sodium")',
 # though it exists in the JAR; never claim texture/render parity until loaded.
 (RES/"pack.mcmeta").write_text(json.dumps({"pack":{"pack_format":15,"description":"RGB Blocks 1.3.1 — Minecraft 1.20.1"}},ensure_ascii=False,indent=2),encoding="utf-8")
 
+# Forge 1.20.1 uses model-level named render types for semitransparent
+# terrain and item rendering; preserve the original 26.1.2 force_translucent.
+# (Forge documentation 1.20.x: render_type='minecraft:translucent'.)
+for jsonpath in (RES/"assets/rgbblocks/models/block").glob("*_glass.json"):
+    obj=json.loads(jsonpath.read_text(encoding="utf-8"))
+    obj["render_type"]="minecraft:translucent"
+    jsonpath.write_text(json.dumps(obj,separators=(",",":")),encoding="utf-8")
+
 # Legacy Forge metadata; generated variant includes full data and old model schema.
 modtoml=RES/"META-INF/mods.toml"
 modtoml.parent.mkdir(parents=True,exist_ok=True)
