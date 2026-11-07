@@ -115,7 +115,7 @@ def cycle(label, commands):
     return result, log
 
 first, log_first = cycle("first-launch", [
-    "rgb get", "forceload add 0 0",
+    "rgb get", "rgb bake get", "forceload add 0 0",
     f"setblock 0 120 0 {name}",
     f"setblock 1 120 0 {name}_glow",
     f"setblock 2 120 0 {name}_glass",
@@ -129,7 +129,7 @@ if first["started"] and not first["fatal_patterns"]:
         f"execute if block 0 120 0 {name} run say RGB_NORMAL_PERSIST_PASS",
         f"execute if block 1 120 0 {name}_glow run say RGB_GLOW_PERSIST_PASS",
         f"execute if block 2 120 0 {name}_glass run say RGB_GLASS_PERSIST_PASS",
-        "rgb get", "rgb bake"
+        "rgb get", "rgb bake get", "rgb bake"
     ])
 else:
     second, log_second = {"started": False, "reason": "first launch failed"}, ""
@@ -153,6 +153,8 @@ assert not second["fatal_patterns"] and second["rgb_command_response"], "RGB com
 for marker in ("RGB_NORMAL_PERSIST_PASS", "RGB_GLOW_PERSIST_PASS", "RGB_GLASS_PERSIST_PASS"):
     assert marker in log_first, marker + " missing from initial placement"
     assert marker in log_second, marker + " missing after world reload"
+assert "Unknown or incomplete command" not in log_first + log_second, "Original /rgb bake get alias missing"
+assert "Unknown command" not in log_first + log_second, "An original RGB command was not recognized"
 assert "RGB mode: MANUAL" in log_second, "Manual mode was not saved"
 assert "Bake scope: ALL" in log_second, "Bake scope was not saved"
 print("PASS: Native NeoForge 1.21.1 + RGB Blocks 1.3.1 + C&B 21.1.32 dedicated server", flush=True)
