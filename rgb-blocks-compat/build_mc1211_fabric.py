@@ -356,6 +356,7 @@ dependencies {
  modImplementation 'net.fabricmc.fabric-api:fabric-api:0.116.17+1.21.1'
 }
 tasks.withType(JavaCompile).configureEach { options.release=21; options.encoding='UTF-8' }
+tasks.withType(Zip).configureEach { zip64=true }
 java { sourceCompatibility=JavaVersion.VERSION_21; targetCompatibility=JavaVersion.VERSION_21 }
 """)
 jpath.unlink()
