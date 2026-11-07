@@ -224,6 +224,68 @@ import org.spongepowered.asm.mixin.Mixin;
 public abstract class LightmapRenderStateExtractorMixin {}
 ''',encoding="utf-8")
 
+# 1.21.1 ClientLevel inherits Level.setBlockEntity; the 26.1.2
+# ClientLevel.onBlockEntityAdded callback did not exist in 1.21.1.
+clientcode=clientLevel.read_text(encoding="utf-8")
+first=clientcode.index('   @Inject(method = "onBlockEntityAdded"')
+last=clientcode.index('   private static boolean rgbblocks$isRemoteMultiplayer()', first)
+clientLevel.write_text(clientcode[:first]+clientcode[last:],encoding="utf-8")
+levelhook=CODE/"com/rgbblocks/mixin/client/LevelBlockEntityAttachedMixin.java"
+levelhook.write_text('''package com.rgbblocks.mixin.client;
+import com.rgbblocks.client.cnb.RGBCnbReloadWakeup;
+import com.rgbblocks.client.lighting.RGBLightEngine;
+import com.rgbblocks.client.lighting.RGBRealLightEngine;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+/** Previous onBlockEntityAdded hook ported to 1.21.1 Level attachment. */
+@Mixin(Level.class)
+public abstract class LevelBlockEntityAttachedMixin {
+  @Inject(method="setBlockEntity",at=@At("TAIL"),require=1)
+  private void rgbblocks$clientEntityAttached(BlockEntity blockEntity,CallbackInfo ci) {
+    if (!((Object)this instanceof ClientLevel) || blockEntity==null) return;
+    try { RGBCnbReloadWakeup.onBlockEntityAdded(blockEntity); } catch(Throwable ignored){}
+    BlockPos pos=blockEntity.getBlockPos();
+    BlockState state=blockEntity.getBlockState();
+    if (state==null || pos==null) return;
+    if (state.getLightEmission()>0 || String.valueOf(
+      net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock()))
+          .matches(".*(rgbblocks|chiselsandbits):.*"))
+       RGBRealLightEngine.settleAfterServerSync(pos);
+  }
+}
+''',encoding="utf-8")
+# Replace missing MC26 disconnect callbacks with 1.21.1 central disconnect.
+disconnect=CODE/"com/rgbblocks/mixin/client/MinecraftDisconnectMixin.java"
+disconnect.write_text('''package com.rgbblocks.mixin.client;
+import com.rgbblocks.client.cnb.RGBCnbGeometryBakeDebouncer;
+import com.rgbblocks.client.cnb.RGBCnbReloadWakeup;
+import com.rgbblocks.client.lighting.RGBRealLightEngine;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+@Mixin(Minecraft.class)
+public abstract class MinecraftDisconnectMixin {
+ @Inject(method="tick",at=@At("TAIL"),require=1)
+ private void rgbblocks$onTick(CallbackInfo ci){RGBRealLightEngine.processClientTick();}
+ @Inject(method="disconnect(Lnet/minecraft/client/gui/screens/Screen;Z)V",at=@At("HEAD"),require=1)
+ private void rgbblocks$onDisconnect(Screen screen,boolean transfer,CallbackInfo ci){
+    RGBRealLightEngine.onClientDisconnect();
+    RGBCnbGeometryBakeDebouncer.reset();
+    RGBCnbReloadWakeup.reset();
+ }
+}
+''',encoding="utf-8")
+
 # Download author-published Fabric 1.3.1F metadata and resources.
 URL="https://cdn.modrinth.com/data/A48MxLWx/versions/HsQZbhRf/RgbBlocksmod-26.1.2-1.3.1F.jar"
 r=urllib.request.Request(URL,headers={"User-Agent":"RGBBlocks-owner-porting/1.0"})
@@ -248,6 +310,17 @@ manifest["depends"]["minecraft"]="1.21.1"
 manifest["depends"]["fabricloader"]=">=0.16.0"
 manifest["depends"]["java"]=">=21"
 (RES/"fabric.mod.json").write_text(json.dumps(manifest,indent=2),encoding="utf-8")
+# Bind the 1.21.1 replacement callback in the existing original Mixin config.
+for entry in manifest.get("mixins",[]):
+    config=entry.get("config") if isinstance(entry,dict) else entry
+    file=RES/config
+    if file.is_file():
+        cfg=json.loads(file.read_text(encoding="utf-8"))
+        cfg.setdefault("client",[])
+        if "client.LevelBlockEntityAttachedMixin" not in cfg["client"]:
+            cfg["client"].append("client.LevelBlockEntityAttachedMixin")
+        file.write_text(json.dumps(cfg,indent=2),encoding="utf-8")
+
 
 # 26.x glass model texture schema incompatible with 1.21.1 pre-1.21.4 block model codec
 changed=0
