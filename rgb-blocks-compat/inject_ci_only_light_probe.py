@@ -159,42 +159,6 @@ public static void create(net.minecraft.server.MinecraftServer server) {
 if TARGET=="fabric1211":
     server_logic=server_logic.replace("FABRICINFOCLASS","mod.chiselsandbits.api.blockinformation.BlockInformation").replace(
         "FABRICCONTRACT","mod.chiselsandbits.api.blockinformation.BlockInformation")
-    # C&B auto-restores a fully homogeneous 4096-bit chiseled block to its
-    # ordinary full block when an initializeWith() batch closes. The old
-    # fixture initialized 4096 bits and then cut one bit AFTER that collapse,
-    # leaving a detached tile: client saw a normal rgbblocks:*_glow block.
-    # Hold an OUTER mutation batch across both operations, then verify the
-    # final real server block is still chiselsandbits:chiseled with a tile.
-    old_work='''  tile.getClass().getMethod("initializeWith",contract).invoke(tile,info);
-  tile.getClass().getMethod("clearInAreaTarget",net.minecraft.world.phys.Vec3.class)
-    .invoke(tile,new net.minecraft.world.phys.Vec3(0.11,0.11,0.11));
-  tile.setChanged();
-  made=true;
-  System.out.println("RGB_PORT_CNB_FIXTURE_PASS tile="+tile.getClass().getName()
-      +" rgb="+net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(rgb.getBlock())
-      +" microcut=0.11x0.11x0.11");'''
-    new_work='''  try (java.lang.AutoCloseable batch = (java.lang.AutoCloseable) tile.getClass()
-      .getMethod("batch").invoke(tile)) {
-    tile.getClass().getMethod("initializeWith",contract).invoke(tile,info);
-    tile.getClass().getMethod("clearInAreaTarget",net.minecraft.world.phys.Vec3.class)
-      .invoke(tile,new net.minecraft.world.phys.Vec3(0.11,0.11,0.11));
-  }
-  var resultingState=level.getBlockState(pos);
-  var resultingId=net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(resultingState.getBlock());
-  var survivingTile=level.getBlockEntity(pos);
-  if(resultingId==null || !"chiselsandbits".equals(resultingId.getNamespace())
-     || !"chiseled".equals(resultingId.getPath()) || survivingTile!=tile){
-    System.err.println("RGB_PORT_CNB_FIXTURE_RETRY actualBlock="+resultingId
-        +" blockEntity="+survivingTile+" preserved="+(survivingTile==tile));
-    return;
-  }
-  made=true;
-  System.out.println("RGB_PORT_CNB_FIXTURE_PASS tile="+tile.getClass().getName()
-      +" rgb="+net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(rgb.getBlock())
-      +" microcut=0.11x0.11x0.11 actualBlock="+resultingId);'''
-    if old_work not in server_logic:
-        raise AssertionError("C&B fixture template drift")
-    server_logic=server_logic.replace(old_work,new_work)
     fixture=code/"ci/RgbPortCnbFixture.java"
     fixture.write_text('''package com.rgbblocks.ci;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -233,6 +197,42 @@ else:
     # Reflective fixture keeps the production source free of a C&B compile dependency.
     server_logic=server_logic.replace("FABRICINFOCLASS","mod.chiselsandbits.api.blockinformation.BlockInformation").replace(
         "FABRICCONTRACT","mod.chiselsandbits.api.blockinformation.BlockInformation")
+    # C&B auto-restores a fully homogeneous 4096-bit chiseled block to its
+    # ordinary full block when an initializeWith() batch closes. The old
+    # fixture initialized 4096 bits and then cut one bit AFTER that collapse,
+    # leaving a detached tile: client saw a normal rgbblocks:*_glow block.
+    # Hold an OUTER mutation batch across both operations, then verify the
+    # final real server block is still chiselsandbits:chiseled with a tile.
+    old_work='''  tile.getClass().getMethod("initializeWith",contract).invoke(tile,info);
+  tile.getClass().getMethod("clearInAreaTarget",net.minecraft.world.phys.Vec3.class)
+    .invoke(tile,new net.minecraft.world.phys.Vec3(0.11,0.11,0.11));
+  tile.setChanged();
+  made=true;
+  System.out.println("RGB_PORT_CNB_FIXTURE_PASS tile="+tile.getClass().getName()
+      +" rgb="+net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(rgb.getBlock())
+      +" microcut=0.11x0.11x0.11");'''
+    new_work='''  try (java.lang.AutoCloseable batch = (java.lang.AutoCloseable) tile.getClass()
+      .getMethod("batch").invoke(tile)) {
+    tile.getClass().getMethod("initializeWith",contract).invoke(tile,info);
+    tile.getClass().getMethod("clearInAreaTarget",net.minecraft.world.phys.Vec3.class)
+      .invoke(tile,new net.minecraft.world.phys.Vec3(0.11,0.11,0.11));
+  }
+  var resultingState=level.getBlockState(pos);
+  var resultingId=net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(resultingState.getBlock());
+  var survivingTile=level.getBlockEntity(pos);
+  if(resultingId==null || !"chiselsandbits".equals(resultingId.getNamespace())
+     || !"chiseled".equals(resultingId.getPath()) || survivingTile!=tile){
+    System.err.println("RGB_PORT_CNB_FIXTURE_RETRY actualBlock="+resultingId
+        +" blockEntity="+survivingTile+" preserved="+(survivingTile==tile));
+    return;
+  }
+  made=true;
+  System.out.println("RGB_PORT_CNB_FIXTURE_PASS tile="+tile.getClass().getName()
+      +" rgb="+net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(rgb.getBlock())
+      +" microcut=0.11x0.11x0.11 actualBlock="+resultingId);'''
+    if old_work not in server_logic:
+        raise AssertionError("C&B fixture template drift")
+    server_logic=server_logic.replace(old_work,new_work)
     fixture=code/"ci/RgbPortCnbFixture.java"
     fixture.write_text('''package com.rgbblocks.ci;
 import net.neoforged.bus.api.SubscribeEvent;
