@@ -24,6 +24,9 @@ jobs:
         run: |
           python3 rgb-blocks-compat/build_mc1211_fabric.py
           cd port-work/mc1211-fabric
+          cd ../..
+          python3 rgb-blocks-compat/inject_ci_only_light_probe.py fabric1211
+          cd port-work/mc1211-fabric
           gradle --no-daemon build
       - name: Run REAL Fabric RGB color and texture test on dedicated server with actual client
         run: python3 rgb-blocks-compat/test_mc1211_fabric_inworld.py
