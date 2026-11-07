@@ -31,6 +31,18 @@ for p in CODE.rglob("*.java"):
                  .replace("com.mojang.blaze3d.vertex.QuadInstance","com.rgbblocks.compat.QuadInstance"))
     patch(p,common)
 
+# 26.1.2 glass models force translucent in their model texture descriptor.
+# MC1.21.1 Fabric needs the terrain render layer mapping explicitly.
+client_init=CODE/"com/rgbblocks/client/RgbBlocksClient.java"
+def adapt_client_layers(src):
+    src=src.replace("import com.rgbblocks.client.config.RGBClientConfig;",
+        "import com.rgbblocks.client.config.RGBClientConfig;\\nimport com.rgbblocks.RgbBlocksMod;\\nimport net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;\\nimport net.minecraft.client.renderer.RenderType;\\nimport net.minecraft.world.item.BlockItem;\\nimport net.minecraft.world.item.Item;".replace("\\\\n","\\n"))
+    if "BlockRenderLayerMap.INSTANCE.putBlock" not in src:
+        src=src.replace("RGBClientConfig.initialize();",
+          "RGBClientConfig.initialize();\\n      for (Item item : RgbBlocksMod.GLASS_ITEMS) {\\n         BlockRenderLayerMap.INSTANCE.putBlock(((BlockItem)item).getBlock(), RenderType.translucent());\\n      }".replace("\\\\n","\\n"))
+    return src
+patch(client_init,adapt_client_layers)
+
 main=CODE/"com/rgbblocks/RgbBlocksMod.java"
 def pm(s):
     s=s.replace('net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTab','net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup')
