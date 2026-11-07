@@ -6,7 +6,7 @@ hosts through SHA-512 verified URL pointers. Never repack/rehost their JARs.
 """
 import hashlib,json,pathlib,sys,urllib.parse,urllib.request,zipfile
 PROFILE=sys.argv[1] if len(sys.argv)>1 else "fabric1211"
-if PROFILE not in ("fabric1211","forge1201"):raise ValueError("expected fabric1211 or forge1201")
+if PROFILE not in ("fabric1211","neoforge1211","forge1201"):raise ValueError("expected fabric1211, neoforge1211 or forge1201")
 cfg={
  "fabric1211":{"mc":"1.21.1","loader":"fabric-loader","loaderver":"0.19.5",
     "build":"port-work/mc1211-fabric/build/libs",
@@ -14,6 +14,11 @@ cfg={
             ("sodium","0.6.13","fabric","client"),
             ("iris","1.8.8","fabric","client")],
     "cnb":("chisels-and-bits-fabric-21.1.40.jar","https://mediafilez.forgecdn.net/files/9455/172/chisels-and-bits-fabric-21.1.40.jar")},
+ "neoforge1211":{"mc":"1.21.1","loader":"neoforge","loaderver":"21.1.265",
+    "build":"port-work/mc1211-neoforge/build/libs",
+    "mods":[("sodium","mc1.21.1-0.6.13-neoforge","neoforge","client"),
+            ("iris","1.8.12+1.21.1-neoforge","neoforge","client")],
+    "cnb":("chisels-and-bits-neoforge-21.1.32.jar","https://mediafilez.forgecdn.net/files/7405/270/chisels-and-bits-neoforge-21.1.32.jar")},
  "forge1201":{"mc":"1.20.1","loader":"forge","loaderver":"47.4.28",
     "build":"port-work/mc1201-forge/build/libs",
     "mods":[("embeddium","0.3.31","forge","client"),
