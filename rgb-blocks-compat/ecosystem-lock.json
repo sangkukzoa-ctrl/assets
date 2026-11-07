@@ -125,7 +125,17 @@
     "candidate_jar_build": "NO JAR",
     "singleplayer": "NOT RUN",
     "dedicated_multiplayer": "NOT RUN",
-    "shaders_and_rgb_lighting": "NOT RUN"
+    "shaders_and_rgb_lighting": "NOT RUN",
+    "upstream_1_21_1_fabric_server_loader_initialization": "PASS: Java 21 Fabric 0.19.5 + C&B 21.1.40 + Fabric API 0.116.17+1.21.1 reached pre-EULA gate; RGB Blocks ABSENT",
+    "upstream_1_20_1_forge_server_loader_initialization": "PASS: Java 17 Forge 47.4.28 + C&B 20.1.20 reached pre-EULA gate; RGB Blocks ABSENT",
+    "api_diff_against_original_rgb_1_3_1": "PASS (static): 10 C&B class strings; 1.21.1 Fabric 3 missing, 1.20.1 Forge 4 missing; requires Mixin/reflective API rewrites",
+    "ci_runs": {
+      "baseline": "https://github.com/sangkukzoa-ctrl/assets/actions/runs/42334729280",
+      "fabric_loader": "https://github.com/sangkukzoa-ctrl/assets/actions/runs/42335316397",
+      "forge_loader": "https://github.com/sangkukzoa-ctrl/assets/actions/runs/42335359442",
+      "api_diff": "https://github.com/sangkukzoa-ctrl/assets/actions/runs/42335932951"
+    },
+    "explicit_release_gate": "BLOCKED: ported RGB code not compiled or executed, original RGB lights and Chisels & Bits/Sodium/Oculus/Minecraft SP+MP unverified"
   },
   "build_and_runtime_release_gate": "No release until mod builds, colored lighting, C&B, client shader integration and multiplayer server pass."
 }
