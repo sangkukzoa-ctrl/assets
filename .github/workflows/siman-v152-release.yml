@@ -1,0 +1,107 @@
+name: Siman v1.5.2 Windows GUI installer R3 and regression
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/siman-v152-release.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+jobs:
+  test-build-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode source and extension, verify SHA256
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $src='siman/installer-v152r3'
+          New-Item -ItemType Directory -Force -Path dist,source | Out-Null
+          $input=(Get-Content (Join-Path $src 'extension_payload.zip.base64') -Raw).Trim()
+          [IO.File]::WriteAllBytes('dist/Siman_v1.5.2_WEBSTORE.zip',[Convert]::FromBase64String($input))
+          $input=(Get-Content (Join-Path $src 'Siman_v1.5.2_SOURCE.zip.base64') -Raw).Trim()
+          [IO.File]::WriteAllBytes('dist/Siman_v1.5.2_SOURCE.zip',[Convert]::FromBase64String($input))
+          $h=(Get-FileHash 'dist/Siman_v1.5.2_WEBSTORE.zip' -Algorithm SHA256).Hash.ToLower()
+          if($h -ne 'd790829a819164f8cf31c34aecae0c40f408aaba096f39842f55045b6d9073e9'){throw "Webstore hash mismatch: $h"}
+          $h=(Get-FileHash 'dist/Siman_v1.5.2_SOURCE.zip' -Algorithm SHA256).Hash.ToLower()
+          if($h -ne '5df4a4144f750b616b22e1583bea1e4758a9846574e7604c237b7c1217a5f0af'){throw "Source hash mismatch: $h"}
+          Expand-Archive -LiteralPath 'dist/Siman_v1.5.2_SOURCE.zip' -DestinationPath 'source'
+      - name: Run real ChatLLM delayed-response and Claude regression tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node 'source/tests/collectors.test.cjs'
+          if($LASTEXITCODE -ne 0){throw 'Collector regression failure'}
+          node 'source/tests/bridge.test.cjs'
+          if($LASTEXITCODE -ne 0){throw 'Storage bridge regression failure'}
+          Get-ChildItem 'source/app' -Filter '*.js' | ForEach-Object {
+            node --check $_.FullName
+            if($LASTEXITCODE -ne 0){throw "JavaScript syntax failure in $($_.Name)"}
+          }
+          $manifest=Get-Content 'source/app/manifest.json' -Raw -Encoding UTF8 | ConvertFrom-Json
+          if($manifest.version -ne '1.5.2' -or $manifest.manifest_version -ne 3){throw 'Manifest version mismatch'}
+          $source=Get-Content 'siman/installer-v152r3/SimanSetup.cs' -Raw
+          if(-not $source.Contains('SendKeys.SendWait("^l")') -or -not $source.Contains('--new-window')){throw 'Browser address navigation fix missing'}
+      - name: Build native Windows GUI EXE
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $src='siman/installer-v152r3'
+          $embedded=Join-Path $src 'extension_payload.zip'
+          Copy-Item 'dist/Siman_v1.5.2_WEBSTORE.zip' $embedded
+          $icon=Join-Path $src 'SimanSetup.ico'
+          $data=(Get-Content 'siman/installer-v151r2/SimanSetup.ico.base64' -Raw).Trim()
+          [IO.File]::WriteAllBytes($icon,[Convert]::FromBase64String($data))
+          $csc=Join-Path $env:windir 'Microsoft.NET/Framework/v4.0.30319/csc.exe'
+          & $csc /nologo /target:winexe /platform:anycpu /optimize+ /out:dist/SimanSetup.exe "/resource:${embedded},siman.extension.payload" "/win32icon:${icon}" /reference:System.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll (Join-Path $src 'SimanSetup.cs')
+          if($LASTEXITCODE -ne 0){throw "Windows C# compiler failed: $LASTEXITCODE"}
+      - name: Verify fresh install, clean update and rollback structure
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $exe=(Resolve-Path dist/SimanSetup.exe).Path
+          $process=Start-Process -FilePath $exe -ArgumentList '--verify' -Wait -PassThru
+          if($process.ExitCode -ne 0){throw 'Payload version verification failed'}
+          $process=Start-Process -FilePath $exe -ArgumentList '--install' -Wait -PassThru
+          if($process.ExitCode -ne 0){throw 'Fresh installation failed'}
+          $target=Join-Path $env:LOCALAPPDATA '2bornot/Siman/app'
+          $manifest=Get-Content (Join-Path $target 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          if($manifest.version -ne '1.5.2'){throw 'Fresh version mismatch'}
+          if(!(Test-Path (Join-Path $target 'page.js'))){throw 'Collector missing'}
+          $countBefore=@(Get-ChildItem $target -File -Recurse).Count
+          'old script' | Set-Content (Join-Path $target 'obsolete.txt')
+          $process=Start-Process -FilePath $exe -ArgumentList '--install' -Wait -PassThru
+          if($process.ExitCode -ne 0){throw 'Update failed'}
+          if(Test-Path (Join-Path $target 'obsolete.txt')){throw 'Old installation file not cleaned'}
+          $countAfter=@(Get-ChildItem $target -File -Recurse).Count
+          if($countBefore -ne $countAfter){throw 'File count mismatch after update'}
+          if(!(Test-Path (Join-Path $env:LOCALAPPDATA '2bornot/Siman/setup.log'))){throw 'Installer log missing'}
+          Write-Host "PASS native Windows installer R3 - files: $countAfter"
+      - name: Package executable and produce hashes
+        shell: pwsh
+        run: |
+          Copy-Item 'siman/installer-v152r3/README_설치방법.txt' 'dist/README_설치방법.txt'
+          Compress-Archive -Path 'dist/SimanSetup.exe','dist/README_설치방법.txt' -DestinationPath 'dist/Siman_EasySetup_v1.5.2.zip' -Force
+          Get-ChildItem dist -File | Where-Object {$_.Name -ne 'SHA256SUMS.txt'} | ForEach-Object {
+            $h=Get-FileHash $_.FullName -Algorithm SHA256
+            "$($h.Hash.ToLower())  $($_.Name)"
+          } | Set-Content 'dist/SHA256SUMS.txt' -Encoding UTF8
+      - name: Publish v1.5.2 GitHub preview
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag='siman-v1.5.2'
+          $args=@('dist/SimanSetup.exe','dist/Siman_EasySetup_v1.5.2.zip','dist/Siman_v1.5.2_WEBSTORE.zip','dist/Siman_v1.5.2_SOURCE.zip','dist/SHA256SUMS.txt')
+          gh release create $tag @args --title '심안 心眼 v1.5.2 (Preview) - ChatLLM 지연 목록/Chrome 등록 수정' --notes-file 'siman/installer-v152r3/RELEASE_NOTES.md' --prerelease --latest=false
+          if($LASTEXITCODE -ne 0){throw 'GitHub release publish failed'}
+      - name: Signed provenance (when transparency log available)
+        continue-on-error: true
+        uses: actions/attest@v4
+        with:
+          subject-path: 'dist/SimanSetup.exe'
