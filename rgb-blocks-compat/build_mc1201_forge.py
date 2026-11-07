@@ -325,6 +325,26 @@ public final class RGBForgeLogoutEvents {
 }
 ''',encoding="utf-8")
 
+# Java 17: old code's pattern matching on BlockAndTintGetter->BlockGetter
+# fails because the superinterface is always implemented.
+rgbengine=CODE/"com/rgbblocks/client/lighting/RGBRealLightEngine.java"
+patch(rgbengine,lambda s:s.replace(
+ "if (clientLevel() instanceof BlockGetter getter) {",
+ "BlockGetter getter = clientLevel();\\n         if (getter != null) {".replace("\\n","\n")))
+
+# Convert original Fabric MixinPlugin early mod-discovery to Forge-loading
+# registry; this plugin runs before standard ModList initialization.
+plugin=CODE/"com/rgbblocks/mixin/RGBBlocksMixinPlugin.java"
+def forge_plugin(s):
+    s=s.replace("import net.fabricmc.loader.api.FabricLoader;",
+                "import net.minecraftforge.fml.loading.FMLLoader;")
+    s=s.replace('FabricLoader.getInstance().isModLoaded("chiselsandbits")',
+                'FMLLoader.getLoadingModList().getModFileById("chiselsandbits") != null')
+    s=s.replace('FabricLoader.getInstance().isModLoaded("sodium")',
+                'FMLLoader.getLoadingModList().getModFileById("embeddium") != null')
+    return s
+patch(plugin,forge_plugin)
+
 # Legacy Forge metadata; generated variant includes full data and old model schema.
 modtoml=RES/"META-INF/mods.toml"
 modtoml.parent.mkdir(parents=True,exist_ok=True)
