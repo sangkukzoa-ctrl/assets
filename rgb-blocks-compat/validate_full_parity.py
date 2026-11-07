@@ -11,9 +11,9 @@ from collections import Counter
 from pathlib import Path
 
 target=sys.argv[1]
-assert target in ("fabric1211","forge1201")
-mc="1.21.1" if target=="fabric1211" else "1.20.1"
-base=Path("port-work/mc1211-fabric" if target=="fabric1211" else "port-work/mc1201-forge")
+assert target in ("fabric1211","neoforge1211","forge1201")
+mc="1.20.1" if target=="forge1201" else "1.21.1"
+base=Path({"fabric1211":"port-work/mc1211-fabric","neoforge1211":"port-work/mc1211-neoforge","forge1201":"port-work/mc1201-forge"}[target])
 ports=[p for p in (base/"build/libs").glob("*.jar") if "-sources" not in p.name and "-dev" not in p.name]
 assert ports, "No actual port JAR to verify"
 port=max(ports,key=lambda p:p.stat().st_size)
@@ -26,7 +26,7 @@ originals=set(source_jar.namelist());modified=set(new.namelist())
 print("PORT",mc,port,port.stat().st_size,"files",len(modified),flush=True)
 assert "pack.mcmeta" in modified,"Mod cannot mount graphical resources: missing pack.mcmeta"
 pack=json.loads(new.read("pack.mcmeta"))
-expected_pack_format=34 if target=="fabric1211" else 15
+expected_pack_format=15 if target=="forge1201" else 34
 assert pack["pack"]["pack_format"]==expected_pack_format,pack
 pal=json.loads(new.read("assets/rgbblocks/palette.json"))
 assert len(pal)==16687, len(pal)
@@ -81,7 +81,7 @@ for path in original_safe:
         bad_hash.append(path)
 assert not bad_hash,(len(bad_hash),bad_hash[:5])
 
-source_java=Path("rgb-blocks-compat/recovered/fabric/com")
+source_java=Path("rgb-blocks-compat/recovered/neoforge/com") if target=="neoforge1211" else Path("rgb-blocks-compat/recovered/fabric/com")
 dest_java=base/"src/main/java/com"
 missing_classes=[]
 for p in source_java.rglob("*.java"):
@@ -97,7 +97,7 @@ assert (dest_java/"rgbblocks/mixin/client/Sodium06BlockRendererMixin.java").exis
 if target=="forge1201":
     cand=list((dest_java/"rgbblocks/mixin/client").glob("*Embeddium*.java"))
     assert cand, "Forge 1.20.1 Embeddium RGB vertex bridge missing"
-metadata="fabric.mod.json" if target=="fabric1211" else "META-INF/mods.toml"
+metadata={"fabric1211":"fabric.mod.json","neoforge1211":"META-INF/neoforge.mods.toml","forge1201":"META-INF/mods.toml"}[target]
 assert metadata in modified,(metadata,"missing")
 report={"minecraft":mc,"loader":target,"port":str(port),
  "original_source_jar_sha256":hashlib.sha256(source).hexdigest(),
