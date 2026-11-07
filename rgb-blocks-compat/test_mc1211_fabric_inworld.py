@@ -126,7 +126,13 @@ try:
     client=subprocess.Popen(launchcmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,
         bufsize=1,env=env,start_new_session=True)
     clog,cthread=proc_reader(client,"CLIENT",EVIDENCE/"launcher.log")
-    result["fml_player_joined"]=await_line(slog,"RGBPortTester joined the game",server,450)
+    result["fml_player_joined"]=await_line(slog,"RGBPortTester joined the game",server,190)
+    if not result["fml_player_joined"]:
+        info("JOIN DIAGNOSTIC — client process state="+str(client.poll()))
+        for pth in (GAME/"logs/latest.log", EVIDENCE/"launcher.log", EVIDENCE/"server.log"):
+            if pth.exists():
+                tail=pth.read_text(encoding="utf-8",errors="replace").splitlines()[-70:]
+                info("LAST 70 LINES "+str(pth)+"\n"+"\n".join(tail))
     result["render_thread"]=await_line(clog,"Render thread",client,55)
     result["texture_atlas_ready"]=await_line(clog,"Created:",client,180)
     if result["fml_player_joined"]:
