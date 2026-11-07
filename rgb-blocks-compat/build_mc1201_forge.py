@@ -498,6 +498,19 @@ java.toolchain.languageVersion=JavaLanguageVersion.of(17)
 minecraft {
  mappings channel:'official',version:'1.20.1'
  copyIdeResources=true
+ runs {
+   client {
+     workingDirectory project.file('run')
+     property 'forge.logging.markers', 'REGISTRIES'
+     property 'forge.logging.console.level', 'info'
+     mods { rgbblocks {source sourceSets.main} }
+   }
+   server {
+     workingDirectory project.file('run-server')
+     property 'forge.logging.console.level', 'info'
+     mods { rgbblocks {source sourceSets.main} }
+   }
+ }
 }
 repositories { maven {url='https://maven.minecraftforge.net'};mavenCentral() }
 dependencies {
