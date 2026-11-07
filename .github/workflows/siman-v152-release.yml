@@ -28,7 +28,7 @@ jobs:
           $h=(Get-FileHash 'dist/Siman_v1.5.2_WEBSTORE.zip' -Algorithm SHA256).Hash.ToLower()
           if($h -ne 'd790829a819164f8cf31c34aecae0c40f408aaba096f39842f55045b6d9073e9'){throw "Webstore hash mismatch: $h"}
           $h=(Get-FileHash 'dist/Siman_v1.5.2_SOURCE.zip' -Algorithm SHA256).Hash.ToLower()
-          if($h -ne '5df4a4144f750b616b22e1583bea1e4758a9846574e7604c237b7c1217a5f0af'){throw "Source hash mismatch: $h"}
+          if($h -ne 'b57c2a2d164d0bac5b70bf351a9f7922493d81980d4f1f97083624e1d8d62be2'){throw "Source hash mismatch: $h"}
           Expand-Archive -LiteralPath 'dist/Siman_v1.5.2_SOURCE.zip' -DestinationPath 'source'
       - name: Run real ChatLLM delayed-response and Claude regression tests
         shell: pwsh
