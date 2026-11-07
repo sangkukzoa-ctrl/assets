@@ -89,7 +89,7 @@ slog,sthread=proc_reader(server,"SERVER",EVIDENCE/"server.log")
 client=None; xvfb=None
 result={"minecraft":"1.21.1","loader":"Fabric 0.19.5","scope":"Actual dedicated-server+real launcher in-world RGB gameplay",
         "palette_count":len(colors),"rgb_test_block":block,"server_ready":False,"fml_player_joined":False,
-        "rgb_commands":False,"rgb_light_propagation_verified":False,"render_thread":False,"texture_atlas_ready":False,
+        "rgb_commands":False,"rgb_light_propagation_verified":False,"cnb_sculpted_fixture":False,"cnb_rgb_propagation_verified":False,"render_thread":False,"texture_atlas_ready":False,
         "missing_rgb_models":None,"crashes":[],"screenshots":[]}
 try:
     result["server_ready"]=await_line(slog,"Done (",server,180)
@@ -97,10 +97,12 @@ try:
     for c in ["gamerule doDaylightCycle false","time set midnight","weather clear","forceload add 0 0",
               "fill -4 119 1 4 119 10 minecraft:stone",
               f"setblock -2 121 7 {block}",f"setblock 0 121 7 {block}_glow",f"setblock 2 121 7 {block}_glass",
+              "setblock 4 121 7 chiselsandbits:chiseled",
               f"execute if block 0 121 7 {block}_glow run say RGB_GLOW_FIXTURE_READY",
               "rgb auto","rgb setbake all","rgb get"]:
         cmd(server,c);time.sleep(.35)
     assert await_line(slog,"RGB_GLOW_FIXTURE_READY",server,50),"RGB glow fixture not present"
+    result["cnb_sculpted_fixture"]=await_line(slog,"RGB_PORT_CNB_FIXTURE_PASS",server,70)
     result["rgb_commands"]=await_line(slog,"RGB mode: AUTO",server,50)
     assert result["rgb_commands"],"Server RGB mode command failed"
     tarpath=ROOT/"portablemc.tar.gz"
@@ -142,6 +144,7 @@ try:
     txt=live.read_text(encoding="utf-8",errors="replace") if live.is_file() else ""
     if live.is_file():shutil.copy2(live,EVIDENCE/"minecraft-client.log")
     result["rgb_light_propagation_verified"]="RGB_PORT_LIGHT_PROBE_PASS" in (txt+"\n"+"".join(clog))
+    result["cnb_rgb_propagation_verified"]="RGB_PORT_CNB_LIGHT_PROBE_PASS" in (txt+"\n"+"".join(clog))
     result["missing_rgb_models"]=sum(("rgbblocks:models/item/" in line and "FileNotFoundException" in line) or
       ("rgbblocks:blockstates/" in line and "missing model for variant" in line)
        for line in txt.splitlines()) if txt else -1
@@ -165,4 +168,6 @@ assert result["missing_rgb_models"]==0,"One or more RGB models unavailable in ac
 assert not result["crashes"],"Actual client RGB/C&B/Sodium/Iris Mixin or class crash"
 assert result["screenshots"],"No screenshot of real in-world RGB scene"
 assert result["rgb_light_propagation_verified"],"RGB light propagation runtime pixel-channel probe failed"
+assert result["cnb_sculpted_fixture"],"C&B 4095 RGB microbits fixture was not constructed"
+assert result["cnb_rgb_propagation_verified"],"C&B chiselled RGB-colored light failed to propagate into adjacent voxel"
 info("PASS: MC1.21.1 actual RGB game scene + client/server networking + full model asset recognition")
