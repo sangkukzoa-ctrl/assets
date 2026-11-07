@@ -67,6 +67,9 @@ public static void sample() {
          System.out.println("RGB_PORT_CNB_LIGHT_PROBE_WAIT emitter=["+cnbColor.r()+","+cnbColor.g()+","+cnbColor.b()+"]"
             +" nearby=["+around.r()+","+around.g()+","+around.b()+"] ticks="+ticks);
       }
+   } else if(ticks%120==0){
+     System.out.println("RGB_PORT_CNB_ID_WAIT block="+id+" state="+chiseled
+         +" hasEntity="+(mc.level.getBlockEntity(cnb)!=null));
    }
  }
 }
