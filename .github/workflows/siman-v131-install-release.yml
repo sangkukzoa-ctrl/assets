@@ -1,0 +1,78 @@
+name: Siman v1.3.1 Windows CMD install and release
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/siman-v131-install-release.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Real cmd.exe smoke test (fresh install, unicode folder, upgrade)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $payload='siman/release/Siman_HeartEye_v1.3.1_INSTALL.zip.base64'
+          $archive=Join-Path $env:RUNNER_TEMP 'fixed_installer.zip'
+          [IO.File]::WriteAllBytes($archive,[Convert]::FromBase64String((Get-Content -LiteralPath $payload -Raw).Trim()))
+          $sum=(Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($sum -ne '98cc41529e3ace2a1820212fb3200202a78844601e739483a17cb0c5e051c9e5'){throw "SHA mismatch: $sum"}
+          $dest=Join-Path $env:RUNNER_TEMP '심안 테스트 폴더 - 空白'
+          Expand-Archive -LiteralPath $archive -DestinationPath $dest -Force
+          $cmd=Join-Path $dest 'INSTALL.cmd'
+          $bytes=[IO.File]::ReadAllBytes($cmd)
+          $text=[Text.Encoding]::ASCII.GetString($bytes)
+          if(-not $text.Contains("`r`n")){throw 'CMD file not CRLF'}
+          $env:SIMAN_CI_TEST='1'
+          $env:LOCALAPPDATA=Join-Path $env:RUNNER_TEMP 'isolated_siman_appdata'
+          $env:USERPROFILE=Join-Path $env:RUNNER_TEMP 'isolated_siman_profile'
+          New-Item -ItemType Directory -Path $env:USERPROFILE -Force | Out-Null
+          Write-Host 'First install through real cmd.exe'
+          & $env:ComSpec /D /C ('"'+$cmd+'"')
+          if($LASTEXITCODE -ne 0){throw "Fresh install CMD failed: $LASTEXITCODE"}
+          $target=Join-Path $env:LOCALAPPDATA '2bornot\Siman\app'
+          $manifest=Join-Path $target 'manifest.json'
+          if(-not(Test-Path -LiteralPath $manifest)){throw 'Missing installed manifest'}
+          $obj=Get-Content -LiteralPath $manifest -Raw -Encoding UTF8|ConvertFrom-Json
+          if($obj.version -ne '1.3.1'){throw "Fresh install version wrong: $($obj.version)"}
+          if(-not (Test-Path -LiteralPath (Join-Path $target 'search.js'))){throw 'Missing search.js'}
+          Write-Host 'Upgrade through real cmd.exe'
+          $old=[IO.File]::ReadAllText($manifest,[Text.Encoding]::UTF8).Replace('"version": "1.3.1"','"version": "1.2.0"')
+          [IO.File]::WriteAllText($manifest,$old,[Text.Encoding]::UTF8)
+          & $env:ComSpec /D /C ('"'+$cmd+'"')
+          if($LASTEXITCODE -ne 0){throw "Upgrade CMD failed: $LASTEXITCODE"}
+          $obj=Get-Content -LiteralPath $manifest -Raw -Encoding UTF8|ConvertFrom-Json
+          if($obj.version -ne '1.3.1'){throw "Upgrade version wrong: $($obj.version)"}
+          Write-Host 'SIMAN v1.3.1 CMD FRESH INSTALL + UPGRADE PASS'
+  publish:
+    needs: windows-installer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode SHA-verified artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          base64 -d siman/release/Siman_HeartEye_v1.3.1_INSTALL.zip.base64 > dist/Siman_HeartEye_v1.3.1_INSTALL.zip
+          echo '98cc41529e3ace2a1820212fb3200202a78844601e739483a17cb0c5e051c9e5  dist/Siman_HeartEye_v1.3.1_INSTALL.zip' | sha256sum -c -
+          (cd dist && sha256sum *.zip > SHA256SUMS.txt)
+      - name: GitHub prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag=siman-v1.3.1
+          gh release create "$tag" dist/*.zip dist/SHA256SUMS.txt --title '심안 心眼 v1.3.1 (Windows installer hotfix)' --notes 'Fixes v1.3.0 Windows CMD LF line endings, the nul/ershell.exe installer errors. Tested on a Windows GitHub Actions runner using the actual .cmd file for first install and upgrade, including a Unicode folder path. Chrome/Edge unpacked extension loading is required once before a Web Store listing is approved.' --prerelease --latest=false
+      - name: Signed provenance attestation
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/*.zip
