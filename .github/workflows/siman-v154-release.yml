@@ -47,7 +47,7 @@ jobs:
             if($LASTEXITCODE -ne 0){throw "JavaScript syntax failure in $($_.Name)"}
           }
           $manifest=Get-Content 'source/app/manifest.json' -Raw -Encoding UTF8 | ConvertFrom-Json
-          if($manifest.version -ne '1.5.3' -or $manifest.manifest_version -ne 3){throw 'Manifest version mismatch'}
+          if($manifest.version -ne '1.5.4' -or $manifest.manifest_version -ne 3){throw 'Manifest version mismatch'}
           $source=Get-Content 'siman/installer-v154/SimanSetup.cs' -Raw
           if(-not $source.Contains('SendKeys.SendWait("^l")') -or -not $source.Contains('--new-window')){throw 'Browser address navigation fix missing'}
       - name: Build native Windows GUI EXE
@@ -74,7 +74,7 @@ jobs:
           if($process.ExitCode -ne 0){throw 'Fresh installation failed'}
           $target=Join-Path $env:LOCALAPPDATA '2bornot/Siman/app'
           $manifest=Get-Content (Join-Path $target 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-          if($manifest.version -ne '1.5.3'){throw 'Fresh version mismatch'}
+          if($manifest.version -ne '1.5.4'){throw 'Fresh version mismatch'}
           if(!(Test-Path (Join-Path $target 'page.js'))){throw 'Collector missing'}
           $countBefore=@(Get-ChildItem $target -File -Recurse).Count
           'old script' | Set-Content (Join-Path $target 'obsolete.txt')
