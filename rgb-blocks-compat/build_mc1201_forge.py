@@ -336,6 +336,8 @@ patch(rgbengine,lambda s:s.replace(
 # registry; this plugin runs before standard ModList initialization.
 plugin=CODE/"com/rgbblocks/mixin/RGBBlocksMixinPlugin.java"
 def forge_plugin(s):
+    s=s.replace("import net.minecraftforge.fml.loading.FMLPaths;",
+                "import net.minecraftforge.fml.loading.FMLLoader;")
     s=s.replace("import net.fabricmc.loader.api.FabricLoader;",
                 "import net.minecraftforge.fml.loading.FMLLoader;")
     s=s.replace('FabricLoader.getInstance().isModLoaded("chiselsandbits")',
