@@ -118,13 +118,17 @@ try:
     result["server_ready"]=await_line(slog,"Done (",server,180)
     if not result["server_ready"]:raise AssertionError("NeoForge server failed to become ready")
     for c in ["gamerule doDaylightCycle false","time set midnight","weather clear","forceload add 0 0",
-              "fill -4 119 1 4 119 10 minecraft:stone",
+              "fill -5 119 -3 5 119 12 minecraft:stone",
               f"setblock -2 121 7 {block}",f"setblock 0 121 7 {block}_glow",f"setblock 2 121 7 {block}_glass",
               "setblock 4 121 7 chiselsandbits:chiseled",
+              f"execute if block -2 121 7 {block} run say RGB_NORMAL_FIXTURE_READY",
               f"execute if block 0 121 7 {block}_glow run say RGB_GLOW_FIXTURE_READY",
+              f"execute if block 2 121 7 {block}_glass run say RGB_GLASS_FIXTURE_READY",
               "rgb auto","rgb setbake all","rgb get"]:
         cmd(server,c);time.sleep(.35)
+    assert await_line(slog,"RGB_NORMAL_FIXTURE_READY",server,50),"RGB normal fixture not present"
     assert await_line(slog,"RGB_GLOW_FIXTURE_READY",server,50),"RGB glow fixture not present"
+    assert await_line(slog,"RGB_GLASS_FIXTURE_READY",server,50),"RGB glass fixture not present"
     # Only instrumented strict builds can emit actual microbit fixture evidence.
     result["cnb_sculpted_fixture"]=await_line(slog,"RGB_PORT_CNB_FIXTURE_PASS",server,70) if STRICT_LIGHT_PROBE else False
     result["rgb_commands"]=await_line(slog,"RGB mode: AUTO",server,50)
@@ -161,6 +165,9 @@ try:
     result["texture_atlas_ready"]=await_line(clog,"Created:",client,180)
     if result["fml_player_joined"]:
         cmd(server,"tp RGBPortTester 0.5 120.0 0.5 facing 0.5 121.5 7.5")
+        # Platform extends under the camera at y=119 to prevent falling off
+        # before the screenshot. Check that the server actually executed TP.
+        assert await_line(slog,"Teleported RGBPortTester to 0.500000, 120.000000, 0.500000",server,25), "Camera teleport not acknowledged"
         cmd(server,"effect give RGBPortTester minecraft:night_vision 45 0 true")
         cmd(server,"gamemode creative RGBPortTester")
         cmd(server,"rgb bake")
