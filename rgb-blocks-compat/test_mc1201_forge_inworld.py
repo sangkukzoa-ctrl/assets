@@ -109,7 +109,7 @@ slog,sthread=runthread(server,"SERVER",EVIDENCE/"server-console.log")
 client=None
 result={"scope":"Minecraft 1.20.1 production Forge 47.4.28 RGBBlock+C&B+Embeddium/Oculus, actual network connected RGB test scene",
         "shader_enabled":False,"screenshots":[],"block":block,"server_ready":False,"client_joined":False,
-        "rgb_server_commands":False,"rgb_light_propagation_verified":False,"render_thread":False,"atlas_ready":False,"resource_model_missing":None}
+        "rgb_server_commands":False,"rgb_light_propagation_verified":False,"cnb_sculpted_fixture":False,"cnb_rgb_propagation_verified":False,"render_thread":False,"atlas_ready":False,"resource_model_missing":None}
 try:
     result["server_ready"]=await_pattern(slog,"Done (",server,180,"server_boot")
     if not result["server_ready"]:raise AssertionError("Forge dedicated server did not reach Ready")
@@ -118,10 +118,12 @@ try:
               f"setblock -2 121 7 {block}",
               f"setblock 0 121 7 {block}_glow",
               f"setblock 2 121 7 {block}_glass",
+              "setblock 4 121 7 chiselsandbits:chiseled",
               f"execute if block 0 121 7 {block}_glow run say RGB_FIXTURE_GLOW_READY",
               "rgb auto","rgb setbake all","rgb get"]:
         command(server,c);time.sleep(0.4)
     assert await_pattern(slog,"RGB_FIXTURE_GLOW_READY",server,50,"fixture_created"),"RGB block not placed"
+    result["cnb_sculpted_fixture"]=await_pattern(slog,"RGB_PORT_CNB_FIXTURE_PASS",server,70,"actual_CnB_voxel_setup")
     result["rgb_server_commands"]=await_pattern(slog,"RGB mode: AUTO",server,50,"rgb_command")
     assert result["rgb_server_commands"]
     # Install real client (not a Mojang-named ForgeGradle development runtime)
@@ -165,6 +167,7 @@ try:
         txt=client_game.read_text(encoding="utf-8",errors="replace")
         shutil.copy2(client_game,EVIDENCE/"minecraft-client-latest.log")
         result["rgb_light_propagation_verified"]="RGB_PORT_LIGHT_PROBE_PASS" in (txt+"\n"+"".join(clog))
+        result["cnb_rgb_propagation_verified"]="RGB_PORT_CNB_LIGHT_PROBE_PASS" in (txt+"\n"+"".join(clog))
         result["resource_model_missing"]=sum("FileNotFoundException: rgbblocks:models/" in x or
           ("rgbblocks:blockstates/" in x and "missing model for variant" in x)
           for x in txt.splitlines())
@@ -190,4 +193,6 @@ assert result["resource_model_missing"]==0,"RGB asset paths not loaded by client
 assert not result["fatal"],"Minecraft client fatal shader/renderer/C&B incompatibility"
 assert result["screenshots"],"Failed to capture real game scene"
 assert result["rgb_light_propagation_verified"],"RGB light propagation runtime pixel-channel probe failed"
+assert result["cnb_sculpted_fixture"],"C&B 4095 RGB microbits fixture was not constructed"
+assert result["cnb_rgb_propagation_verified"],"C&B chiselled RGB-colored light failed to propagate into adjacent voxel"
 record("PASS: Real Forge 1.20.1 client/server session, registered RGB world, render, 50k assets and saved screenshot")
