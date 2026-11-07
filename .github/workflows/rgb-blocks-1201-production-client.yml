@@ -4,6 +4,8 @@ on:
     branches: [rgb-blocks-legacy-compat-audit]
     paths:
       - 'rgb-blocks-compat/test_mc1201_forge_production_client.py'
+      - 'rgb-blocks-compat/build_mc1201_forge.py'
+      - 'rgb-blocks-compat/build_mc1211_fabric.py'
       - '.github/workflows/rgb-blocks-1201-production-client.yml'
   workflow_dispatch:
 permissions:
