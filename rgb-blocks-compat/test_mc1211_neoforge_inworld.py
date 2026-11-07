@@ -7,6 +7,7 @@ NOT a colored light propagation or C&B sculpted microbit proof.
 import json,os,signal,pathlib,subprocess,threading,time,urllib.request,zipfile,tarfile,hashlib,shutil
 from urllib.parse import urlencode
 from pathlib import Path
+STRICT_LIGHT_PROBE=os.environ.get("RGB_PORT_STRICT_LIGHT_PROBE")=="1"
 ROOT=Path("mc1211-neoforge-inworld"); SERVER=ROOT/"server";GAME=ROOT/"client";EVIDENCE=ROOT/"evidence"
 for p in (SERVER/"mods",GAME/"mods",EVIDENCE):p.mkdir(parents=True,exist_ok=True)
 def info(msg):
@@ -92,7 +93,8 @@ server=subprocess.Popen(["bash","./run.sh","nogui"],
     cwd=SERVER,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1,start_new_session=True)
 slog,sthread=proc_reader(server,"SERVER",EVIDENCE/"server.log")
 client=None; xvfb=None
-result={"minecraft":"1.21.1","loader":"NeoForge 21.1.265","scope":"Production NeoForge client/server join, mod stack, RGB scene and screenshot; NOT colored-light or C&B sculpted proof",
+result={"minecraft":"1.21.1","loader":"NeoForge 21.1.265","scope":"Strict CI-only RGB propagation/C&B microbit probe" if STRICT_LIGHT_PROBE else "Production NeoForge client/server join, mod stack, RGB scene and screenshot; NOT colored-light or C&B sculpted proof",
+        "instrumented_ci_probe":STRICT_LIGHT_PROBE,
         "palette_count":len(colors),"rgb_test_block":block,"server_ready":False,"fml_player_joined":False,
         "rgb_commands":False,"rgb_light_propagation_verified":False,"cnb_sculpted_fixture":False,"cnb_rgb_propagation_verified":False,"render_thread":False,"texture_atlas_ready":False,
         "missing_rgb_models":None,"crashes":[],"screenshots":[]}
@@ -107,8 +109,8 @@ try:
               "rgb auto","rgb setbake all","rgb get"]:
         cmd(server,c);time.sleep(.35)
     assert await_line(slog,"RGB_GLOW_FIXTURE_READY",server,50),"RGB glow fixture not present"
-    # C&B block placement alone does not prove sculpted voxels; reserve a separate microbit test.
-    result["cnb_sculpted_fixture"]=False
+    # Only instrumented strict builds can emit actual microbit fixture evidence.
+    result["cnb_sculpted_fixture"]=await_line(slog,"RGB_PORT_CNB_FIXTURE_PASS",server,70) if STRICT_LIGHT_PROBE else False
     result["rgb_commands"]=await_line(slog,"RGB mode: AUTO",server,50)
     assert result["rgb_commands"],"Server RGB mode command failed"
     tarpath=ROOT/"portablemc.tar.gz"
@@ -179,4 +181,10 @@ assert result["render_thread"] and result["texture_atlas_ready"],"MC1.21.1 graph
 assert result["missing_rgb_models"]==0,"One or more RGB models unavailable in actual NeoForge client"
 assert not result["crashes"],"Actual client RGB/C&B/Sodium/Iris Mixin or class crash"
 assert result["screenshots"],"No screenshot of real in-world RGB scene"
-info("PASS: MC1.21.1 NeoForge real client/server join + RGB block scene screenshot + modded render initialization; per-channel RGB/C&B microbits NOT YET VERIFIED")
+if STRICT_LIGHT_PROBE:
+    assert result["rgb_light_propagation_verified"],"NeoForge adjacent RGB channel light did not propagate"
+    assert result["cnb_sculpted_fixture"],"NeoForge Chisels & Bits sculpted RGB microbit fixture missing"
+    assert result["cnb_rgb_propagation_verified"],"NeoForge C&B RGB microbit light did not propagate"
+    info("PASS: Instrumented NeoForge 1.21.1 real RGB source color and C&B microbit adjacent colored light")
+else:
+    info("PASS: MC1.21.1 NeoForge real client/server join + RGB block scene screenshot + modded render initialization; per-channel RGB/C&B microbits NOT YET VERIFIED")
