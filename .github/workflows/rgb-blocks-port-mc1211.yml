@@ -25,7 +25,7 @@ jobs:
         run: python3 rgb-blocks-compat/build_mc1211_fabric.py
       - name: Try full compilation and print failures
         working-directory: port-work/mc1211-fabric
-        run: gradle --no-daemon --stacktrace compileJava 2>&1 | tee compile.log; test "\${PIPESTATUS[0]}" = 0
+        run: gradle --no-daemon --stacktrace compileJava 2>&1 | tee compile.log; test "${PIPESTATUS[0]}" = 0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
