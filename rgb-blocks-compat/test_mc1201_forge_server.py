@@ -12,6 +12,10 @@ assert jars,"No built Forge JAR found"
 jar=max(jars,key=lambda p:p.stat().st_size)
 with zipfile.ZipFile(jar) as z:
     files=z.namelist()
+    colors=json.loads(z.read("assets/rgbblocks/palette.json"))
+    assert len(colors)==16687, len(colors)
+    chosen=next(x for x in colors if int(x["red"])>180 and int(x["green"])<100 and int(x["blue"])<100)
+    color_base="rgbblocks:rgb_%s_%d_%d_%d"%(chosen["group"],chosen["red"],chosen["green"],chosen["blue"])
     assets={
       "blockstates":sum(n.startswith("assets/rgbblocks/blockstates/") and n.endswith(".json") for n in files),
       "blockmodels":sum(n.startswith("assets/rgbblocks/models/block/") and n.endswith(".json") for n in files),
@@ -86,8 +90,8 @@ def cycle(name,commands):
     reports.append(report)
     print("RESULT",json.dumps(report),flush=True)
     return report
-first=cycle("first",["rgb get","rgb manual","rgb setbake all","rgb bake","rgb get"])
-second=cycle("reopen",["rgb get","rgb bake"]) if first["started"] else {"started":False,"reason":"startup_failed"}
+first=cycle("first",["rgb get","forceload add 0 0",f"setblock 0 120 0 {color_base}",f"setblock 1 120 0 {color_base}_glow",f"setblock 2 120 0 {color_base}_glass",f"execute if block 0 120 0 {color_base} run say RGB_NORMAL_PERSIST_PASS",f"execute if block 1 120 0 {color_base}_glow run say RGB_GLOW_PERSIST_PASS",f"execute if block 2 120 0 {color_base}_glass run say RGB_GLASS_PERSIST_PASS","rgb manual","rgb setbake all","rgb bake","rgb get"])
+second=cycle("reopen",[f"execute if block 0 120 0 {color_base} run say RGB_NORMAL_PERSIST_PASS",f"execute if block 1 120 0 {color_base}_glow run say RGB_GLOW_PERSIST_PASS",f"execute if block 2 120 0 {color_base}_glass run say RGB_GLASS_PERSIST_PASS","rgb get","rgb bake"]) if first["started"] else {"started":False,"reason":"startup_failed"}
 report={"scope":"RGB Forge1.20.1 with Chisels & Bits on actual dedicated server","artifacts":assets,
         "first":first,"reopen":second}
 (ROOT/"result.json").write_text(json.dumps(report,ensure_ascii=False,indent=2))
@@ -97,4 +101,11 @@ assert first["rgb_palette_found"],"16,687 RGB colors not registered"
 assert first["rgb_command_found"],"RGB commands did not respond"
 assert second["started"],"Forge RGB Blocks world did not reopen"
 assert second["rgb_command_found"],"RGB commands did not persist"
+first_log=(ROOT/"first.log").read_text(encoding="utf-8")
+reopen_log=(ROOT/"reopen.log").read_text(encoding="utf-8")
+for marker in ("RGB_NORMAL_PERSIST_PASS","RGB_GLOW_PERSIST_PASS","RGB_GLASS_PERSIST_PASS"):
+    assert marker in first_log, "RGB "+marker+" block not placed successfully"
+    assert marker in reopen_log, "RGB "+marker+" block was lost on reload"
+assert "RGB mode: MANUAL" in reopen_log, "RGB manual mode did not persist"
+assert "Bake scope: ALL" in reopen_log, "RGB bake scope did not persist"
 print("PASS: Forge 1.20.1 RGB Blocks C&B server registry/commands/reopen test",flush=True)
