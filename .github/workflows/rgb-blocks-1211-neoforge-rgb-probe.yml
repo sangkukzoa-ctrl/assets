@@ -1,0 +1,48 @@
+name: RGB Blocks 1.21.1 NeoForge strict RGB and CnB colored-light probe
+on:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths:
+      - 'rgb-blocks-compat/inject_ci_only_light_probe.py'
+      - '.github/workflows/rgb-blocks-1211-neoforge-rgb-probe.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  strict-real-rgb:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Set up software OpenGL and screenshot capture
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb scrot mesa-utils libgl1-mesa-dri libgl1 libasound2t64 libxrandr2 libxcursor1 libxinerama1 libxi6
+      - name: Generate NeoForge port and add CI-only light/CnB runtime instrumentation
+        run: |
+          set -euxo pipefail
+          python3 rgb-blocks-compat/build_mc1211_fabric.py
+          python3 rgb-blocks-compat/build_mc1211_neoforge.py
+          python3 rgb-blocks-compat/inject_ci_only_light_probe.py neoforge1211
+      - name: Compile instrumented NeoForge test-only JAR
+        working-directory: port-work/mc1211-neoforge
+        run: gradle --no-daemon build
+      - name: Run actual NeoForge server and client with strict RGB+C&B light probes
+        env:
+          RGB_PORT_STRICT_LIGHT_PROBE: '1'
+        run: python3 rgb-blocks-compat/test_mc1211_neoforge_inworld.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgbblocks-1211-NEOFORGE-CI-ONLY-rgb-light-cnb-probe-evidence
+          path: |
+            mc1211-neoforge-inworld/evidence/
+            port-work/mc1211-neoforge/build/reports/
+          retention-days: 30
