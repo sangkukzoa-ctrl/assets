@@ -20,6 +20,7 @@ def patch(p,func):
 for p in CODE.rglob("*.java"):
     def common(s):
         return (s.replace("net.minecraft.resources.Identifier","net.minecraft.resources.ResourceLocation")
+                 .replace("Identifier id(", "ResourceLocation id(")
                  .replace("Identifier.fromNamespaceAndPath","ResourceLocation.fromNamespaceAndPath")
                  .replace("new Identifier(","new ResourceLocation(")
                  .replace("net.minecraft.client.renderer.block.BlockAndTintGetter","net.minecraft.world.level.BlockAndTintGetter")
@@ -35,6 +36,7 @@ def pm(s):
     s=s.replace('Properties.of().setId(key)','Properties.of()')
     s=s.replace('new net.minecraft.world.item.Item.Properties().setId(blockItemKey).useBlockDescriptionPrefix()','new net.minecraft.world.item.Item.Properties()')
     s=s.replace('new net.minecraft.world.item.Item.Properties().setId(key)','new net.minecraft.world.item.Item.Properties()')
+    s=s.replace('FabricCreativeModeTab.builder()', 'FabricItemGroup.builder()')
     s=s.replace('Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)','source -> source.hasPermission(2)')
     s=s.replace('public InteractionResult use(Level level, Player player, InteractionHand hand)', 'public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand)')
     s=s.replace('return InteractionResult.SUCCESS_SERVER;', 'return InteractionResultHolder.sidedSuccess(player.getItemInHand(hand), false);')
@@ -139,11 +141,60 @@ patch(engine,pe)
 # staging until the method descriptor is checked against the 1.21.1 client jar.
 renderer=CODE/"com/rgbblocks/mixin/client/ModelBlockRendererMixin.java"
 renderer.write_text('''package com.rgbblocks.mixin.client;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.rgbblocks.client.lighting.RGBRealLightEngine;
+import com.rgbblocks.compat.QuadInstance;
+import java.util.Arrays;
+import net.minecraft.world.level.BlockAndTintGetter;
 import net.minecraft.client.renderer.block.ModelBlockRenderer;
+import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
-/** RELEASE BLOCKER: vanilla light injection must be ported against 1.21.1 bytecode. */
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Redirect;
+
+/** Minecraft 1.21.1 vertex RGB hook. Translates original QuadInstance shader
+ * pipeline to the old BakedQuad/VertexConsumer packed vertex format.
+ * Fails loudly if vanilla invocation descriptor changes.
+ */
 @Mixin(ModelBlockRenderer.class)
-public abstract class ModelBlockRendererMixin {}
+public abstract class ModelBlockRendererMixin {
+ @Redirect(method="putQuadData",
+   at=@At(value="INVOKE",target="Lcom/mojang/blaze3d/vertex/VertexConsumer;putBulkData(Lcom/mojang/blaze3d/vertex/PoseStack$Pose;Lnet/minecraft/client/renderer/block/model/BakedQuad;[FFFFF[IIZ)V"),
+   require=1)
+ private void rgbblocks$lightQuad(VertexConsumer output,PoseStack.Pose pose,BakedQuad quad,
+    float[] brightness,float red,float green,float blue,float alpha,int[] lightmap,
+    int overlay,boolean readExistingColor,
+    BlockAndTintGetter level,BlockState state,BlockPos pos,VertexConsumer originalConsumer,
+    PoseStack.Pose originalPose,BakedQuad originalQuad,
+    float b0,float b1,float b2,float b3,int light0,int light1,int light2,int light3,int packedOverlay){
+    final int[] data=quad.getVertices().clone();
+    final int stride=data.length/4;
+    final int[] light=lightmap.clone();
+    QuadInstance carrier=new QuadInstance(){
+      public int getLightCoords(int vertex){return light[vertex];}
+      public void setLightCoords(int vertex,int value){light[vertex]=value;}
+      public int getColor(int vertex){return data[vertex*stride+3];}
+      public void setColor(int vertex,int value){data[vertex*stride+3]=value;}
+    };
+    RGBRealLightEngine.applyToVanillaQuad(level,pos,state,quad,carrier);
+    BakedQuad adjusted=Arrays.equals(data,quad.getVertices())?quad:
+      new BakedQuad(data,quad.getTintIndex(),quad.getDirection(),quad.getSprite(),quad.isShade());
+    output.putBulkData(pose,adjusted,brightness,red,green,blue,alpha,light,overlay,readExistingColor);
+ }
+}
+''',encoding="utf-8")
+lm=CODE/"com/rgbblocks/mixin/client/LightmapRenderStateExtractorMixin.java"
+lm.write_text('''package com.rgbblocks.mixin.client;
+import net.minecraft.client.renderer.LightTexture;
+import org.spongepowered.asm.mixin.Mixin;
+/** The original 26.1.2 target contains an empty injection; no equivalent
+ * lightmap post-effect exists in 1.21.1. The per-vertex RGB hook is separate.
+ */
+@Mixin(LightTexture.class)
+public abstract class LightmapRenderStateExtractorMixin {}
 ''',encoding="utf-8")
 
 # Download author-published Fabric 1.3.1F metadata and resources.
