@@ -8,6 +8,7 @@ import json,os,signal,pathlib,subprocess,threading,time,urllib.request,zipfile,t
 from urllib.parse import urlencode
 from pathlib import Path
 STRICT_LIGHT_PROBE=os.environ.get("RGB_PORT_STRICT_LIGHT_PROBE")=="1"
+SHADER_ON=os.environ.get("RGB_PORT_SHADER_ON")=="1"
 ROOT=Path("mc1211-neoforge-inworld"); SERVER=ROOT/"server";GAME=ROOT/"client";EVIDENCE=ROOT/"evidence"
 for p in (SERVER/"mods",GAME/"mods",EVIDENCE):p.mkdir(parents=True,exist_ok=True)
 def info(msg):
@@ -71,6 +72,20 @@ shutil.copy2(SERVER/"mods"/cb,GAME/"mods"/cb)
 sodium=download_mod("sodium","mc1.21.1-0.6.13-neoforge")
 iris=download_mod("iris","1.8.12+1.21.1-neoforge")
 info("CLIENT_ECOSYSTEM "+json.dumps({"neoforge":"21.1.265","chiselsandbits":cb,"sodium":sodium,"iris":iris}))
+shader_filename=None
+if SHADER_ON:
+    shader=jsonurl("https://api.modrinth.com/v2/version/Bqen1mJX")
+    assert shader["version_number"]=="r5.9.3", "Pinned Complementary Reimagined shader changed"
+    asset=next(f for f in shader["files"] if f["filename"].lower().endswith(".zip"))
+    shader_filename=asset["filename"]
+    shaderpath=GAME/"shaderpacks"/shader_filename
+    shaderpath.parent.mkdir(parents=True,exist_ok=True)
+    buffer=fetch(asset["url"],shaderpath)
+    if asset.get("hashes",{}).get("sha512"):
+        assert hashlib.sha512(buffer).hexdigest()==asset["hashes"]["sha512"],"Shader SHA512 mismatch"
+    cfg=GAME/"config";cfg.mkdir(parents=True,exist_ok=True)
+    (cfg/"iris.properties").write_text("shaderPack="+shader_filename+"\nenableShaders=true\n",encoding="utf-8")
+    info("RGB_SHADER_TEST_ON "+shader_filename)
 fetch("https://maven.neoforged.net/releases/net/neoforged/neoforge/21.1.265/neoforge-21.1.265-installer.jar",SERVER/"installer.jar")
 install=subprocess.run(["java","-jar","installer.jar","--installServer"],cwd=SERVER,
     stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=460)
@@ -95,6 +110,7 @@ slog,sthread=proc_reader(server,"SERVER",EVIDENCE/"server.log")
 client=None; xvfb=None
 result={"minecraft":"1.21.1","loader":"NeoForge 21.1.265","scope":"Strict CI-only RGB propagation/C&B microbit probe" if STRICT_LIGHT_PROBE else "Production NeoForge client/server join, mod stack, RGB scene and screenshot; NOT colored-light or C&B sculpted proof",
         "instrumented_ci_probe":STRICT_LIGHT_PROBE,
+        "shader_requested":SHADER_ON,"shader_pack":shader_filename,"shader_active":False,
         "palette_count":len(colors),"rgb_test_block":block,"server_ready":False,"fml_player_joined":False,
         "rgb_commands":False,"rgb_light_propagation_verified":False,"cnb_sculpted_fixture":False,"cnb_rgb_propagation_verified":False,"render_thread":False,"texture_atlas_ready":False,
         "missing_rgb_models":None,"crashes":[],"screenshots":[]}
@@ -149,7 +165,7 @@ try:
         cmd(server,"gamemode creative RGBPortTester")
         cmd(server,"rgb bake")
         time.sleep(35)
-        screenshot=EVIDENCE/"real-neoforge-rgb-normal-glow-glass.png"
+        screenshot=EVIDENCE/"real-neoforge-rgb-normal-glow-glass-{}{}.png".format("shader-on" if SHADER_ON else "shader-off", "-strict" if STRICT_LIGHT_PROBE else "")"
         shot=subprocess.run(["scrot",str(screenshot.resolve())],env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=45)
         if shot.returncode==0 and screenshot.is_file():
             result["screenshots"].append({"name":screenshot.name,"bytes":screenshot.stat().st_size})
@@ -157,6 +173,17 @@ try:
     live=GAME/"logs/latest.log"
     txt=live.read_text(encoding="utf-8",errors="replace") if live.is_file() else ""
     if live.is_file():shutil.copy2(live,EVIDENCE/"minecraft-client.log")
+    if SHADER_ON:
+        shade_lines=[line for line in (txt+"\n"+"".join(clog)).splitlines()
+          if ("shader" in line.lower() or "iris" in line.lower())]
+        (EVIDENCE/"iris-complementary-evidence.log").write_text("\n".join(shade_lines),encoding="utf-8")
+        evidence="\n".join(shade_lines).lower()
+        missing=["shaders are disabled","falling back to normal rendering",
+                 "shaderpack could not be loaded","failed to load shaderpack"]
+        result["shader_active"]=(shader_filename.lower() in evidence
+            and any(word in evidence for word in ("using shaderpack","loading shaderpack","loaded shaderpack","shaderpack loaded","shader pack"))
+            and not any(word in evidence for word in missing))
+        info("SHADER_CONFIRMATION active="+str(result["shader_active"])+" lines="+str(len(shade_lines)))
     result["rgb_light_propagation_verified"]="RGB_PORT_LIGHT_PROBE_PASS" in (txt+"\n"+"".join(clog))
     result["cnb_rgb_propagation_verified"]="RGB_PORT_CNB_LIGHT_PROBE_PASS" in (txt+"\n"+"".join(clog))
     result["missing_rgb_models"]=sum(("rgbblocks:models/item/" in line and "FileNotFoundException" in line) or
@@ -181,6 +208,8 @@ assert result["render_thread"] and result["texture_atlas_ready"],"MC1.21.1 graph
 assert result["missing_rgb_models"]==0,"One or more RGB models unavailable in actual NeoForge client"
 assert not result["crashes"],"Actual client RGB/C&B/Sodium/Iris Mixin or class crash"
 assert result["screenshots"],"No screenshot of real in-world RGB scene"
+if SHADER_ON:
+    assert result["shader_active"],"Complementary Reimagined shader was not confirmed ACTIVE in Iris"
 if STRICT_LIGHT_PROBE:
     assert result["rgb_light_propagation_verified"],"NeoForge adjacent RGB channel light did not propagate"
     assert result["cnb_sculpted_fixture"],"NeoForge Chisels & Bits sculpted RGB microbit fixture missing"
