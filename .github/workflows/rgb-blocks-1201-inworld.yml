@@ -25,6 +25,9 @@ jobs:
           python3 rgb-blocks-compat/build_mc1211_fabric.py
           python3 rgb-blocks-compat/build_mc1201_forge.py
           cd port-work/mc1201-forge
+          cd ../..
+          python3 rgb-blocks-compat/inject_ci_only_light_probe.py forge1201
+          cd port-work/mc1201-forge
           gradle --no-daemon build
       - name: Run REAL Minecraft 1.20.1 RGB in-world client-server gameplay and screenshot
         run: python3 rgb-blocks-compat/test_mc1201_forge_inworld.py
