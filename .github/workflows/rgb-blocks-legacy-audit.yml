@@ -20,6 +20,8 @@ jobs:
           python-version: '3.12'
       - name: Inspect actual published mod JARs and Modrinth dependency declarations
         run: python rgb-blocks-compat/verify_upstream.py
+      - name: Fingerprint official RGB Blocks 1.3.1 published asset bytes
+        run: python rgb-blocks-compat/verify_baseline_assets.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
