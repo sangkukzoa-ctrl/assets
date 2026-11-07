@@ -20,7 +20,8 @@ def patch(p,func):
 for p in CODE.rglob("*.java"):
     def common(s):
         return (s.replace("net.minecraft.resources.Identifier","net.minecraft.resources.ResourceLocation")
-                 .replace("Identifier id(", "ResourceLocation id(")
+                 .replace("Identifier", "ResourceLocation")
+                 .replace(".identifier()", ".location()")
                  .replace("Identifier.fromNamespaceAndPath","ResourceLocation.fromNamespaceAndPath")
                  .replace("new Identifier(","new ResourceLocation(")
                  .replace("net.minecraft.client.renderer.block.BlockAndTintGetter","net.minecraft.world.level.BlockAndTintGetter")
@@ -137,6 +138,31 @@ def pe(s):
 '''+s[idx:]
     return s
 patch(engine,pe)
+
+# Normalize 26.1.2 BlockState light damping to 1.21.1 world-aware queries.
+lights=CODE/"com/rgbblocks/client/lighting/RGBLightEngine.java"
+def pl(s):
+    s=s.replace("state.getLightDampening()", "state.getLightBlock(level, pos)")
+    s=s.replace("isOpaqueSolidBarrierState(state)", "isOpaqueSolidBarrierState(level, pos, state)")
+    s=s.replace("isOpaqueSolidBarrierState(BlockState state)", "isOpaqueSolidBarrierState(BlockAndTintGetter level, BlockPos pos, BlockState state)")
+    s=s.replace("state.isSolidRender()", "state.isSolidRender(level,pos)")
+    return s
+patch(lights,pl)
+
+invalidator=CODE/"com/rgbblocks/client/lighting/RGBRenderInvalidator.java"
+def pi(s):
+    s=s.replace("renderer.setSectionRangeDirty(\n               floorSection(minX), floorSection(minY), floorSection(minZ), floorSection(maxX), floorSection(maxY), floorSection(maxZ)\n            );",
+                "renderer.setBlocksDirty(minX,minY,minZ,maxX,maxY,maxZ);")
+    s=s.replace("renderer.setSectionRangeDirty(minSx, minSy, minSz, maxSx, maxSy, maxSz);",
+                "// Legacy LevelRenderer uses per-section dirty invalidation below.")
+    return s
+patch(invalidator,pi)
+
+patch(runtime,lambda s:s.replace("PayloadTypeRegistry.clientboundPlay()","PayloadTypeRegistry.playS2C()"))
+
+clientLevel=CODE/"com/rgbblocks/mixin/client/ClientLevelMixin.java"
+patch(clientLevel, lambda s:s.replace("(ClientLevel)this","(ClientLevel)(Object)this"))
+
 
 # Mixin requires an old renderer-specific hook. Introduce disabled-by-default
 # staging until the method descriptor is checked against the 1.21.1 client jar.
