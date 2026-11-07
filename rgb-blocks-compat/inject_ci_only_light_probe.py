@@ -157,6 +157,7 @@ public final class RgbPortCnbFixture {
     source=source.replace(needle,needle+"\n      com.rgbblocks.ci.RgbPortCnbFixture.register();")
     mod.write_text(source,encoding="utf-8")
 else:
+    server_logic=server_logic.replace('net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("rgbblocks","rgb_red_186_72_96_glow")','new net.minecraft.resources.ResourceLocation("rgbblocks","rgb_red_186_72_96_glow")')
     server_logic=server_logic.replace("FABRICINFOCLASS","mod.chiselsandbits.blockinformation.BlockInformation").replace(
         "FABRICCONTRACT","mod.chiselsandbits.api.blockinformation.IBlockInformation")
     fixture=code/"ci/RgbPortCnbFixture.java"
