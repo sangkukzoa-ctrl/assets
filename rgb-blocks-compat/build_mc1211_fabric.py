@@ -450,6 +450,9 @@ manifest["depends"]["fabricloader"]=">=0.16.0"
 manifest["depends"]["java"]=">=21"
 manifest["depends"]["fabric-api"]=">=0.116.17+1.21.1"
 (RES/"fabric.mod.json").write_text(json.dumps(manifest,indent=2),encoding="utf-8")
+# Older clients need explicit pack metadata for mod_resources recognition.
+# The source 26.1.2 JAR's root metadata is not a 1.21.1 compatible pack format.
+(RES/"pack.mcmeta").write_text(json.dumps({"pack":{"pack_format":34,"description":"RGB Blocks 1.3.1 — Minecraft 1.21.1"}},ensure_ascii=False,indent=2),encoding="utf-8")
 # Bind the 1.21.1 replacement callback in the existing original Mixin config.
 for entry in manifest.get("mixins",[]):
     config=entry.get("config") if isinstance(entry,dict) else entry
