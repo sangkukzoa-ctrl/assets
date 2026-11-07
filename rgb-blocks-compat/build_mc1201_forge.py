@@ -287,6 +287,44 @@ patch(disconnect, lambda s:s.replace("disconnect(Lnet/minecraft/client/gui/scree
     "disconnect(Lnet/minecraft/client/gui/screens/Screen;)V")
     .replace("Screen screen,boolean transfer,CallbackInfo ci","Screen screen,CallbackInfo ci"))
 
+# Forge 1.20.1 lifecycle supplies a stable logout event; do not inject into
+# a Minecraft.disconnect overload that does not exist in this version.
+disconnect=CODE/"com/rgbblocks/mixin/client/MinecraftDisconnectMixin.java"
+disconnect.write_text('''package com.rgbblocks.mixin.client;
+import com.rgbblocks.client.lighting.RGBRealLightEngine;
+import net.minecraft.client.Minecraft;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+@Mixin(Minecraft.class)
+public abstract class MinecraftDisconnectMixin {
+ @Inject(method="tick",at=@At("TAIL"),require=1)
+ private void rgbblocks$onTick(CallbackInfo ci){
+   RGBRealLightEngine.processClientTick();
+ }
+}
+''',encoding="utf-8")
+forgeEvents=CODE/"com/rgbblocks/client/RGBForgeLogoutEvents.java"
+forgeEvents.write_text('''package com.rgbblocks.client;
+import com.rgbblocks.client.cnb.RGBCnbGeometryBakeDebouncer;
+import com.rgbblocks.client.cnb.RGBCnbReloadWakeup;
+import com.rgbblocks.client.lighting.RGBRealLightEngine;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+@Mod.EventBusSubscriber(modid="rgbblocks", value=Dist.CLIENT)
+public final class RGBForgeLogoutEvents {
+  private RGBForgeLogoutEvents(){}
+  @SubscribeEvent public static void loggedOut(ClientPlayerNetworkEvent.LoggingOut event) {
+    RGBRealLightEngine.onClientDisconnect();
+    RGBCnbGeometryBakeDebouncer.reset();
+    RGBCnbReloadWakeup.reset();
+  }
+}
+''',encoding="utf-8")
+
 # Legacy Forge metadata; generated variant includes full data and old model schema.
 modtoml=RES/"META-INF/mods.toml"
 modtoml.parent.mkdir(parents=True,exist_ok=True)
