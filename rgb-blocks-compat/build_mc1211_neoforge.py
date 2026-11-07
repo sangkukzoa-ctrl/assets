@@ -233,6 +233,19 @@ public final class RgbBlocksClient {
 }
 ''',encoding="utf-8")
 
+# NeoForge 1.21.1 models without a render_type default to SOLID even for
+# our newly registered StainedGlassBlock instances. Fabric uses an explicit
+# BlockRenderLayerMap, which is unavailable in native NeoForge. Set the JSON
+# render type on every RGB glass block model to preserve alpha blending.
+glass_models=0
+for model in (RES/"assets/rgbblocks/models/block").glob("*_glass.json"):
+    obj=json.loads(model.read_text(encoding="utf-8"))
+    obj["render_type"]="minecraft:translucent"
+    model.write_text(json.dumps(obj,separators=(",",":")),encoding="utf-8")
+    glass_models+=1
+assert glass_models==16687,("RGB glass model count drift",glass_models)
+print("NEOFORGE translucent RGB glass models:",glass_models,flush=True)
+
 # 26.1.2 to 1.21.1 resource codec conversion was done in the shared stage,
 # but any Fabric-only mods must be absent in this NeoForge deliverable.
 leftovers=[]
