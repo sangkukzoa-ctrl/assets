@@ -154,7 +154,7 @@ try:
     result["missing_rgb_models"]=sum(("rgbblocks:models/item/" in line and "FileNotFoundException" in line) or
       ("rgbblocks:blockstates/" in line and "missing model for variant" in line)
        for line in txt.splitlines()) if txt else -1
-    result["crashes"]=[needle for needle in ("MixinApplyError","NoSuchMethodError","NoClassDefFoundError","Crash report saved")
+    result["crashes"]=[needle for needle in ("MixinApplyError","NoSuchMethodError","NoClassDefFoundError","Crash report saved","Sodium 0.6 RGB vertex bridge failed")
       if needle in txt]
 finally:
     if client:terminate(client)
