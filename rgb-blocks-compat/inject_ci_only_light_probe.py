@@ -12,8 +12,9 @@ code=base/"src/main/java/com/rgbblocks"
 probe=code/"ci/RgbPortLightProbe.java";probe.parent.mkdir(parents=True,exist_ok=True)
 logic=r'''private static int ticks = 0;
 private static boolean passed = false;
+private static boolean cnbPassed = false;
 public static void sample() {
- if (passed) return;
+ if (passed && cnbPassed) return;
  net.minecraft.client.Minecraft mc=net.minecraft.client.Minecraft.getInstance();
  if (mc==null || mc.level==null || mc.player==null) return;
  ticks++;
@@ -31,7 +32,7 @@ public static void sample() {
           && ((packed>>16)&255)>((packed>>8)&255);
  boolean lightRed=glow.active() && glow.r()>glow.g() && glow.r()>glow.b();
  boolean ok=sourceRed && emitter.active() && lightRed;
- if(ok){
+ if(ok && !passed){
     passed=true;
     System.out.println("RGB_PORT_LIGHT_PROBE_PASS source="+Integer.toHexString(packed)
       +" emitted=["+emitter.r()+","+emitter.g()+","+emitter.b()+"]"
@@ -41,6 +42,30 @@ public static void sample() {
       +" emitted=["+emitter.r()+","+emitter.g()+","+emitter.b()+"]"
       +" neighboringLight=["+glow.r()+","+glow.g()+","+glow.b()+"] ticks="+ticks
       +" enabled="+com.rgbblocks.client.lighting.RGBRealLightEngine.enabled());
+ }
+
+ // Chisels & Bits 16^3 micro-voxel block: 4095 RGB bits + one carved air bit.
+ // Original 1.3.1 C&B cache must discover and propagate its glow separately.
+ if (!cnbPassed) {
+   net.minecraft.core.BlockPos cnb=new net.minecraft.core.BlockPos(4,121,7);
+   net.minecraft.core.BlockPos nearCnb=new net.minecraft.core.BlockPos(4,121,6);
+   var chiseled=mc.level.getBlockState(cnb);
+   var id=net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(chiseled.getBlock());
+   if(id!=null && "chiselsandbits".equals(id.getNamespace()) && "chiseled".equals(id.getPath())){
+      com.rgbblocks.client.lighting.RGBRealLightEngine.refreshCnbBlockEntity(mc.level.getBlockEntity(cnb));
+      com.rgbblocks.client.lighting.RGBLightEngine.ensureBootstrapped(mc.level,nearCnb);
+      var cnbColor=com.rgbblocks.client.lighting.RGBRealLightEngine.sourceColorAt(mc.level,cnb);
+      var around=com.rgbblocks.client.lighting.RGBLightEngine.lightColorAt(nearCnb,0.5f,0.5f,0.5f);
+      if(cnbColor.active() && cnbColor.r()>cnbColor.g() && cnbColor.r()>cnbColor.b()
+           && around.active() && around.r()>around.g() && around.r()>around.b()){
+         cnbPassed=true;
+         System.out.println("RGB_PORT_CNB_LIGHT_PROBE_PASS emitter=["+cnbColor.r()+","+cnbColor.g()+","+cnbColor.b()+"]"
+            +" nearby=["+around.r()+","+around.g()+","+around.b()+"] ticks="+ticks);
+      }else if(ticks%120==0){
+         System.out.println("RGB_PORT_CNB_LIGHT_PROBE_WAIT emitter=["+cnbColor.r()+","+cnbColor.g()+","+cnbColor.b()+"]"
+            +" nearby=["+around.r()+","+around.g()+","+around.b()+"] ticks="+ticks);
+      }
+   }
  }
 }
 '''
