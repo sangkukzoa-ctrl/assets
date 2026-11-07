@@ -4,6 +4,7 @@ on:
     branches: [rgb-blocks-legacy-compat-audit]
     paths:
       - 'rgb-blocks-compat/build_mc1211_fabric.py'
+      - 'rgb-blocks-compat/package_ecosystem.py'
       - 'rgb-blocks-compat/test_mc1211_fabric_server.py'
       - '.github/workflows/rgb-blocks-port-mc1211.yml'
   workflow_dispatch:
@@ -29,6 +30,10 @@ jobs:
         run: |
           set -o pipefail
           gradle --no-daemon --stacktrace build 2>&1 | tee compile.log
+      - name: Generate standalone Gradle wrapper for fully buildable source
+        if: success()
+        working-directory: port-work/mc1211-fabric
+        run: gradle --no-daemon wrapper --gradle-version 8.12.1
       - name: Package recovered and ported source (including unchanged assets)
         if: success()
         run: |
@@ -38,7 +43,7 @@ jobs:
           root=Path('port-work/mc1211-fabric')
           dst=Path('RgbBlocks-1.3.1-MC1.21.1-Fabric-port-source.zip')
           with zipfile.ZipFile(dst,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=6,allowZip64=True) as z:
-            for base in ('src','build.gradle','settings.gradle','gradle.properties'):
+            for base in ('src','build.gradle','settings.gradle','gradle.properties','gradlew','gradlew.bat','gradle'):
               p=root/base
               files=p.rglob('*') if p.is_dir() else [p]
               for f in files:
@@ -56,6 +61,17 @@ jobs:
           path: |
             mc1211-fabric-runtime/*.log
             mc1211-fabric-runtime/result.json
+          retention-days: 30
+      - name: Create complete RGB Blocks + building ecosystem Modrinth launcher profile
+        if: success()
+        run: python3 rgb-blocks-compat/package_ecosystem.py fabric1211
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgbblocks-1211-fabric-whole-minecraft-ecosystem-MRPACK
+          path: |
+            rgb-blocks-compat/packages/*.mrpack
+            rgb-blocks-compat/packages/*-lock.json
           retention-days: 30
       - uses: actions/upload-artifact@v4
         if: always()
