@@ -122,8 +122,8 @@ public final class RgbBlocksMod {
    }catch(IOException ex){throw new IllegalStateException("Original RGB palette registration failed",ex);}
  }
  private static final class ColorData{String group;int red,green,blue;}
- private void registerCommands(RegisterCommandsEvent e){registerCommands(e.getDispatcher());}
- private static void registerCommands(CommandDispatcher<CommandSourceStack> d){
+ private void registerCommands(RegisterCommandsEvent e){registerRgbCommands(e.getDispatcher());}
+ private static void registerRgbCommands(CommandDispatcher<CommandSourceStack> d){
    d.register(Commands.literal("rgb").requires(src->src.hasPermission(2))
       .then(Commands.literal("auto").executes(c->{
         RGBRuntime.setMode(c.getSource().getServer(),RGBRuntime.Mode.AUTO);
