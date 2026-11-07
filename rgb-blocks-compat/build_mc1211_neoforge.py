@@ -211,11 +211,11 @@ s=config.read_text(encoding="utf-8").replace("net.fabricmc.loader.api.FabricLoad
 s=s.replace("FabricLoader.getInstance().getConfigDir()","FMLPaths.CONFIGDIR.get()")
 config.write_text(s,encoding="utf-8")
 
+# Restore the ORIGINAL 1.3.1 NeoForge Mixin plugin, not the Fabric loader's
+# optional-mixin discovery implementation. Preserve platform source structure.
 plugin=JAVA/"mixin/RGBBlocksMixinPlugin.java"
-s=plugin.read_text(encoding="utf-8").replace("net.fabricmc.loader.api.FabricLoader","net.neoforged.fml.loading.FMLLoader")
-s=s.replace('FabricLoader.getInstance().isModLoaded("chiselsandbits")','FMLLoader.getLoadingModList().getModFileById("chiselsandbits") != null')
-s=s.replace('FabricLoader.getInstance().isModLoaded("sodium")','FMLLoader.getLoadingModList().getModFileById("sodium") != null')
-plugin.write_text(s,encoding="utf-8")
+original_plugin=Path("rgb-blocks-compat/recovered/neoforge/com/rgbblocks/mixin/RGBBlocksMixinPlugin.java")
+shutil.copy2(original_plugin,plugin)
 
 client=JAVA/"client/RgbBlocksClient.java"
 client.write_text('''package com.rgbblocks.client;
