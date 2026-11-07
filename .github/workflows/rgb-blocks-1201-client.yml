@@ -27,7 +27,7 @@ jobs:
           python3 rgb-blocks-compat/build_mc1201_forge.py
           cd port-work/mc1201-forge
           gradle --no-daemon compileJava
-      - name: Run Minecraft client with C&B and Embeddium isolated from Oculus dev-refmap
+      - name: Run RGB Blocks and C&B real GUI without unmapped renderer mods
         run: python3 rgb-blocks-compat/test_mc1201_forge_client.py
       - uses: actions/upload-artifact@v4
         if: always()
