@@ -1,0 +1,50 @@
+name: RGB Blocks 1.21.1 NeoForge complete building ecosystem C&B + RGB + Complementary
+on:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths:
+      - '.github/workflows/rgb-blocks-1211-neoforge-combined-acceptance.yml'
+      - 'rgb-blocks-compat/test_mc1211_neoforge_inworld.py'
+      - 'rgb-blocks-compat/inject_ci_only_light_probe.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  shader-and-microbits:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail early on invalid Python test source
+        run: python3 -m py_compile rgb-blocks-compat/test_mc1211_neoforge_inworld.py rgb-blocks-compat/inject_ci_only_light_probe.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Configure headless graphics
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb scrot mesa-utils libgl1-mesa-dri libgl1 libasound2t64 libxrandr2 libxcursor1 libxinerama1 libxi6
+      - name: Generate original RGB port and add CI-only colored-light/C&B probe
+        run: |
+          set -euxo pipefail
+          python3 rgb-blocks-compat/build_mc1211_fabric.py
+          python3 rgb-blocks-compat/build_mc1211_neoforge.py
+          python3 rgb-blocks-compat/inject_ci_only_light_probe.py neoforge1211
+      - name: Compile isolated instrumented acceptance JAR (not release)
+        working-directory: port-work/mc1211-neoforge
+        run: gradle --no-daemon build
+      - name: Verify real C&B RGB Glow microbits with Complementary shader ENABLED
+        env:
+          RGB_PORT_STRICT_LIGHT_PROBE: '1'
+          RGB_PORT_SHADER_ON: '1'
+        run: python3 rgb-blocks-compat/test_mc1211_neoforge_inworld.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgbblocks-1211-NEOFORGE-CnB-RGB-Complementary-ON-evidence
+          path: mc1211-neoforge-inworld/evidence/
+          retention-days: 30
