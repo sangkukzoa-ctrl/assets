@@ -4,6 +4,8 @@ on:
     branches: [rgb-blocks-legacy-compat-audit]
     paths:
       - 'rgb-blocks-compat/test_mc1211_neoforge_inworld.py'
+      - 'rgb-blocks-compat/build_mc1211_neoforge.py'
+      - 'rgb-blocks-compat/validate_full_parity.py'
       - '.github/workflows/rgb-blocks-1211-neoforge-inworld.yml'
   workflow_dispatch:
 permissions:
