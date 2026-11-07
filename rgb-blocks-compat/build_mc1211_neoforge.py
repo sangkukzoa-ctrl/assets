@@ -268,7 +268,7 @@ for file in RES.glob("*mixins*.json"):
     obj=json.loads(file.read_text(encoding="utf-8"))
     obj["compatibilityLevel"]="JAVA_21"
     file.write_text(json.dumps(obj,indent=2),encoding="utf-8")
-    with toml.open("a",encoding="utf-8") as o:o.write('\\n[[mixins]]\\nconfig="'+file.name+'"\\n')
+    with toml.open("a",encoding="utf-8") as o:o.write('\n[[mixins]]\nconfig="'+file.name+'"\n')
 
 (ROOT/"settings.gradle").write_text('''pluginManagement { repositories { gradlePluginPortal(); mavenCentral() } }
 rootProject.name="rgbblocks-1.21.1-neoforge"
