@@ -157,6 +157,28 @@ def pe(s):
     return s
 patch(engine,pe)
 
+# Preserve the original C&B RGB micro-voxel lighting across both generations.
+# C&B 21.1.40 exposes BlockInformation.blockState() as a record accessor,
+# while C&B 20.1.20 exposes IBlockInformation.getBlockState().
+# Never swallow all old-version RGB sources because one getter was renamed.
+def pcnbgetter(s):
+    needle='''if (!(invokeNoArg(information, "blockState") instanceof BlockState state)) {
+               return;
+            }'''
+    replacement='''Object rgbblocks$stateInfo;
+            try {
+               rgbblocks$stateInfo = invokeNoArg(information, "blockState");
+            } catch (ReflectiveOperationException oldApi) {
+               rgbblocks$stateInfo = invokeNoArg(information, "getBlockState");
+            }
+            if (!(rgbblocks$stateInfo instanceof BlockState state)) {
+               return;
+            }'''
+    if needle not in s:raise RuntimeError("Original C&B source accessor not found")
+    return s.replace(needle,replacement)
+patch(engine,pcnbgetter)
+
+
 # Normalize 26.1.2 BlockState light damping to 1.21.1 world-aware queries.
 lights=CODE/"com/rgbblocks/client/lighting/RGBLightEngine.java"
 def pl(s):
