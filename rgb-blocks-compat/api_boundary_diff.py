@@ -6,7 +6,7 @@ bytecode (MC 26.1.2) with public C&B compiled classes for 1.21.1 Fabric and
 1.20.1 Forge. This is *not* a loader runtime, RGB port, or Mixin validation.
 We do not publish decompiled/private source code.
 """
-import io,json,struct,urllib.request,zipfile
+import io,json,struct,urllib.request,zipfile,re
 from datetime import datetime,timezone
 from pathlib import Path
 from collections import defaultdict
@@ -107,6 +107,24 @@ def main():
             if "chiselsandbits" in owner.lower():
                 owners[owner].append({"method":method,"descriptor":desc,"original_rgb_class":c["self"]})
     boundary_refs.update(owners)
+    # C&B has several indirect/mixin strings rather than bytecode Class refs.
+    # Those are executable integration dependencies despite direct references=0.
+    reflective_classes=set()
+    mixin_signature_targets=[]
+    for c in rgb:
+        vals=c["all_utf8"]
+        owners_in_cls=set()
+        for s in vals:
+            if s.startswith("mod.chiselsandbits.") and len(s)<250:
+                target=s.replace(".","/")
+                reflective_classes.add(target)
+                owners_in_cls.add(target)
+            for target in re.findall(r"L(mod/chiselsandbits/[^;]+);",s):
+                reflective_classes.add(target)
+        mixin_methods=[s for s in vals if re.match(r"^[a-zA-Z_$][a-zA-Z_$0-9]*\\(.*\\).+$",s) and "mod/chiselsandbits/" in s]
+        for owner in owners_in_cls:
+            for signature in mixin_methods:
+                mixin_signature_targets.append({"source_mixin_class":c["self"],"target_class":owner,"method_name":signature.split("(",1)[0],"method_descriptor":"("+signature.split("(",1)[1]})
     textual=[]
     for c in rgb:
         for s in c["all_utf8"]:
@@ -122,6 +140,8 @@ def main():
             "timestamp_utc":datetime.now(timezone.utc).isoformat(),
             "rgb_class_count":len(rgb),
             "cnb_textual_or_reflective_strings":textual,
+            "cnb_reflective_target_classes":sorted(reflective_classes),
+            "cnb_reflective_mixin_method_targets":mixin_signature_targets,
             "cnb_referenced_class_count":len(boundary_refs),
             "cnb_classes_referenced":sorted(boundary_refs),
             "cnb_target_comparisons":{},
@@ -137,7 +157,18 @@ def main():
             for m in methods:
                 if (m["method"],m["descriptor"]) not in available:
                     missing_direct_methods.append({"owner":owner,**m})
+        missing_reflective=sorted(reflective_classes-set(classes))
+        signature_diffs=[]
+        for method in mixin_signature_targets:
+            owner=method["target_class"]
+            if owner in classes:
+                targetmethod=(method["method_name"],method["method_descriptor"])
+                if targetmethod not in classes[owner]["methods"]:
+                    signature_diffs.append(method)
         entry={"target_url":url,"target_compiled_classes":len(classes),
+               "reflective_and_mixin_target_class_count":len(reflective_classes),
+               "reflective_and_mixin_missing_classes":missing_reflective,
+               "specific_mixin_method_descriptor_mismatches":signature_diffs,
                "original_cnb_boundary_classes_found":len(found_classes),
                "original_cnb_boundary_classes_missing":len(missing_classes),
                "missing_class_names":missing_classes,
@@ -146,6 +177,9 @@ def main():
         result["cnb_target_comparisons"][name]=entry
         print(name, "matched",len(found_classes),"missing classes",len(missing_classes),
               "potential direct method mismatches",len(missing_direct_methods),flush=True)
+        print("Reflected/Mixin class targets:",len(reflective_classes),"missing",len(missing_reflective),flush=True)
+        print("Missing Mixin target classes:",missing_reflective,flush=True)
+        print("Exact specific Mixin method descriptor mismatches:",len(signature_diffs),signature_diffs[:10],flush=True)
         if missing_classes:print("First class misses:",missing_classes[:20],flush=True)
         if missing_direct_methods:print("First method misses:",missing_direct_methods[:8],flush=True)
     (OUT/"chisels-and-bits-api-symbol-diff.json").write_text(json.dumps(result,indent=2,ensure_ascii=False),encoding="utf-8")
