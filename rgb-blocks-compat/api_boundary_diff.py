@@ -107,10 +107,21 @@ def main():
             if "chiselsandbits" in owner.lower():
                 owners[owner].append({"method":method,"descriptor":desc,"original_rgb_class":c["self"]})
     boundary_refs.update(owners)
+    textual=[]
+    for c in rgb:
+        for s in c["all_utf8"]:
+            if "chiselsandbits" in s.lower() or "scena" in s.lower():
+                textual.append({"original_rgb_class":c["self"],"utf8_value":s[:1000]})
+    print("Original RGB classes successfully parsed",len(rgb),
+          "direct C&B class references",len(boundary_refs),
+          "textual or reflective strings",len(textual),flush=True)
+    for entry in textual[:55]:
+        print("  reflective or string:",entry,flush=True)
     result={"source":"Public original 1.3.1 NeoForge released binary",
             "original_minecraft":"26.1.2",
             "timestamp_utc":datetime.now(timezone.utc).isoformat(),
             "rgb_class_count":len(rgb),
+            "cnb_textual_or_reflective_strings":textual,
             "cnb_referenced_class_count":len(boundary_refs),
             "cnb_classes_referenced":sorted(boundary_refs),
             "cnb_target_comparisons":{},
