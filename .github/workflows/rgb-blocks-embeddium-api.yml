@@ -1,0 +1,19 @@
+name: Inspect Embeddium 0.3.31 MC1.20.1 internal renderer API
+on:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths:
+      - 'rgb-blocks-compat/inspect_embeddium.py'
+      - '.github/workflows/rgb-blocks-embeddium-api.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - name: Examine actual official Embeddium JAR method descriptors
+        run: python3 rgb-blocks-compat/inspect_embeddium.py
