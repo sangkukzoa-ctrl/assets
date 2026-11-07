@@ -24,6 +24,8 @@ jobs:
         run: python rgb-blocks-compat/verify_baseline_assets.py
       - name: Self-test RGB Blocks asset/name release gate (not a port verification)
         run: python rgb-blocks-compat/check_candidate.py --self-test
+      - name: Inventory 26.1.2 Java class and rendering API references
+        run: python rgb-blocks-compat/inspect_code_api.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
