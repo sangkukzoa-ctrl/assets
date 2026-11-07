@@ -309,6 +309,7 @@ manifest["version"]="1.3.1+mc1.21.1"
 manifest["depends"]["minecraft"]="1.21.1"
 manifest["depends"]["fabricloader"]=">=0.16.0"
 manifest["depends"]["java"]=">=21"
+manifest["depends"]["fabric-api"]=">=0.116.17+1.21.1"
 (RES/"fabric.mod.json").write_text(json.dumps(manifest,indent=2),encoding="utf-8")
 # Bind the 1.21.1 replacement callback in the existing original Mixin config.
 for entry in manifest.get("mixins",[]):
