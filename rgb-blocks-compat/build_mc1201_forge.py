@@ -347,6 +347,103 @@ def forge_plugin(s):
     return s
 patch(plugin,forge_plugin)
 
+# Embeddium 0.3.31 is based on Sodium 0.5.8, not the 0.6/0.8
+# APIs. Exact method descriptor and vertex array schema were checked against
+# official modrinth release UTbfe5d1 with javap in GitHub Actions.
+emb=CODE/"com/rgbblocks/mixin/client/Embeddium03BlockRendererMixin.java"
+emb.write_text('''package com.rgbblocks.mixin.client;
+import com.rgbblocks.client.lighting.SodiumRgbBridge;
+import java.lang.reflect.*;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.BlockAndTintGetter;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
+import org.spongepowered.asm.mixin.Dynamic;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
+import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Coerce;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+/** Embeddium 0.3.31 Forge 1.20.1 RGB per-vertex hook.
+ * Original 26.1.2 light math remains in SodiumRgbBridge/RGBRealLightEngine.
+ * Intercepts the actual 0.3.31 writeGeometry before light/color packing.
+ */
+@Pseudo
+@Mixin(targets="me.jellysquid.mods.sodium.client.render.chunk.compile.pipeline.BlockRenderer",remap=false)
+public abstract class Embeddium03BlockRendererMixin {
+ @Unique private static volatile Method rbContextPos,rbContextState,rbContextLevel;
+ @Unique private static volatile Method rbGetX,rbGetY,rbGetZ;
+ @Unique private static volatile Field rbLightsField;
+ @Unique private static volatile Class<?> rbContextClass,rbQuadClass,rbLightClass;
+ @Unique private static volatile boolean rbReported;
+ @Unique private static synchronized void rbResolveCtx(Class<?> type)throws ReflectiveOperationException{
+    if(rbContextClass==type)return;
+    rbContextPos=type.getMethod("pos");
+    rbContextState=type.getMethod("state");
+    rbContextLevel=type.getMethod("localSlice");
+    rbContextClass=type;
+ }
+ @Unique private static synchronized void rbResolveQuad(Class<?> type)throws ReflectiveOperationException{
+    if(rbQuadClass==type)return;
+    rbGetX=type.getMethod("getX",int.class);
+    rbGetY=type.getMethod("getY",int.class);
+    rbGetZ=type.getMethod("getZ",int.class);
+    rbQuadClass=type;
+ }
+ @Unique private static synchronized void rbResolveLight(Class<?> type)throws ReflectiveOperationException{
+    if(rbLightClass==type)return;
+    rbLightsField=type.getField("lm");
+    rbLightClass=type;
+ }
+ @Inject(method="renderModel",at=@At("HEAD"),require=1,remap=false)
+ @Dynamic("Embeddium 0.3.31 BlockRenderer.renderModel(BlockRenderContext,ChunkBuildBuffers)")
+ private void rgbblocks$begin(@Coerce Object context,@Coerce Object buffers,CallbackInfo ci){
+    try {
+      if(rbContextClass!=context.getClass())rbResolveCtx(context.getClass());
+      BlockAndTintGetter world=(BlockAndTintGetter)rbContextLevel.invoke(context);
+      BlockState state=(BlockState)rbContextState.invoke(context);
+      BlockPos pos=(BlockPos)rbContextPos.invoke(context);
+      SodiumRgbBridge.begin(world,state,pos);
+    }catch(Throwable failure){rbReport(failure);}
+ }
+ @Inject(method="renderModel",at=@At("RETURN"),require=1,remap=false)
+ private void rgbblocks$end(@Coerce Object context,@Coerce Object buffers,CallbackInfo ci){
+    SodiumRgbBridge.end();
+ }
+ @Inject(method="writeGeometry",at=@At("HEAD"),require=1,remap=false)
+ @Dynamic("Embeddium 0.3.31 BlockRenderer.writeGeometry before VBO encoding")
+ private void rgbblocks$write(
+      @Coerce Object context,@Coerce Object builder,Vec3 offset,@Coerce Object material,
+      @Coerce Object quad,int[] colors,@Coerce Object lightData,CallbackInfo ci){
+    try {
+      if(quad==null || colors==null || lightData==null)return;
+      if(rbQuadClass!=quad.getClass())rbResolveQuad(quad.getClass());
+      if(rbLightClass!=lightData.getClass())rbResolveLight(lightData.getClass());
+      int[] light=(int[])rbLightsField.get(lightData);
+      for(int i=0;i<4;i++){
+         float x=((Number)rbGetX.invoke(quad,i)).floatValue();
+         float y=((Number)rbGetY.invoke(quad,i)).floatValue();
+         float z=((Number)rbGetZ.invoke(quad,i)).floatValue();
+         int oldLight=light[i],oldColor=colors[i];
+         int updatedLight=SodiumRgbBridge.applyLight(oldLight,x,y,z,null);
+         int updatedColor=SodiumRgbBridge.applyColorWithLight(oldColor,updatedLight,x,y,z,null);
+         light[i]=updatedLight;
+         colors[i]=updatedColor;
+      }
+    }catch(Throwable failure){rbReport(failure);}
+ }
+ @Unique private static void rbReport(Throwable failure){
+    if(!rbReported){rbReported=true;System.err.println("RGBBlocks Embeddium 0.3.31 RGB bridge error: "+failure);}
+ }
+}
+''',encoding="utf-8")
+plugin=CODE/"com/rgbblocks/mixin/RGBBlocksMixinPlugin.java"
+patch(plugin,lambda s:s.replace('mixinClassName.contains("Sodium")',
+        '(mixinClassName.contains("Sodium") || mixinClassName.contains("Embeddium"))'))
+
 # Legacy Forge metadata; generated variant includes full data and old model schema.
 modtoml=RES/"META-INF/mods.toml"
 modtoml.parent.mkdir(parents=True,exist_ok=True)
@@ -431,6 +528,10 @@ for file in RES.glob("*mixin*.json"):
     data=json.loads(file.read_text(encoding="utf-8"))
     data["compatibilityLevel"]="JAVA_17"
     data["refmap"]="rgbblocks.refmap.json"
+    data.setdefault("client",[])
+    data["client"]=[name for name in data["client"] if "Sodium06BlockRendererMixin" not in name]
+    if "client.Embeddium03BlockRendererMixin" not in data["client"]:
+       data["client"].append("client.Embeddium03BlockRendererMixin")
     file.write_text(json.dumps(data,indent=2),encoding="utf-8")
 print("Forge 1.20.1 migration source staged: Java",len(list(CODE.rglob("*.java"))),
       "resources",len(list(RES.rglob("*"))),flush=True)
