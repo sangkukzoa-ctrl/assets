@@ -1,0 +1,46 @@
+name: Siman v1.3.0 GitHub release
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/siman-v130-release.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode released archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for payload in siman/release/Siman_HeartEye_v1.3.0_*.zip.base64; do
+            name="$(basename "$payload" .base64)"
+            base64 -d "$payload" > "dist/$name"
+          done
+          echo "6750814b8eb692832b6f9a69711dca6649cd6cdbd1d8e1672356c8375a749ff9  dist/Siman_HeartEye_v1.3.0_INSTALL.zip" | sha256sum -c -
+          echo "5ee2c8bef18830d56d312b88c3d75b48ca1c5e4cd39e561511f0106fb70c65ac  dist/Siman_HeartEye_v1.3.0_WEBSTORE.zip" | sha256sum -c -
+          echo "e29a2be8fde75a33b14aff25f37d237fd979b340aa6ac87ca6377f3864b4ff5b  dist/Siman_HeartEye_v1.3.0_SOURCE.zip" | sha256sum -c -
+          (cd dist && sha256sum *.zip > SHA256SUMS.txt)
+      - name: Publish GitHub prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag=siman-v1.3.0
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" dist/*.zip dist/SHA256SUMS.txt --title "심안 心眼 v1.3.0 (preview)" --notes-file siman/RELEASE_NOTES_v1.3.0.md --prerelease --latest=false
+          else
+            gh release upload "$tag" dist/*.zip dist/SHA256SUMS.txt --clobber
+          fi
+      - name: Sigstore signed artifact provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: 'dist/*.zip'
