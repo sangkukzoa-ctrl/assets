@@ -6,8 +6,8 @@ The downloadable release JARs remain uninstrumented/original gameplay logic.
 """
 import sys,pathlib
 TARGET=sys.argv[1]
-assert TARGET in ("fabric1211","forge1201")
-base=pathlib.Path("port-work/mc1211-fabric" if TARGET=="fabric1211" else "port-work/mc1201-forge")
+assert TARGET in ("fabric1211","forge1201","neoforge1211")
+base=pathlib.Path({"fabric1211":"port-work/mc1211-fabric","forge1201":"port-work/mc1201-forge","neoforge1211":"port-work/mc1211-neoforge"}[TARGET])
 code=base/"src/main/java/com/rgbblocks"
 probe=code/"ci/RgbPortLightProbe.java";probe.parent.mkdir(parents=True,exist_ok=True)
 logic=r'''private static int ticks = 0;
@@ -89,7 +89,7 @@ public final class RgbPortLightProbe {
     if k not in src:raise AssertionError("Client initializer location changed")
     src=src.replace(k,k+"\n      com.rgbblocks.ci.RgbPortLightProbe.register();")
     client.write_text(src,encoding="utf-8")
-else:
+elif TARGET=="forge1201":
     probe.write_text('''package com.rgbblocks.ci;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.common.Mod;
@@ -101,6 +101,19 @@ public final class RgbPortLightProbe {
  @SubscribeEvent public static void tick(TickEvent.ClientTickEvent e){
    if(e.phase==TickEvent.Phase.END)sample();
  }
+'''+logic+"}\n",encoding="utf-8")
+
+else:
+    # NeoForge 1.21.1 GAME bus events. Test-only class is not in release JAR.
+    probe.write_text('''package com.rgbblocks.ci;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+@EventBusSubscriber(modid="rgbblocks",value=Dist.CLIENT)
+public final class RgbPortLightProbe {
+ private RgbPortLightProbe(){}
+ @SubscribeEvent public static void tick(ClientTickEvent.Post e){sample();}
 '''+logic+"}\n",encoding="utf-8")
 
 # A deliberately separate test-only C&B sculpted RGB block fixture: actual
@@ -161,7 +174,7 @@ public final class RgbPortCnbFixture {
     if needle not in source:raise AssertionError("Original Fabric mod initializer changed")
     source=source.replace(needle,needle+"\n      com.rgbblocks.ci.RgbPortCnbFixture.register();")
     mod.write_text(source,encoding="utf-8")
-else:
+elif TARGET=="forge1201":
     server_logic=server_logic.replace('net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("rgbblocks","rgb_red_186_72_96_glow")','new net.minecraft.resources.ResourceLocation("rgbblocks","rgb_red_186_72_96_glow")')
     server_logic=server_logic.replace("FABRICINFOCLASS","mod.chiselsandbits.blockinformation.BlockInformation").replace(
         "FABRICCONTRACT","mod.chiselsandbits.api.blockinformation.IBlockInformation")
@@ -178,6 +191,25 @@ public final class RgbPortCnbFixture {
    if(e.phase==TickEvent.Phase.END)create(ServerLifecycleHooks.getCurrentServer());
  }
 '''+server_logic+"}\n",encoding="utf-8")
+
+else:
+    # NeoForge 1.21.1 has the BlockInformation record (unlike Forge 1.20.1).
+    # Reflective fixture keeps the production source free of a C&B compile dependency.
+    server_logic=server_logic.replace("FABRICINFOCLASS","mod.chiselsandbits.api.blockinformation.BlockInformation").replace(
+        "FABRICCONTRACT","mod.chiselsandbits.api.blockinformation.BlockInformation")
+    fixture=code/"ci/RgbPortCnbFixture.java"
+    fixture.write_text('''package com.rgbblocks.ci;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
+@EventBusSubscriber(modid="rgbblocks")
+public final class RgbPortCnbFixture {
+ private RgbPortCnbFixture(){}
+ @SubscribeEvent public static void onServerTick(ServerTickEvent.Post event) {
+   create(event.getServer());
+ }
+'''+server_logic+"}\n",encoding="utf-8")
+
 print("CI_ONLY_CNB_FIXTURE",TARGET,fixture,flush=True)
 
 print("CI_ONLY_RGB_LIGHT_PROBE",TARGET,probe,flush=True)
