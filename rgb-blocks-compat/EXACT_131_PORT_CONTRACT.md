@@ -9,6 +9,23 @@ Source of truth: user-uploaded original RGB Blocks 1.3.1 NeoForge/Fabric source 
 
 Fabric 1.21.1 source is an **intermediate compatibility reference only**, and must not be shipped as the user's requested 1.21.1 release. Original 1.3.1 NeoForge package/class structure is the porting reference.
 
+## Owner-confirmed original 1.3.1 complete *building ecosystem* — not C&B alone
+Baseline is the public original RGB Blocks description, which explicitly names Chisels & Bits, **Sodium, Iris, Complementary Shaders**, **singleplayer and multiplayer**. No named component may be omitted merely because RGB normal/glow/glass blocks load.
+
+| Original 26.1.2 ecosystem | MC1.21.1 NeoForge | MC1.20.1 Forge | Observable acceptance requirement |
+|---|---|---|---|
+| Chisels & Bits 26.1.2.33 | C&B NeoForge 21.1.32 | C&B Forge 20.1.20 | Chisel normal/glow/glass into 16x16x16 bits; mix colors; convert both directions; preserve microbit model and RGB glow per-channel light; save/reload/reconnect |
+| Sodium 0.8.11/0.8.12 | Sodium 0.6.13 NeoForge | **Embeddium 0.3.31** | Colored vertex/chunk-light bridge actually renders, invalidates dirty chunks after edits, no broken tint or dropped colored light |
+| Iris 1.10.9 | Iris 1.8.12 NeoForge | **Oculus 1.8.0** | Shader loader integrated with selected optimizer, no Mixin crash and RGB light preserved |
+| Complementary Shaders | Complementary Reimagined r5.9.3 | Complementary Reimagined r5.9.3 | In-world screenshot evidence with shader **OFF and ON**; compare RGB glow and transparent glass visibly, not only a startup log |
+| Singleplayer / Multiplayer | Integrated and dedicated client-server | Integrated and dedicated client-server | Two clients connect; concurrent C&B edits + mode/bake + source-light sync; world/dimension restart, chunk unload/reload and reconnect |
+
+Original `/rgb bake get` **as well as** `/rgb get` are required. AUTO and MANUAL, `/rgb bake`, radius 4–256, ALL dirty positions, the two RGB Tools, saved mode/scope/world ID and per-dimension light/dirty-source persistence must remain behaviorally equivalent, including their large-build workflow.
+
+**Not an acceptance shortcut:** installed dependency JARs, modpack import, a green Gradle build, game startup or merely placing a C&B block do not establish 1.3.1 ecosystem parity. Chiseling must actually preserve the chiseled block entity and colored emission; Iris/Oculus must really render Complementary shader ON.
+
+Original declaration: https://modrinth.com/mod/rgb-blocks
+
 ## Non-negotiable original 1.3.1 behavior on BOTH targets
 1. Identical `rgbblocks` registry namespace, all **16,687 original palette colors** and **50,061** RGB normal/glow/glass blocks, block-items, all original creative tabs, two original RGB tools, exact texture and language bytes.
 2. Identical model-facing output (blockstates, block/item models; 1.20.1/1.21.1 schemas translated without changing material meaning), including translucent glass and glow light emission.
