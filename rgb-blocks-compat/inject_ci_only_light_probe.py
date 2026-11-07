@@ -41,7 +41,9 @@ public static void sample() {
     System.out.println("RGB_PORT_LIGHT_PROBE_WAIT source="+Integer.toHexString(packed)
       +" emitted=["+emitter.r()+","+emitter.g()+","+emitter.b()+"]"
       +" neighboringLight=["+glow.r()+","+glow.g()+","+glow.b()+"] ticks="+ticks
-      +" enabled="+com.rgbblocks.client.lighting.RGBRealLightEngine.enabled());
+      +" enabled="+com.rgbblocks.client.lighting.RGBRealLightEngine.enabled()
+      +" bootstrap="+com.rgbblocks.client.lighting.RGBRealLightEngine.bootstrapAllowedAt(near)
+      +" sourceCell="+com.rgbblocks.client.lighting.RGBLightEngine.lightColorAt(src,0.5f,0.5f,0.5f));
  }
 
  // Chisels & Bits 16^3 micro-voxel block: 4095 RGB bits + one carved air bit.
