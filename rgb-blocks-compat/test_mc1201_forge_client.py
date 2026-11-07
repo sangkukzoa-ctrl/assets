@@ -34,7 +34,15 @@ deps["chiselsandbits"]="20.1.20"
 # ForgeGradle Mojang-named dev runtime. An independent distribution test
 # with RGB_TEST_OCULUS=1 retains the full-stack diagnosis.
 TEST_OCULUS=os.environ.get("RGB_TEST_OCULUS","0")=="1"
-targets=[("embeddium","0.3.31")]
+TEST_EMBEDDIUM=os.environ.get("RGB_TEST_EMBEDDIUM","0")=="1"
+# ForgeGradle launches Mojang-mapped dev classes, whereas prebuilt Embeddium
+# and Oculus Mixin refmaps reference production SRG symbols (m_5601_, f_117950_).
+# Verify the RGB vanilla + C&B GUI boot as an independent gate, without
+# claiming the production third-party full-stack test has passed.
+if TEST_OCULUS and not TEST_EMBEDDIUM:
+    raise ValueError("RGB_TEST_OCULUS requires RGB_TEST_EMBEDDIUM=1")
+targets=[]
+if TEST_EMBEDDIUM:targets.append(("embeddium","0.3.31"))
 if TEST_OCULUS:targets.append(("oculus","1.8.0"))
 for name,version in targets:
     deps[name]=modrinth(name,version)
@@ -83,11 +91,11 @@ signs={mark:mark.lower() in (log+"\n"+game).lower() for mark in marks}
 fatal=[s for s in ["MixinApplyError","MixinInitialisationError","NoSuchMethodError","NoClassDefFoundError",
                     "ExceptionInInitializerError","Crash report saved","Failure to launch"]
        if s.lower() in (log+"\n"+game).lower()]
-result={"scope":"Real MC1.20.1 Forge RGBBlocks + C&B + Embeddium" + (" + Oculus" if TEST_OCULUS else " (Oculus isolated)") + " Xvfb GUI launch",
-        "dependencies":deps,"oculus_test_enabled":TEST_OCULUS,"exit_code":proc.returncode,"timed_out":time.monotonic()-start>=timeout,
+result={"scope":"Real MC1.20.1 Forge RGBBlocks + C&B + " + ("Embeddium" if TEST_EMBEDDIUM else "vanilla renderer") + (" + Oculus" if TEST_OCULUS else "") + " Xvfb GUI launch",
+        "dependencies":deps,"oculus_test_enabled":TEST_OCULUS,"embeddium_test_enabled":TEST_EMBEDDIUM,"exit_code":proc.returncode,"timed_out":time.monotonic()-start>=timeout,
         "render_signs":signs,"fatal_patterns":fatal,"crashes":[x.name for x in crashes]}
 (OUT/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2))
 print("RESULT",json.dumps(result,ensure_ascii=False),flush=True)
 if fatal or crashes:raise AssertionError("Minecraft client startup contains fatal error; examine logs")
 if not signs["Render thread"]:raise AssertionError("Minecraft graphical client did not reach Render thread")
-print("PASS: RGBBlocks Minecraft 1.20.1 + C&B/Embeddium actual graphical client start" + (" with Oculus" if TEST_OCULUS else ""),flush=True)
+print("PASS: RGBBlocks Minecraft 1.20.1 + C&B client boot" + (" with Embeddium" if TEST_EMBEDDIUM else " with vanilla rendering") + (" and Oculus" if TEST_OCULUS else ""),flush=True)
