@@ -2,7 +2,11 @@ name: RGB Blocks 1.20.1 real in-world Forge multiplayer color scene
 on:
   push:
     branches: [rgb-blocks-legacy-compat-audit]
-    paths: ['rgb-blocks-compat/test_mc1201_forge_inworld.py','.github/workflows/rgb-blocks-1201-inworld.yml']
+    paths:
+      - 'rgb-blocks-compat/test_mc1201_forge_inworld.py'
+      - 'rgb-blocks-compat/inject_ci_only_light_probe.py'
+      - 'rgb-blocks-compat/build_mc1201_forge.py'
+      - '.github/workflows/rgb-blocks-1201-inworld.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -12,6 +16,8 @@ jobs:
     timeout-minutes: 58
     steps:
       - uses: actions/checkout@v4
+      - name: Preflight Forge world test and RGB/C&B instrumenter Python syntax
+        run: python3 -m py_compile rgb-blocks-compat/test_mc1201_forge_inworld.py rgb-blocks-compat/inject_ci_only_light_probe.py
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '17'}
       - uses: gradle/actions/setup-gradle@v4
