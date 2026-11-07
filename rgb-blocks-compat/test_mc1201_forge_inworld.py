@@ -91,7 +91,7 @@ install=subprocess.run(["java","-jar","installer.jar","--installServer"],cwd=SER
 (EVIDENCE/"forge-installer.log").write_text(install.stdout,encoding="utf-8")
 assert install.returncode==0 and (SERVER/"run.sh").exists(),"Forge server installation failed"
 (SERVER/"eula.txt").write_text("eula=true\n")
-(SERVER/"user_jvm_args.txt").write_text("-Xms512M\n-Xmx2500M\n")
+(SERVER/"user_jvm_args.txt").write_text("-Xms512M\n-Xmx2500M\n-Dforge.logging.markers=NETWORK,REGISTRIES\n-Dforge.logging.console.level=debug\n")
 (SERVER/"server.properties").write_text("""online-mode=false
 server-ip=127.0.0.1
 server-port=25566
@@ -134,16 +134,16 @@ try:
         member=next(x for x in tar.getmembers() if x.isfile() and Path(x.name).name=="portablemc")
         with tar.extractfile(member) as f:launch.write_bytes(f.read())
     launch.chmod(0o755)
-    (GAME/"options.txt").write_text("fullscreen:false\nrenderDistance:2\nsimulationDistance:2\nmaxFps:20\nmipmapLevels:0\nenableVsync:false\n")
+    (GAME/"options.txt").write_text("fullscreen:false\nrenderDistance:2\nsimulationDistance:5\nmaxFps:20\nmipmapLevels:0\nenableVsync:false\n")
     display=":86"
     xvfb=subprocess.Popen(["Xvfb",display,"-screen","0","1280x720x24","-ac","+extension","GLX"],
         stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,start_new_session=True)
     time.sleep(2)
     env=os.environ.copy()
-    env.update({"DISPLAY":display,"LIBGL_ALWAYS_SOFTWARE":"1","GALLIUM_DRIVER":"llvmpipe","MESA_GL_VERSION_OVERRIDE":"4.5","MESA_GLSL_VERSION_OVERRIDE":"450"})
+    env.update({"DISPLAY":display,"LIBGL_ALWAYS_SOFTWARE":"1","GALLIUM_DRIVER":"llvmpipe","MESA_GL_VERSION_OVERRIDE":"4.5","MESA_GLSL_VERSION_OVERRIDE":"450","ALSOFT_DRIVERS":"null"})
     launchcmd=[str(launch.resolve()),"--main-dir",str((ROOT/"launcher-data").resolve()),
              "start","forge::1.20.1-47.4.28","--mc-dir",str(GAME.resolve()),
-             "-u","RGBPortTester","--join-server","127.0.0.1","--join-server-port","25566","--resolution","1280x720"]
+             "-u","RGBPortTester","--join-server","127.0.0.1","--join-server-port","25566","--resolution","1280x720", "--jvm-arg=-Dforge.logging.markers=NETWORK,-Dforge.logging.console.level=debug"]
     record("LAUNCH "+str(launchcmd))
     client=subprocess.Popen(launchcmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,env=env,text=True,
          start_new_session=True,bufsize=1)
