@@ -1,4 +1,4 @@
-name: Build Siman Windows GUI Easy Installer R2
+name: Build Siman Windows GUI Easy Installer R2 (release)
 on:
   push:
     branches: [main]
