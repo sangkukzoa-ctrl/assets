@@ -46,6 +46,10 @@ jobs:
             mc1211-neoforge-runtime/*.log
             mc1211-neoforge-runtime/result.json
           retention-days: 30
+      - name: Generate complete cross-platform Gradle wrapper
+        if: success()
+        working-directory: port-work/mc1211-neoforge
+        run: gradle --no-daemon wrapper --gradle-version 8.10.2
       - name: Archive full migrated NeoForge source
         if: success()
         run: |
@@ -57,8 +61,10 @@ jobs:
           with zipfile.ZipFile(dest,'w',zipfile.ZIP_DEFLATED,compresslevel=6,allowZip64=True) as out:
              for p in sorted((base/'src').rglob('*')):
                 if p.is_file():out.write(p,str(p.relative_to(base)))
-             for name in ('build.gradle','settings.gradle','gradle.properties'):
+             for name in ('build.gradle','settings.gradle','gradle.properties','gradlew','gradlew.bat'):
                 out.write(base/name,name)
+             for p in sorted((base/'gradle').rglob('*')):
+                if p.is_file():out.write(p,str(p.relative_to(base)))
           print('SOURCE:',dest.stat().st_size,'bytes')
           PY
       - uses: actions/upload-artifact@v4
