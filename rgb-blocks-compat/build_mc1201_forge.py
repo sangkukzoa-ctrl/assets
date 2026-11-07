@@ -337,6 +337,7 @@ dependencies {
  annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 }
 tasks.withType(JavaCompile).configureEach {options.release=17; options.encoding='UTF-8'}
+tasks.withType(Zip).configureEach { zip64=true }
 jar {
  manifest.attributes([
     'Specification-Title':'rgbblocks',
