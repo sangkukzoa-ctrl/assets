@@ -58,8 +58,8 @@ for color in pal:
             texture=block.get("textures",{}).get("all")
             if not isinstance(texture,str) or texture!="rgbblocks:block/"+base_name+"_glass":
                 bad.append("glass sprite path invalid "+name+"="+str(texture))
-            if target=="forge1201" and block.get("render_type")!="minecraft:translucent":
-                bad.append("glass not translucent in Forge "+name)
+            if target in ("forge1201","neoforge1211") and block.get("render_type")!="minecraft:translucent":
+                bad.append("glass not translucent for native loader "+target+" "+name)
         else:
             if block.get("textures",{}).get("all")!="rgbblocks:block/"+base_name:
                 bad.append("normal/glow sprite path invalid "+name)
