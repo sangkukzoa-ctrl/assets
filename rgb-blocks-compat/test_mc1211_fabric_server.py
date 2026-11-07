@@ -23,6 +23,10 @@ print("RGB artifact:",JAR,JAR.stat().st_size,flush=True)
 palette_files={}
 with zipfile.ZipFile(JAR) as z:
     names=z.namelist()
+    colors=json.loads(z.read("assets/rgbblocks/palette.json"))
+    assert len(colors)==16687, len(colors)
+    first_color=next(c for c in colors if int(c["red"])>180 and int(c["green"])<100 and int(c["blue"])<100)
+    color_base="rgbblocks:rgb_%s_%d_%d_%d"%(first_color["group"],first_color["red"],first_color["green"],first_color["blue"])
     palette_files={
       "jar_file_entries":len(names),
       "block_states":sum(n.startswith("assets/rgbblocks/blockstates/") and n.endswith(".json") for n in names),
@@ -111,9 +115,9 @@ def cycle(label,commands):
     print("CYCLE",json.dumps(rep,ensure_ascii=False),flush=True)
     return rep,log
 
-first,log1=cycle("first-launch",["rgb get","rgb manual","rgb setbake all","rgb bake","rgb get"])
+first,log1=cycle("first-launch",["rgb get","forceload add 0 0",f"setblock 0 120 0 {color_base}",f"setblock 1 120 0 {color_base}_glow",f"setblock 2 120 0 {color_base}_glass",f"execute if block 0 120 0 {color_base} run say RGB_NORMAL_PERSIST_PASS",f"execute if block 1 120 0 {color_base}_glow run say RGB_GLOW_PERSIST_PASS",f"execute if block 2 120 0 {color_base}_glass run say RGB_GLASS_PERSIST_PASS","rgb manual","rgb setbake all","rgb bake","rgb get"])
 if first["started"] and not first["fatal_patterns"]:
-    second,log2=cycle("reload-world",["rgb get","rgb bake"])
+    second,log2=cycle("reload-world",[f"execute if block 0 120 0 {color_base} run say RGB_NORMAL_PERSIST_PASS",f"execute if block 1 120 0 {color_base}_glow run say RGB_GLOW_PERSIST_PASS",f"execute if block 2 120 0 {color_base}_glass run say RGB_GLASS_PERSIST_PASS","rgb get","rgb bake"])
 else:second={"started":False,"fatal_patterns":["SKIPPED due to initial startup failure"]}
 result={"version":"1.21.1 Fabric","scope":"Dedicated server + RGB registry/commands + world persistence; not client-rendering proof",
         "jar":JAR.name, "assets":palette_files,"initial":first,"reload":second}
@@ -125,4 +129,9 @@ assert first["rgb_command_response"],"RGB commands not functioning on server"
 assert second["started"],"RGB Blocks server failed to reload saved world"
 assert not second["fatal_patterns"],"Fatal runtime error on reload"
 assert second["rgb_command_response"],"RGB runtime state not responding after reload"
+for marker in ("RGB_NORMAL_PERSIST_PASS","RGB_GLOW_PERSIST_PASS","RGB_GLASS_PERSIST_PASS"):
+    assert marker in log1, "RGB block placement fails: "+marker
+    assert marker in log2, "RGB block persistence fails: "+marker
+assert "RGB mode: MANUAL" in log2, "RGB runtime mode not persisted"
+assert "Bake scope: ALL" in log2, "RGB bake scope not persisted"
 print("PASS: 1.21.1 Fabric server / C&B / RGB command registration / world reload",flush=True)
