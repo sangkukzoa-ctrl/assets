@@ -62,6 +62,27 @@ Preserve/compare against author's original assets where possible.
   Launcher/NeoForge game launch**. New RGB+C&B vanilla client dev test is queued
   independently, while the full MRPACK allows proper production loader tests.
 
+## Production Forge client validation added
+
+- Graphical ForgeGradle development runtime fails with external third-party
+  production SRG Mixin `@Shadow` symbols (Oculus `f_117950_`,
+  Embeddium `m_5601_`). These are not failures of the RGB code by themselves.
+- Independent real production-mapped Forge 1.20.1 launcher-based GUI test
+  added to `rgb-blocks-compat/test_mc1201_forge_production_client.py`
+  and `.github/workflows/rgb-blocks-1201-production-client.yml`.
+- Initial [production loader run 42347945272](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42347945272)
+  initiated with official Forge 47.4.28, real C&B20.1.20, Embeddium0.3.31,
+  Oculus1.8.0 under Xvfb software OpenGL. Verify its inner log / result.json.
+- Fabric [run 42346527015](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42346527015)
+  completed successfully through Render thread, Iris overworld pipeline and
+  atlas creation, no observed fatal Mixin errors. This is startup, not RGB
+  color accuracy.
+- Full ready-to-import test ecosystem packages available:
+  [Fabric MRPACK](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42347086607/artifacts/13564545703)
+  and [Forge MRPACK](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42347086552/artifacts/13564445793).
+  Unzip the GitHub Actions artifact wrapper, then import inner .mrpack into
+  PrismLauncher/compatible launcher. These are NOT final stable releases.
+
 ## Remaining release gates (NOT YET passed)
 1. Graphical Minecraft GUI client startup and RGB vertex lighting with Sodium,
    Embeddium, Iris and Oculus. Headless virtual GL automated tests are present,
