@@ -1,0 +1,84 @@
+name: Build Siman Windows GUI Easy Installer R2
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/siman-easy-installer-r2.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+jobs:
+  build-test-publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build WinForms GUI installer with embedded extension
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root='siman/installer-v151r2'
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $embedded=Join-Path $root 'extension_payload.zip'
+          $icon=Join-Path $root 'SimanSetup.ico'
+          [IO.File]::WriteAllBytes($embedded,[Convert]::FromBase64String((Get-Content (Join-Path $root 'extension_payload.zip.base64') -Raw).Trim()))
+          [IO.File]::WriteAllBytes($icon,[Convert]::FromBase64String((Get-Content (Join-Path $root 'SimanSetup.ico.base64') -Raw).Trim()))
+          $csc=Join-Path $env:windir 'Microsoft.NET/Framework/v4.0.30319/csc.exe'
+          if(!(Test-Path $csc)){throw 'Windows .NET Framework compiler not found'}
+          & $csc /nologo /target:winexe /platform:anycpu /optimize+ /out:dist/SimanSetup.exe "/resource:${embedded},siman.extension.payload" "/win32icon:${icon}" /reference:System.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll (Join-Path $root 'SimanSetup.cs')
+          if($LASTEXITCODE -ne 0){throw "C# compiler failed with $LASTEXITCODE"}
+          if(!(Test-Path dist/SimanSetup.exe)){throw 'No exe produced'}
+      - name: Run real Windows EXE install and clean replacement tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $exe=(Resolve-Path dist/SimanSetup.exe).Path
+          $verify=Start-Process -FilePath $exe -ArgumentList '--verify' -Wait -PassThru
+          if($verify.ExitCode -ne 0){throw "Embedded extension verification failed ($($verify.ExitCode))"}
+          $install=Start-Process -FilePath $exe -ArgumentList '--install' -Wait -PassThru
+          if($install.ExitCode -ne 0){throw "Fresh installation failed ($($install.ExitCode))"}
+          $root=Join-Path $env:LOCALAPPDATA '2bornot/Siman/app'
+          if(!(Test-Path (Join-Path $root 'manifest.json'))){throw 'Manifest missing after install'}
+          $manifest=Get-Content (Join-Path $root 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          if($manifest.version -ne '1.5.1'){throw 'Unexpected installed version'}
+          if(!(Test-Path (Join-Path $root 'search.html'))){throw 'Search UI missing'}
+          if(!(Test-Path (Join-Path $root 'store.js'))){throw 'Local archive library missing'}
+          $before=@(Get-ChildItem $root -File -Recurse).Count
+          'obsolete source must be erased' | Set-Content -Path (Join-Path $root 'obsolete-test.txt')
+          $upgrade=Start-Process -FilePath $exe -ArgumentList '--install' -Wait -PassThru
+          if($upgrade.ExitCode -ne 0){throw "Clean replacement failed ($($upgrade.ExitCode))"}
+          if(Test-Path (Join-Path $root 'obsolete-test.txt')){throw 'Obsolete file remains after clean install'}
+          $after=@(Get-ChildItem $root -File -Recurse).Count
+          if($before -ne $after){throw "File count changed from $before to $after"}
+          if(!(Test-Path (Join-Path $env:LOCALAPPDATA '2bornot/Siman/setup.log'))){throw 'Setup log missing'}
+          Write-Host "SIMAN GUI INSTALLER PASS | $before files installed, $after after clean replacement"
+      - name: Package user-facing installation archives
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Copy-Item 'siman/installer-v151r2/README_설치방법.txt' 'dist/README_설치방법.txt'
+          Compress-Archive -Path 'dist/SimanSetup.exe','dist/README_설치방법.txt' -DestinationPath 'dist/Siman_心眼_v1.5.1_간편설치.zip' -Force
+          $h=Get-FileHash 'dist/SimanSetup.exe' -Algorithm SHA256
+          $z=Get-FileHash 'dist/Siman_心眼_v1.5.1_간편설치.zip' -Algorithm SHA256
+          @("sha256:$($h.Hash.ToLower())  SimanSetup.exe","sha256:$($z.Hash.ToLower())  Siman_心眼_v1.5.1_간편설치.zip") | Set-Content 'dist/SHA256SUMS.txt' -Encoding UTF8
+          Get-ChildItem dist | Format-Table Name,Length
+      - name: Publish prerelease on GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag='siman-v1.5.1-easy-installer-r2'
+          if(!(gh release view $tag 2>$null)){
+            gh release create $tag 'dist/SimanSetup.exe' 'dist/Siman_心眼_v1.5.1_간편설치.zip' 'dist/SHA256SUMS.txt' --title '심안 心眼 v1.5.1 - Windows 간편 설치 관리자 R2' --notes-file 'siman/installer-v151r2/RELEASE_NOTES.md' --prerelease --latest=false
+          }else{
+            gh release upload $tag 'dist/SimanSetup.exe' 'dist/Siman_心眼_v1.5.1_간편설치.zip' 'dist/SHA256SUMS.txt' --clobber
+          }
+          if($LASTEXITCODE -ne 0){throw 'GitHub release operation failed'}
+      - name: Signed GitHub build provenance
+        continue-on-error: true
+        uses: actions/attest@v4
+        with:
+          subject-path: 'dist/SimanSetup.exe'
