@@ -1,0 +1,28 @@
+name: RGB Blocks legacy upstream compatibility audit
+on:
+  push:
+    branches:
+      - rgb-blocks-legacy-compat-audit
+    paths:
+      - 'rgb-blocks-compat/**'
+      - '.github/workflows/rgb-blocks-legacy-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect-upstream-jars:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Inspect actual published mod JARs and Modrinth dependency declarations
+        run: python rgb-blocks-compat/verify_upstream.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgb-blocks-upstream-audit
+          path: audit-output/
+          retention-days: 14
