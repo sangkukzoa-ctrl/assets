@@ -9,7 +9,7 @@ from test_export_v0373 import (
     default_test_result_filename,export_payload,VERSION,
 )
 
-assert VERSION=="0.4.0",VERSION
+assert VERSION=="0.4.1",VERSION
 assert default_test_result_filename(date(2026,11,6)) == (
     "ChatLensOCR_v0.4.1-테스트결과-2026-11-06.txt"
 )
