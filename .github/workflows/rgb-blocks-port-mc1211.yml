@@ -5,6 +5,7 @@ on:
     paths:
       - 'rgb-blocks-compat/build_mc1211_fabric.py'
       - 'rgb-blocks-compat/package_ecosystem.py'
+      - 'rgb-blocks-compat/validate_full_parity.py'
       - 'rgb-blocks-compat/test_mc1211_fabric_server.py'
       - '.github/workflows/rgb-blocks-port-mc1211.yml'
   workflow_dispatch:
@@ -30,6 +31,14 @@ jobs:
         run: |
           set -o pipefail
           gradle --no-daemon --stacktrace build 2>&1 | tee compile.log
+      - name: Release-blocking original 1.3.1 full RGB assets/class structure parity
+        run: python3 rgb-blocks-compat/validate_full_parity.py fabric1211
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgbblocks-fabric1211-RGB-full-parity-evidence
+          path: audit-output/parity-fabric1211.json
+          retention-days: 30
       - name: Generate standalone Gradle wrapper for fully buildable source
         if: success()
         working-directory: port-work/mc1211-fabric
