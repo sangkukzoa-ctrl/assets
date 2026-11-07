@@ -17,7 +17,8 @@ with zipfile.ZipFile(p) as z:
     names=[n for n in z.namelist() if n.endswith(".class")]
     targets=[n for n in names if any(key in n for key in (
         "/BlockRenderer.class","/ChunkBuilderMeshingTask.class","/MutableQuadViewImpl.class",
-        "/AbstractBlockRenderContext.class","/QuadViewImpl.class","/VertexConsumerMixin.class"))]
+        "/AbstractBlockRenderContext.class","/QuadViewImpl.class","/VertexConsumerMixin.class",
+        "/BlockRenderContext.class","/QuadLightData.class","/BakedQuadView.class"))]
     print("ALL MATCHED TARGETS",json.dumps(targets,indent=2))
     pkg=[x.split("/")[0] for x in names]
     print("ROOT NAMES",json.dumps({name:pkg.count(name) for name in set(pkg)},indent=2))
