@@ -286,6 +286,145 @@ public abstract class MinecraftDisconnectMixin {
 }
 ''',encoding="utf-8")
 
+# Restore Chisels & Bits behavior at the OLD stable API.
+# Both official C&B 21.1.40 and 20.1.20 have ChiseledBlockBlockColor
+# (the new 26.1.2 ChiseledBlockColorProvider no longer existed there).
+cnb_color=CODE/"com/rgbblocks/mixin/client/CnbChiseledBlockColorProviderMixin.java"
+cnb_color.write_text('''package com.rgbblocks.mixin.client;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.level.BlockAndTintGetter;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.core.BlockPos;
+import org.spongepowered.asm.mixin.Dynamic;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+@Pseudo
+@Mixin(targets="mod.chiselsandbits.client.colors.ChiseledBlockBlockColor",remap=false)
+public abstract class CnbChiseledBlockColorProviderMixin {
+ @Inject(method="getColor(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/core/BlockPos;I)I",
+   at=@At("HEAD"),cancellable=true,require=1,remap=false)
+ @Dynamic("C&B 21.1.40/20.1.20 direct BlockColor.getColor replaces 26.x collect")
+ private void rgbblocks$avoidWorkerThreadTint(BlockState state,BlockAndTintGetter getter,BlockPos pos,int tint,
+   CallbackInfoReturnable<Integer> result) {
+    if(getter == null) return;
+    String type=getter.getClass().getName();
+    if(type.startsWith("net.caffeinemc.mods.sodium.client.world.") || type.startsWith("me.jellysquid.mods.sodium.client.world.")) {
+      try {
+        Minecraft mc=Minecraft.getInstance();
+        if(mc != null && !mc.isSameThread())result.setReturnValue(-1);
+      } catch(Throwable ignored) {}
+    }
+ }
+}
+''',encoding="utf-8")
+
+# The old 26.x ChiseledBlockStateModel does not exist. Reattach the
+# "model parts updated -> invalidate RGB light" event to the actual old
+# ChiseledBlockEntity#updateModelData lifecycle.
+cnb_parts=CODE/"com/rgbblocks/mixin/client/CnbChiseledBlockStateModelMixin.java"
+cnb_parts.write_text('''package com.rgbblocks.mixin.client;
+import com.rgbblocks.client.lighting.RGBRealLightEngine;
+import java.util.Collections;
+import net.minecraft.core.BlockPos;
+import org.spongepowered.asm.mixin.Dynamic;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+@Pseudo
+@Mixin(targets="mod.chiselsandbits.block.entities.ChiseledBlockEntity",remap=false)
+public abstract class CnbChiseledBlockStateModelMixin {
+ @Inject(method="updateModelData()V",at=@At("TAIL"),require=1,remap=false)
+ @Dynamic("C&B older block entity model-update lifecycle instead of 26.x collectParts")
+ private void rgbblocks$captureCnbPartSources(CallbackInfo ci){
+   try {
+      Object entity=this;
+      BlockPos pos=(BlockPos)entity.getClass().getMethod("getBlockPos").invoke(entity);
+      RGBRealLightEngine.registerCnbModelPartSources(pos,Collections.emptyList());
+   } catch(Throwable ignored){}
+ }
+}
+''',encoding="utf-8")
+
+# Sodium 0.6.13 uses Fabric Renderer API MutableQuadViewImpl, not the
+# 26.1.2 Sodium 0.8 QuadInstance pipeline. Attach RGB to quad BEFORE the
+# actual chunk vertex encoder; retains vanilla albedo and changes only
+# vertex light and RGB colour contribution.
+sodium06=CODE/"com/rgbblocks/mixin/client/Sodium06BlockRendererMixin.java"
+sodium06.write_text('''package com.rgbblocks.mixin.client;
+import com.rgbblocks.client.lighting.SodiumRgbBridge;
+import java.lang.reflect.Method;
+import net.minecraft.client.resources.model.BakedModel;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.state.BlockState;
+import org.spongepowered.asm.mixin.Dynamic;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
+import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Coerce;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+/** Source target confirmed against Sodium mc1.21.1-0.6.13 BlockRenderer.
+ * Reflective quad adapter avoids a hard Sodium dependency on non-Sodium clients.
+ */
+@Pseudo
+@Mixin(targets="net.caffeinemc.mods.sodium.client.render.chunk.compile.pipeline.BlockRenderer",remap=false)
+public abstract class Sodium06BlockRendererMixin {
+ @Unique private static volatile Method rbX,rbY,rbZ,rbColorGet,rbLightGet,rbColorSet,rbLightSet;
+ @Unique private static volatile Class<?> rbQuadClass;
+ @Inject(method="renderModel(Lnet/minecraft/client/resources/model/BakedModel;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/BlockPos;)V",
+   at=@At("HEAD"),require=1,remap=false)
+ @Dynamic("Sodium 0.6.13 BlockRenderer.renderModel entry")
+ private void rgbblocks$begin(BakedModel model,BlockState state,BlockPos pos,BlockPos origin,CallbackInfo ci) {
+    SodiumRgbBridge.begin(null,state,pos);
+ }
+ @Inject(method="renderModel(Lnet/minecraft/client/resources/model/BakedModel;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/BlockPos;)V",
+   at=@At("RETURN"),require=1,remap=false)
+ @Dynamic("Sodium 0.6.13 BlockRenderer.renderModel exit")
+ private void rgbblocks$end(BakedModel model,BlockState state,BlockPos pos,BlockPos origin,CallbackInfo ci) {
+    SodiumRgbBridge.end();
+ }
+ @Unique private static synchronized void rgbblocks$initAccessor(Class<?> type)throws NoSuchMethodException {
+    if(rbQuadClass==type)return;
+    rbX=type.getMethod("x",int.class);rbY=type.getMethod("y",int.class);rbZ=type.getMethod("z",int.class);
+    rbColorGet=type.getMethod("color",int.class);rbLightGet=type.getMethod("lightmap",int.class);
+    rbColorSet=type.getMethod("color",int.class,int.class);rbLightSet=type.getMethod("lightmap",int.class,int.class);
+    rbQuadClass=type;
+ }
+ @Inject(method="bufferQuad",at=@At("HEAD"),require=1,remap=false)
+ @Dynamic("Sodium 0.6.13 BlockRenderer.bufferQuad before chunk encoder")
+ private void rgbblocks$vertexRgb(@Coerce Object quad,float[] brightness,@Coerce Object material,CallbackInfo ci) {
+   try {
+     if(quad==null)return;
+     if(rbQuadClass!=quad.getClass())rgbblocks$initAccessor(quad.getClass());
+     for(int i=0;i<4;i++){
+        float x=((Number)rbX.invoke(quad,i)).floatValue();
+        float y=((Number)rbY.invoke(quad,i)).floatValue();
+        float z=((Number)rbZ.invoke(quad,i)).floatValue();
+        int oldLight=((Number)rbLightGet.invoke(quad,i)).intValue();
+        int oldColor=((Number)rbColorGet.invoke(quad,i)).intValue();
+        int light=SodiumRgbBridge.applyLight(oldLight,x,y,z,null);
+        int color=SodiumRgbBridge.applyColorWithLight(oldColor,light,x,y,z,null);
+        if(light!=oldLight)rbLightSet.invoke(quad,i,light);
+        if(color!=oldColor)rbColorSet.invoke(quad,i,color);
+     }
+   } catch(Throwable error) {
+     if(!rgbblocks$reported) {
+        rgbblocks$reported=true;
+        System.err.println("RGB Blocks Sodium 0.6 RGB vertex bridge failed; graphics validation required: "+error);
+     }
+   }
+ }
+ @Unique private static volatile boolean rgbblocks$reported;
+}
+''',encoding="utf-8")
+
 # Download author-published Fabric 1.3.1F metadata and resources.
 URL="https://cdn.modrinth.com/data/A48MxLWx/versions/HsQZbhRf/RgbBlocksmod-26.1.2-1.3.1F.jar"
 r=urllib.request.Request(URL,headers={"User-Agent":"RGBBlocks-owner-porting/1.0"})
@@ -320,6 +459,14 @@ for entry in manifest.get("mixins",[]):
         cfg.setdefault("client",[])
         if "client.LevelBlockEntityAttachedMixin" not in cfg["client"]:
             cfg["client"].append("client.LevelBlockEntityAttachedMixin")
+        # Remove 26.1.2 Sodium 0.8 targets; 1.21.1 Sodium 0.6 has a
+        # structurally different chunk quad pipeline.
+        cfg["client"]=[entry for entry in cfg["client"] if not any(
+            old in entry for old in ("SodiumChunkBuilderMeshingTaskMixin",
+                                     "SodiumMutableQuadViewImplMixin",
+                                     "SodiumQuadViewImplAccessorMixin"))]
+        if "client.Sodium06BlockRendererMixin" not in cfg["client"]:
+            cfg["client"].append("client.Sodium06BlockRendererMixin")
         file.write_text(json.dumps(cfg,indent=2),encoding="utf-8")
 
 
