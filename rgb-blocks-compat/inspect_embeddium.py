@@ -26,3 +26,15 @@ for classpath in targets:
     cls=classpath[:-6].replace("/",".")
     cp=subprocess.run(["javap","-classpath",str(p),"-p","-s",cls],text=True,capture_output=True)
     print("\n======= "+cls+" =======\n"+(cp.stdout or cp.stderr)[:20000],flush=True)
+    if cls.endswith(".BlockRenderer"):
+        bc=subprocess.run(["javap","-classpath",str(p),"-p","-c",cls],
+            text=True,capture_output=True)
+        txt=bc.stdout
+        for name in ("private void writeGeometry(", "private int[] getVertexColors("):
+            st=txt.index(name) if name in txt else -1
+            if st>=0:
+                nxt=txt.find("\n  private ",st+len(name))
+                if nxt<0:nxt=txt.find("\n  public ",st+len(name))
+                if nxt<0:nxt=min(len(txt),st+26000)
+                print("\n===== Bytecode "+name+" =====\n"+txt[st:min(nxt,st+22000)],flush=True)
+
