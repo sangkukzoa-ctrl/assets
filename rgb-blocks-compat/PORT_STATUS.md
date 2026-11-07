@@ -12,7 +12,7 @@ Branch: `rgb-blocks-legacy-compat-audit`
 Maintain original RGB Blocks 1.3.1 blocks, colors, glow/glass, light engine,
 Chisels & Bits microblocks, shader integration, lighting persistence and
 singleplayer/multiplayer semantics on:
-- Minecraft 1.21.1 Fabric (Java 21, Fabric API 0.116.17+1.21.1, C&B 21.1.40, Sodium 0.6.13, Iris 1.8.8).
+- Minecraft 1.21.1 **NeoForge** (Java 21, NeoForge 21.1.265, C&B NeoForge 21.1.32, Sodium 0.6.13, Iris 1.8.12). Old Fabric work is a non-release reference.
 - Minecraft 1.20.1 Forge (Java 17, Forge 47.4.28, C&B 20.1.20, Embeddium 0.3.31, Oculus 1.8.0).
 
 The owner-uploaded source archives (~460MB each) cannot pass the connected
@@ -21,6 +21,14 @@ and Java was decompiled with Vineflower on GitHub Actions. The outputs are
 reconstructions, not bit-for-bit replacement for the author's source archives.
 Preserve/compare against author's original assets where possible.
 
+## 2026-11-07 session recovery and next native validation
+- **Confirmed:** 1.21.1 NeoForge [CI run 42360013264](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42360013264) completed successfully: native Gradle compilation and static asset/registry parity. Previous session ended before reading this result.
+- **Static evidence:** 16,687 palette entries / 50,061 models, 33,380 original PNG/language/palette files byte-identical, all 31 original NeoForge class paths present. Not an RGB lighting pixel/runtime proof.
+- Candidate NeoForge [JAR artifact 13568774719](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42360013264/artifacts/13568774719) and [migrated source artifact 13568839618](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42360013264/artifacts/13568839618). Neither is release-ready.
+- Added `rgb-blocks-compat/test_mc1211_neoforge_server.py` using NeoForge 21.1.265 + real C&B 21.1.32 + RGB Blocks 1.3.1. Mandatory integration test covers boot, commands, normal/glow/glass block saving, and manual/bake state after restart.
+- Native CI workflow updated to require this server test (no `continue-on-error`), and archive its logs even on failure. [First test run 42367864596](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42367864596) started; read its final status and actual inner failure logs in next iteration.
+- Still unverified: C&B sculpting, RGB micro-emissive lighting in real gameplay, rendered RGB pixels, shader/performance renderer compatibility, multi-client sync.
+- Original uploaded source archives are preferable for architecture/method parity; decompiled GitHub recovered classes are not asserted source-identical.
 ## Confirmed successes (do not confuse with visual acceptance)
 - Source recovery: [run 42343318500](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42343318500),
   32 Fabric and 31 NeoForge decompiled Java files.
