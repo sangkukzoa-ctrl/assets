@@ -4,6 +4,7 @@ on:
     branches: [rgb-blocks-legacy-compat-audit]
     paths:
       - 'rgb-blocks-compat/build_mc1201_forge.py'
+      - 'rgb-blocks-compat/test_mc1201_forge_server.py'
       - '.github/workflows/rgb-blocks-port-mc1201-forge.yml'
   workflow_dispatch:
 permissions:
@@ -30,6 +31,18 @@ jobs:
         run: |
           set -o pipefail
           gradle --no-daemon --stacktrace build 2>&1 | tee compile.log
+      - name: Validate actual Forge 1.20.1 + Chisels & Bits dedicated server
+        if: success()
+        continue-on-error: true
+        run: python3 rgb-blocks-compat/test_mc1201_forge_server.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgbblocks-1201-forge-game-server-test
+          path: |
+            mc1201-forge-runtime/*.log
+            mc1201-forge-runtime/result.json
+          retention-days: 30
       - name: Build full source archive
         if: success()
         run: |
