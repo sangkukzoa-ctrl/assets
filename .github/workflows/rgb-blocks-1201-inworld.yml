@@ -1,0 +1,36 @@
+name: RGB Blocks 1.20.1 real in-world Forge multiplayer color scene
+on:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths: ['rgb-blocks-compat/test_mc1201_forge_inworld.py','.github/workflows/rgb-blocks-1201-inworld.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  multiplayer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 58
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.8'}
+      - name: Set up Linux Xvfb graphics and screenshot
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb scrot mesa-utils libgl1-mesa-dri libgl1 libasound2t64 libxrandr2 libxcursor1 libxinerama1 libxi6
+      - name: Compile real RGB 1.20.1 Forge JAR
+        run: |
+          python3 rgb-blocks-compat/build_mc1211_fabric.py
+          python3 rgb-blocks-compat/build_mc1201_forge.py
+          cd port-work/mc1201-forge
+          gradle --no-daemon build
+      - name: Run REAL Minecraft 1.20.1 RGB in-world client-server gameplay and screenshot
+        run: python3 rgb-blocks-compat/test_mc1201_forge_inworld.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgbblocks-1201-inworld-actual-multiplayer-scene-and-logs
+          path: mc1201-forge-inworld/evidence/
+          retention-days: 30
