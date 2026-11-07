@@ -90,7 +90,7 @@ for p in source_java.rglob("*.java"):
 assert not missing_classes,("Original class files disappeared",missing_classes)
 rgbengine=dest_java/"rgbblocks/client/lighting/RGBRealLightEngine.java"
 engine=rgbengine.read_text(encoding="utf-8")
-for key in ("MAX_CNB_ENTRIES","RGB_PATTERN","applyToVanillaQuad","getCnb","bake"):
+for key in ("MAX_CNB_ENTRIES","RGB_PATTERN","applyToVanillaQuad","registerCnbModelPartSources","refreshCnbBlockEntity","cnbSource","bake"):
     assert key in engine,(key,"original light engine routine removed")
 assert (dest_java/"rgbblocks/mixin/client/Sodium06BlockRendererMixin.java").exists(),"Sodium bridge missing"
 # Forge bridge adapter uses target-specific vertex pipeline.
