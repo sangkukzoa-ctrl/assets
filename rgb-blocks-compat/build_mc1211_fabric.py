@@ -35,11 +35,17 @@ for p in CODE.rglob("*.java"):
 # MC1.21.1 Fabric needs the terrain render layer mapping explicitly.
 client_init=CODE/"com/rgbblocks/client/RgbBlocksClient.java"
 def adapt_client_layers(src):
-    src=src.replace("import com.rgbblocks.client.config.RGBClientConfig;",
-        "import com.rgbblocks.client.config.RGBClientConfig;\\nimport com.rgbblocks.RgbBlocksMod;\\nimport net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;\\nimport net.minecraft.client.renderer.RenderType;\\nimport net.minecraft.world.item.BlockItem;\\nimport net.minecraft.world.item.Item;".replace("\\\\n","\\n"))
+    src=src.replace("import com.rgbblocks.client.config.RGBClientConfig;", """import com.rgbblocks.client.config.RGBClientConfig;
+import com.rgbblocks.RgbBlocksMod;
+import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;""")
     if "BlockRenderLayerMap.INSTANCE.putBlock" not in src:
-        src=src.replace("RGBClientConfig.initialize();",
-          "RGBClientConfig.initialize();\\n      for (Item item : RgbBlocksMod.GLASS_ITEMS) {\\n         BlockRenderLayerMap.INSTANCE.putBlock(((BlockItem)item).getBlock(), RenderType.translucent());\\n      }".replace("\\\\n","\\n"))
+        src=src.replace("RGBClientConfig.initialize();", """RGBClientConfig.initialize();
+      for (Item item : RgbBlocksMod.GLASS_ITEMS) {
+         BlockRenderLayerMap.INSTANCE.putBlock(((BlockItem)item).getBlock(), RenderType.translucent());
+      }""")
     return src
 patch(client_init,adapt_client_layers)
 
