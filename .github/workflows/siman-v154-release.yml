@@ -90,6 +90,8 @@ jobs:
         run: |
           Copy-Item 'siman/installer-v154/README_설치방법.txt' 'dist/README_설치방법.txt'
           Compress-Archive -Path 'dist/SimanSetup.exe','dist/README_설치방법.txt' -DestinationPath 'dist/Siman_EasySetup_v1.5.4.zip' -Force
+          Compress-Archive -Path 'dist/SimanSetup.exe','dist/README_설치방법.txt','siman/installer-v154/RELEASE_NOTES.md' -DestinationPath 'dist/Siman_v1.5.4_BLOG_ATTACHMENT.zip' -Force
+          Copy-Item 'siman/installer-v154/BLOG_POST_UPDATE_COPY.txt' 'dist/BLOG_UPDATE_COPY.txt'
           Get-ChildItem dist -File | Where-Object {$_.Name -ne 'SHA256SUMS.txt'} | ForEach-Object {
             $h=Get-FileHash $_.FullName -Algorithm SHA256
             "$($h.Hash.ToLower())  $($_.Name)"
@@ -101,7 +103,7 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $tag='siman-v1.5.4'
-          $args=@('dist/SimanSetup.exe','dist/Siman_EasySetup_v1.5.4.zip','dist/Siman_v1.5.4_WEBSTORE.zip','dist/Siman_v1.5.4_SOURCE.zip','dist/SHA256SUMS.txt')
+          $args=@('dist/SimanSetup.exe','dist/Siman_EasySetup_v1.5.4.zip','dist/Siman_v1.5.4_WEBSTORE.zip','dist/Siman_v1.5.4_SOURCE.zip','dist/Siman_v1.5.4_BLOG_ATTACHMENT.zip','dist/BLOG_UPDATE_COPY.txt','dist/SHA256SUMS.txt')
           gh release create $tag @args --title '심안 心眼 v1.5.4 (Preview) - ChatLLM 완결 판정 및 429 보호 중단 수정' --notes-file 'siman/installer-v154/RELEASE_NOTES.md' --prerelease --latest=false
           if($LASTEXITCODE -ne 0){throw 'GitHub release publish failed'}
       - name: Signed provenance (when transparency log available)
