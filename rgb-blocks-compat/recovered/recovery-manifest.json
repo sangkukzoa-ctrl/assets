@@ -1,0 +1,97 @@
+{
+  "neoforge": {
+    "upstream": "https://mediafilez.forgecdn.net/files/8426/251/RgbBlocksmod-26.1.2-1.3.1.jar",
+    "official_jar_sha256": "3e2bb42497bbf3cfe59463d9adc33253501f127e2d1dda38be58420a41017712",
+    "class_count": 60,
+    "java_count": 31,
+    "packages": [
+      [
+        "com",
+        60
+      ]
+    ],
+    "java_files": [
+      "com/rgbblocks/RgbBlocksMod.java",
+      "com/rgbblocks/client/cnb/RGBCnbGeometryBakeDebouncer.java",
+      "com/rgbblocks/client/cnb/RGBCnbReloadWakeup.java",
+      "com/rgbblocks/client/config/RGBClientConfig.java",
+      "com/rgbblocks/client/lighting/RGBLightColor4.java",
+      "com/rgbblocks/client/lighting/RGBLightColor8.java",
+      "com/rgbblocks/client/lighting/RGBLightEngine.java",
+      "com/rgbblocks/client/lighting/RGBLightPersistence.java",
+      "com/rgbblocks/client/lighting/RGBLightSection.java",
+      "com/rgbblocks/client/lighting/RGBLightStorage.java",
+      "com/rgbblocks/client/lighting/RGBRealLightEngine.java",
+      "com/rgbblocks/client/lighting/RGBRenderInvalidator.java",
+      "com/rgbblocks/client/lighting/RGBSourceIndex.java",
+      "com/rgbblocks/client/lighting/SodiumQuadDataAccessor.java",
+      "com/rgbblocks/client/lighting/SodiumRgbBridge.java",
+      "com/rgbblocks/mixin/CnbChiseledBlockPickBlockServerConfigMixin.java",
+      "com/rgbblocks/mixin/RGBBlocksMixinPlugin.java",
+      "com/rgbblocks/mixin/client/ClientLevelMixin.java",
+      "com/rgbblocks/mixin/client/CnbChiseledBlockColorProviderMixin.java",
+      "com/rgbblocks/mixin/client/CnbChiseledBlockEntityMixin.java",
+      "com/rgbblocks/mixin/client/CnbChiseledBlockModelDataManagerMixin.java",
+      "com/rgbblocks/mixin/client/CnbChiseledBlockStateModelMixin.java",
+      "com/rgbblocks/mixin/client/CnbMutableStatisticsLightEmissionMixin.java",
+      "com/rgbblocks/mixin/client/LevelLightEngineMixin.java",
+      "com/rgbblocks/mixin/client/LightmapRenderStateExtractorMixin.java",
+      "com/rgbblocks/mixin/client/MinecraftDisconnectMixin.java",
+      "com/rgbblocks/mixin/client/ModelBlockRendererMixin.java",
+      "com/rgbblocks/mixin/client/SodiumChunkBuilderMeshingTaskMixin.java",
+      "com/rgbblocks/mixin/client/SodiumMutableQuadViewImplMixin.java",
+      "com/rgbblocks/mixin/client/SodiumQuadViewImplAccessorMixin.java",
+      "com/rgbblocks/runtime/RGBRuntime.java"
+    ],
+    "decompiler_exit_code": 0,
+    "note": "Decompiled reference; compare against original owner source; not compile-verified"
+  },
+  "fabric": {
+    "upstream": "https://cdn.modrinth.com/data/A48MxLWx/versions/HsQZbhRf/RgbBlocksmod-26.1.2-1.3.1F.jar",
+    "official_jar_sha256": "c627a27410c3e0e4f0ae0fcbcc0b0cf86e375e318dd46ece1182d4b8e071c078",
+    "class_count": 63,
+    "java_count": 32,
+    "packages": [
+      [
+        "com",
+        63
+      ]
+    ],
+    "java_files": [
+      "com/rgbblocks/RgbBlocksMod.java",
+      "com/rgbblocks/client/RgbBlocksClient.java",
+      "com/rgbblocks/client/cnb/RGBCnbGeometryBakeDebouncer.java",
+      "com/rgbblocks/client/cnb/RGBCnbReloadWakeup.java",
+      "com/rgbblocks/client/config/RGBClientConfig.java",
+      "com/rgbblocks/client/lighting/RGBLightColor4.java",
+      "com/rgbblocks/client/lighting/RGBLightColor8.java",
+      "com/rgbblocks/client/lighting/RGBLightEngine.java",
+      "com/rgbblocks/client/lighting/RGBLightPersistence.java",
+      "com/rgbblocks/client/lighting/RGBLightSection.java",
+      "com/rgbblocks/client/lighting/RGBLightStorage.java",
+      "com/rgbblocks/client/lighting/RGBRealLightEngine.java",
+      "com/rgbblocks/client/lighting/RGBRenderInvalidator.java",
+      "com/rgbblocks/client/lighting/RGBSourceIndex.java",
+      "com/rgbblocks/client/lighting/SodiumQuadDataAccessor.java",
+      "com/rgbblocks/client/lighting/SodiumRgbBridge.java",
+      "com/rgbblocks/mixin/CnbChiseledBlockPickBlockServerConfigMixin.java",
+      "com/rgbblocks/mixin/RGBBlocksMixinPlugin.java",
+      "com/rgbblocks/mixin/client/ClientLevelMixin.java",
+      "com/rgbblocks/mixin/client/CnbChiseledBlockColorProviderMixin.java",
+      "com/rgbblocks/mixin/client/CnbChiseledBlockEntityMixin.java",
+      "com/rgbblocks/mixin/client/CnbChiseledBlockModelDataManagerMixin.java",
+      "com/rgbblocks/mixin/client/CnbChiseledBlockStateModelMixin.java",
+      "com/rgbblocks/mixin/client/CnbMutableStatisticsLightEmissionMixin.java",
+      "com/rgbblocks/mixin/client/LevelLightEngineMixin.java",
+      "com/rgbblocks/mixin/client/LightmapRenderStateExtractorMixin.java",
+      "com/rgbblocks/mixin/client/MinecraftDisconnectMixin.java",
+      "com/rgbblocks/mixin/client/ModelBlockRendererMixin.java",
+      "com/rgbblocks/mixin/client/SodiumChunkBuilderMeshingTaskMixin.java",
+      "com/rgbblocks/mixin/client/SodiumMutableQuadViewImplMixin.java",
+      "com/rgbblocks/mixin/client/SodiumQuadViewImplAccessorMixin.java",
+      "com/rgbblocks/runtime/RGBRuntime.java"
+    ],
+    "decompiler_exit_code": 0,
+    "note": "Decompiled reference; compare against original owner source; not compile-verified"
+  }
+}
