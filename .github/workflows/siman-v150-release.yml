@@ -1,0 +1,96 @@
+name: Siman v1.5.0 release verification
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/siman-v150-release.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore signed hash checked source
+        run: |
+          set -euo pipefail
+          mkdir -p dist src
+          base64 -d siman/release/v150/Siman_v1.5.0_SOURCE.zip.base64 > dist/Siman_v1.5.0_SOURCE.zip
+          echo 'f24319c8d97fa11461555ede3cd11b9782df7b0276c1ef4db6ae344ec483a43e  dist/Siman_v1.5.0_SOURCE.zip' | sha256sum -c -
+          unzip -q dist/Siman_v1.5.0_SOURCE.zip -d src
+      - name: Run collector and JavaScript syntax tests
+        run: |
+          node src/tests/collectors.test.cjs
+          for f in src/app/*.js; do node --check "$f"; done
+          node -e "const m=require('./src/app/manifest.json');if(m.version!=='1.5.0'||m.manifest_version!==3)process.exit(1)"
+          grep -q 'id="bulkStart"' src/app/search.html
+          grep -q 'id="saveDebug"' src/app/search.html
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Real Windows CMD fresh install and update smoke test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $env:SIMAN_CI_TEST='1'
+          $folder=Join-Path $env:RUNNER_TEMP 'SimanV150'
+          New-Item -ItemType Directory -Force -Path $folder | Out-Null
+          $archive=Join-Path $folder 'install.zip'
+          $encoded=Get-Content 'siman/release/v150/Siman_v1.5.0_INSTALL.zip.base64' -Raw
+          [IO.File]::WriteAllBytes($archive,[Convert]::FromBase64String($encoded.Trim()))
+          $actual=(Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+          if($actual -ne '3bfcb0a609df2ccebf28fe33ed9820179ffde926d997edddcfcc5dd0d4046909'){throw "SHA mismatch $actual"}
+          $unzip=Join-Path $folder 'unzip'
+          Expand-Archive -LiteralPath $archive -DestinationPath $unzip
+          $cmd=Join-Path $unzip 'INSTALL.cmd'
+          $bytes=[IO.File]::ReadAllBytes($cmd)
+          if([Text.Encoding]::ASCII.GetString($bytes) -match '(?<!\r)\n'){throw 'CMD has incorrect LF endings'}
+          $proc=Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/c',('"' + $cmd + '"')) -Wait -PassThru -NoNewWindow
+          if($proc.ExitCode -ne 0){throw "Fresh install failed $($proc.ExitCode)"}
+          $target=Join-Path $env:LOCALAPPDATA '2bornot\Siman\app'
+          $manifest=Join-Path $target 'manifest.json'
+          if((Get-Content $manifest -Raw | ConvertFrom-Json).version -ne '1.5.0'){throw 'Initial version wrong'}
+          $old=Get-Content $manifest -Raw | ConvertFrom-Json
+          $old.version='1.4.0'
+          $old | ConvertTo-Json -Depth 15 | Set-Content -Path $manifest -Encoding UTF8
+          $proc=Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/c',('"' + $cmd + '"')) -Wait -PassThru -NoNewWindow
+          if($proc.ExitCode -ne 0){throw "Upgrade failed $($proc.ExitCode)"}
+          if((Get-Content $manifest -Raw | ConvertFrom-Json).version -ne '1.5.0'){throw 'Upgrade version wrong'}
+          Write-Host 'PASS Siman Windows CMD installer fresh and upgrade'
+  release:
+    needs: [regression,windows-installer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode release archives and check SHA256
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for p in siman/release/v150/Siman_v1.5.0_*.zip.base64; do
+            base64 -d "$p" > "dist/$(basename "$p" .base64)"
+          done
+          echo '3bfcb0a609df2ccebf28fe33ed9820179ffde926d997edddcfcc5dd0d4046909  dist/Siman_v1.5.0_INSTALL.zip' | sha256sum -c -
+          echo 'c7eee93b67f8d0ababe071ed473d516c534867aea576617b5533b696a94ca6a5  dist/Siman_v1.5.0_WEBSTORE.zip' | sha256sum -c -
+          echo 'f24319c8d97fa11461555ede3cd11b9782df7b0276c1ef4db6ae344ec483a43e  dist/Siman_v1.5.0_SOURCE.zip' | sha256sum -c -
+          (cd dist && sha256sum *.zip > SHA256SUMS.txt)
+      - name: Publish v1.5.0 preview
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag=siman-v1.5.0
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" dist/*.zip dist/SHA256SUMS.txt --title "심안 心眼 v1.5.0 (Preview)" --notes-file siman/RELEASE_NOTES_v1.5.0.md --prerelease --latest=false
+          else
+            gh release upload "$tag" dist/*.zip dist/SHA256SUMS.txt --clobber
+          fi
+      - name: Sigstore provenance (optional service)
+        continue-on-error: true
+        uses: actions/attest@v4
+        with:
+          subject-path: 'dist/*.zip'
