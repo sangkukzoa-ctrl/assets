@@ -32,6 +32,7 @@ for p in CODE.rglob("*.java"):
 
 main=CODE/"com/rgbblocks/RgbBlocksMod.java"
 def pm(s):
+    s=s.replace('net.fabricmc.fabric.api.creativetab.v1.FabricCreativeModeTab','net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup')
     s=s.replace('import net.minecraft.world.InteractionResult;', 'import net.minecraft.world.InteractionResultHolder;')
     s=s.replace('Properties.of().setId(key)','Properties.of()')
     s=s.replace('new net.minecraft.world.item.Item.Properties().setId(blockItemKey).useBlockDescriptionPrefix()','new net.minecraft.world.item.Item.Properties()')
