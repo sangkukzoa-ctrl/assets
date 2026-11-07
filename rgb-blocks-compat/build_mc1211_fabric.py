@@ -396,13 +396,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class Sodium06BlockRendererMixin {
  @Unique private static volatile Method rbX,rbY,rbZ,rbColorGet,rbLightGet,rbColorSet,rbLightSet;
  @Unique private static volatile Class<?> rbQuadClass;
- @Inject(method="renderModel(Lnet/minecraft/client/resources/model/BakedModel;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/BlockPos;)V",
+ @Inject(method="renderModel",
    at=@At("HEAD"),require=1,remap=false)
  @Dynamic("Sodium 0.6.13 BlockRenderer.renderModel entry")
  private void rgbblocks$begin(BakedModel model,BlockState state,BlockPos pos,BlockPos origin,CallbackInfo ci) {
     SodiumRgbBridge.begin(null,state,pos);
  }
- @Inject(method="renderModel(Lnet/minecraft/client/resources/model/BakedModel;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/BlockPos;)V",
+ @Inject(method="renderModel",
    at=@At("RETURN"),require=1,remap=false)
  @Dynamic("Sodium 0.6.13 BlockRenderer.renderModel exit")
  private void rgbblocks$end(BakedModel model,BlockState state,BlockPos pos,BlockPos origin,CallbackInfo ci) {
