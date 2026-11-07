@@ -89,7 +89,7 @@ slog,sthread=proc_reader(server,"SERVER",EVIDENCE/"server.log")
 client=None; xvfb=None
 result={"minecraft":"1.21.1","loader":"Fabric 0.19.5","scope":"Actual dedicated-server+real launcher in-world RGB gameplay",
         "palette_count":len(colors),"rgb_test_block":block,"server_ready":False,"fml_player_joined":False,
-        "rgb_commands":False,"render_thread":False,"texture_atlas_ready":False,
+        "rgb_commands":False,"rgb_light_propagation_verified":False,"render_thread":False,"texture_atlas_ready":False,
         "missing_rgb_models":None,"crashes":[],"screenshots":[]}
 try:
     result["server_ready"]=await_line(slog,"Done (",server,180)
@@ -141,6 +141,7 @@ try:
     live=GAME/"logs/latest.log"
     txt=live.read_text(encoding="utf-8",errors="replace") if live.is_file() else ""
     if live.is_file():shutil.copy2(live,EVIDENCE/"minecraft-client.log")
+    result["rgb_light_propagation_verified"]="RGB_PORT_LIGHT_PROBE_PASS" in (txt+"\n"+"".join(clog))
     result["missing_rgb_models"]=sum(("rgbblocks:models/item/" in line and "FileNotFoundException" in line) or
       ("rgbblocks:blockstates/" in line and "missing model for variant" in line)
        for line in txt.splitlines()) if txt else -1
@@ -163,4 +164,5 @@ assert result["render_thread"] and result["texture_atlas_ready"],"MC1.21.1 graph
 assert result["missing_rgb_models"]==0,"One or more RGB models unavailable in actual Fabric client"
 assert not result["crashes"],"Actual client RGB/C&B/Sodium/Iris Mixin or class crash"
 assert result["screenshots"],"No screenshot of real in-world RGB scene"
+assert result["rgb_light_propagation_verified"],"RGB light propagation runtime pixel-channel probe failed"
 info("PASS: MC1.21.1 actual RGB game scene + client/server networking + full model asset recognition")
