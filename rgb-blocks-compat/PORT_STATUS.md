@@ -35,6 +35,33 @@ Preserve/compare against author's original assets where possible.
 - Keep old successful artifacts available while iterating, do not overwrite
   with an unverified GUI build.
 
+## Latest verified installable test profiles (2026-11-07)
+
+- 1.20.1 Forge actual JAR, complete source with Gradle wrapper, complete MRPACK:
+  [run 42347086552](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42347086552).
+  Dedicated server, RGB settings, placed RGB normal/glow/glass save/reload passed;
+  **full ecosystem MRPACK generated successfully** with official-origin C&B,
+  Embeddium, Oculus, Complementary shader references.
+- 1.21.1 Fabric actual JAR, complete source with Gradle wrapper, complete MRPACK:
+  [run 42347086607](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42347086607).
+  Same game server and persistence checks passed; **complete ecosystem MRPACK
+  generated successfully** with official-origin C&B, Fabric API, Sodium,
+  Iris and Complementary shader references.
+- 1.21.1 Fabric GUI startup: [run 42346527015](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42346527015).
+  Sodium 0.6.13, Iris 1.8.8, C&B were loaded; Minecraft render thread, texture
+  atlases, Iris overworld render pipeline initialized; no fatal Mixin error.
+  Test killed by scheduled 390-second process limit; OpenAL never initialized,
+  **not evidence of a finished in-game scene or visually correct RGB lighting**.
+- 1.20.1 Forge GPU dev-client:
+  [Oculus-enabled run 42346387709](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42346387709)
+  failed due Oculus `@Shadow f_117950_` on Mojang-named dev Minecraft.
+  [Embeddium-only run 42346992388](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42346992388)
+  failed similarly: Embeddium `@Shadow m_5601_` not found in its target.
+  These prove raw production SRG Mixin refmaps cannot run directly in
+  ForgeGradle Mojang-named dev runtime; **no conclusion about production
+  Launcher/NeoForge game launch**. New RGB+C&B vanilla client dev test is queued
+  independently, while the full MRPACK allows proper production loader tests.
+
 ## Remaining release gates (NOT YET passed)
 1. Graphical Minecraft GUI client startup and RGB vertex lighting with Sodium,
    Embeddium, Iris and Oculus. Headless virtual GL automated tests are present,
