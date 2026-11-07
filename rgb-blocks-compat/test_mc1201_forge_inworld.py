@@ -148,7 +148,13 @@ try:
     client=subprocess.Popen(launchcmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,env=env,text=True,
          start_new_session=True,bufsize=1)
     clog,cthread=runthread(client,"CLIENT",EVIDENCE/"client-console.log")
-    result["client_joined"]=await_pattern(slog,"RGBPortTester joined the game",server,450,"real_FML_player_join")
+    result["client_joined"]=await_pattern(slog,"RGBPortTester joined the game",server,190,"real_FML_player_join")
+    if not result["client_joined"]:
+        record("JOIN DIAGNOSTIC — client process state="+str(client.poll()))
+        for pth in (GAME/"logs/latest.log", EVIDENCE/"client-console.log", EVIDENCE/"server-console.log"):
+            if pth.exists():
+                tail=pth.read_text(encoding="utf-8",errors="replace").splitlines()[-70:]
+                record("LAST 70 LINES "+str(pth)+"\n"+"\n".join(tail))
     result["render_thread"]=await_pattern(clog,"Render thread",client,50,"render_thread")
     result["atlas_ready"]=await_pattern(clog,"Created:",client,180,"texture_atlas")
     if result["client_joined"]:
