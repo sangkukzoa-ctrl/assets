@@ -456,6 +456,7 @@ for entry in manifest.get("mixins",[]):
     file=RES/config
     if file.is_file():
         cfg=json.loads(file.read_text(encoding="utf-8"))
+        cfg["compatibilityLevel"]="JAVA_21"
         cfg.setdefault("client",[])
         if "client.LevelBlockEntityAttachedMixin" not in cfg["client"]:
             cfg["client"].append("client.LevelBlockEntityAttachedMixin")
