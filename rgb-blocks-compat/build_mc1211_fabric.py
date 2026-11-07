@@ -161,6 +161,13 @@ patch(engine,pe)
 lights=CODE/"com/rgbblocks/client/lighting/RGBLightEngine.java"
 def pl(s):
     s=s.replace("state.getLightDampening()", "state.getLightBlock(level, pos)")
+    # Original optimized bootstrap assumes the RGB source index is already
+    # populated by chunk hooks. In legacy clients, initial chunk snapshot
+    # loading precedes these callbacks, so index-only scanning leaves a fresh
+    # multiplayer world permanently black. Retain the fast indexed path;
+    # perform the existing bounded world-state fallback only when empty.
+    s=s.replace("return refreshAround(level, center, sourceScanRadius, false);",
+                "return refreshAround(level, center, sourceScanRadius, true);")
     s=s.replace("isOpaqueSolidBarrierState(state)", "isOpaqueSolidBarrierState(level, pos, state)")
     s=s.replace("isOpaqueSolidBarrierState(BlockState state)", "isOpaqueSolidBarrierState(BlockAndTintGetter level, BlockPos pos, BlockState state)")
     s=s.replace("state.isSolidRender()", "state.isSolidRender(level,pos)")
