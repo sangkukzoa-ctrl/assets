@@ -86,12 +86,22 @@ def clsfile(data):
 
 def jarclasses(b):
     result={}
-    with zipfile.ZipFile(io.BytesIO(b)) as z:
-        for name in z.namelist():
-            if name.endswith(".class"):
-                try: c=clsfile(z.read(name)); result[c["self"]]=c
-                except Exception as exc:
-                    print("parse failed",name,str(exc))
+    def descend(data, depth, trail):
+        if depth>5 or not zipfile.is_zipfile(io.BytesIO(data)):
+            return
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            for name in z.namelist():
+                if name.endswith(".class"):
+                    try:
+                        c=clsfile(z.read(name)); result[c["self"]]=c
+                    except Exception as exc:
+                        print("parse failed",trail,name,str(exc))
+                elif name.endswith(".jar"):
+                    try:
+                        descend(z.read(name),depth+1,trail+"/"+name)
+                    except Exception as exc:
+                        print("nested inspection failed",trail,name,str(exc))
+    descend(b,0,"root")
     return result
 
 def main():
@@ -157,6 +167,7 @@ def main():
             for m in methods:
                 if (m["method"],m["descriptor"]) not in available:
                     missing_direct_methods.append({"owner":owner,**m})
+        print("Target compiled class count including nested JARs:",len(classes),flush=True)
         missing_reflective=sorted(reflective_classes-set(classes))
         signature_diffs=[]
         for method in mixin_signature_targets:
