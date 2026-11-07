@@ -444,6 +444,11 @@ plugin=CODE/"com/rgbblocks/mixin/RGBBlocksMixinPlugin.java"
 patch(plugin,lambda s:s.replace('mixinClassName.contains("Sodium")',
         '(mixinClassName.contains("Sodium") || mixinClassName.contains("Embeddium"))'))
 
+# Minecraft Forge 1.20.1 requires mod root pack.mcmeta (resource pack format 15).
+# Without this the entire 50,061-item model set can be absent at runtime even
+# though it exists in the JAR; never claim texture/render parity until loaded.
+(RES/"pack.mcmeta").write_text(json.dumps({"pack":{"pack_format":15,"description":"RGB Blocks 1.3.1 — Minecraft 1.20.1"}},ensure_ascii=False,indent=2),encoding="utf-8")
+
 # Legacy Forge metadata; generated variant includes full data and old model schema.
 modtoml=RES/"META-INF/mods.toml"
 modtoml.parent.mkdir(parents=True,exist_ok=True)
