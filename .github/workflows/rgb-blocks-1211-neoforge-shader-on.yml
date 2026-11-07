@@ -14,6 +14,8 @@ jobs:
     timeout-minutes: 65
     steps:
       - uses: actions/checkout@v4
+      - name: Preflight Python syntax before costly Gradle build
+        run: python3 -m py_compile rgb-blocks-compat/test_mc1211_neoforge_inworld.py rgb-blocks-compat/inject_ci_only_light_probe.py
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '21'}
       - uses: gradle/actions/setup-gradle@v4
