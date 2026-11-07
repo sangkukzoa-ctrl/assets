@@ -1,0 +1,131 @@
+{
+  "project": "RGB Blocks 1.3.1 legacy ports",
+  "date": "2026-11-07",
+  "status": "dependency candidates verified by upstream published metadata and downloaded JAR ZIP/CRC; NO RGB PORT BUILD OR GAMEPLAY TEST",
+  "profiles": {
+    "mc1.21.1_fabric_primary": {
+      "minecraft": "1.21.1",
+      "java": "21",
+      "loader": {
+        "name": "Fabric Loader",
+        "version": "0.19.5",
+        "homepage": "https://fabricmc.net/use/installer/"
+      },
+      "mods": [
+        {
+          "name": "Fabric API",
+          "version": "0.116.17+1.21.1",
+          "url": "https://www.curseforge.com/minecraft/mc-mods/fabric-api/files/all?version=1.21.1",
+          "sides": "client+server"
+        },
+        {
+          "name": "Chisels & Bits",
+          "version": "21.1.40",
+          "url": "https://www.curseforge.com/minecraft/mc-mods/chisels-bits-for-fabric/files/9455172",
+          "sides": "client+server",
+          "ci_jars_verified": true
+        },
+        {
+          "name": "Iris",
+          "version": "1.8.8+1.21.1-fabric",
+          "url": "https://modrinth.com/mod/iris/version/1.8.8%2B1.21.1-fabric",
+          "sides": "client"
+        },
+        {
+          "name": "Sodium",
+          "version": "mc1.21.1-0.6.13-fabric",
+          "url": "https://modrinth.com/mod/sodium/version/mc1.21.1-0.6.13-fabric",
+          "sides": "client"
+        }
+      ],
+      "shader": {
+        "name": "Complementary Reimagined",
+        "version": "r5.9.3",
+        "url": "https://modrinth.com/shader/complementary-reimagined"
+      },
+      "risks": [
+        "RGB code port not compiled",
+        "C&B runtime with Iris/Sodium/lighting not tested",
+        "Multiplayer sync not tested"
+      ],
+      "rationale": "C&B Fabric 21.1.40 released 2026-11-05 includes SC fix; upstream NeoForge 21.1.33 has known nested FMLModType runtime classload issue."
+    },
+    "mc1.20.1_forge_primary": {
+      "minecraft": "1.20.1",
+      "java": "17",
+      "loader": {
+        "name": "Forge",
+        "version": "47.4.28",
+        "homepage": "https://files.minecraftforge.net/net/minecraftforge/forge/index_1.20.1.html"
+      },
+      "mods": [
+        {
+          "name": "Chisels & Bits",
+          "version": "20.1.20",
+          "url": "https://www.curseforge.com/minecraft/mc-mods/chisels-bits/files/7620767",
+          "sides": "client+server",
+          "ci_jars_verified": true
+        },
+        {
+          "name": "Oculus",
+          "version": "1.8.0",
+          "url": "https://modrinth.com/mod/oculus/version/1.20.1-1.8.0",
+          "sides": "client"
+        },
+        {
+          "name": "Embeddium",
+          "version": "0.3.31+mc1.20.1",
+          "url": "https://modrinth.com/mod/embeddium/version/0.3.31%2Bmc1.20.1",
+          "sides": "client"
+        }
+      ],
+      "shader": {
+        "name": "Complementary Reimagined",
+        "version": "r5.9.3",
+        "url": "https://modrinth.com/shader/complementary-reimagined"
+      },
+      "risks": [
+        "RGB code port not compiled",
+        "Oculus/Embeddium lighting mixins not ported",
+        "Multiplayer sync not tested"
+      ],
+      "rationale": "Forge has established 1.20.1 C&B and Oculus/Embeddium stack. Version 20.1.20 fixes empty VoxelShape crash from 20.1.19."
+    },
+    "mc1.21.1_neoforge_alternative_not_selected": {
+      "minecraft": "1.21.1",
+      "loader": {
+        "name": "NeoForge",
+        "version": "21.1.265"
+      },
+      "mods": [
+        {
+          "name": "Chisels & Bits",
+          "version": "21.1.33",
+          "url": "https://www.curseforge.com/minecraft/mc-mods/chisels-bits/files/7441123",
+          "ci_jars_verified": true
+        },
+        {
+          "name": "Iris",
+          "version": "1.8.12+1.21.1-neoforge",
+          "url": "https://modrinth.com/mod/iris/version/1.8.12%2B1.21.1-neoforge"
+        },
+        {
+          "name": "Sodium",
+          "version": "mc1.21.1-0.6.13-neoforge",
+          "url": "https://modrinth.com/mod/sodium/version/mc1.21.1-0.6.13-neoforge"
+        }
+      ],
+      "reason_not_primary": "Upstream C&B JAR 21.1.33 has broken nested SC MANIFEST FMLModType, reproducible static audit and documented runtime NoClassDefFoundError. Avoid relying on a manually modified third-party binary."
+    }
+  },
+  "test_status": {
+    "official_1.3.1_asset_fingerprint": "PASS",
+    "upstream_cnb_jar_integrity": "PASS",
+    "candidate_source_compile": "NOT RUN",
+    "candidate_jar_build": "NO JAR",
+    "singleplayer": "NOT RUN",
+    "dedicated_multiplayer": "NOT RUN",
+    "shaders_and_rgb_lighting": "NOT RUN"
+  },
+  "build_and_runtime_release_gate": "No release until mod builds, colored lighting, C&B, client shader integration and multiplayer server pass."
+}
