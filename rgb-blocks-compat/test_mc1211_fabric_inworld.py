@@ -112,13 +112,13 @@ try:
         entry=next(x for x in tar.getmembers() if x.isfile() and Path(x.name).name=="portablemc")
         with tar.extractfile(entry) as f:launcher.write_bytes(f.read())
     launcher.chmod(0o755)
-    (GAME/"options.txt").write_text("fullscreen:false\nrenderDistance:2\nsimulationDistance:2\nmaxFps:20\nmipmapLevels:0\nenableVsync:false\n")
+    (GAME/"options.txt").write_text("fullscreen:false\nrenderDistance:2\nsimulationDistance:5\nmaxFps:20\nmipmapLevels:0\nenableVsync:false\n")
     display=":87"
     xvfb=subprocess.Popen(["Xvfb",display,"-screen","0","1280x720x24","-ac","+extension","GLX"],
             stdout=subprocess.DEVNULL,stderr=subprocess.STDOUT,start_new_session=True)
     time.sleep(2)
     env=os.environ.copy();env.update({"DISPLAY":display,"LIBGL_ALWAYS_SOFTWARE":"1","GALLIUM_DRIVER":"llvmpipe",
-          "MESA_GL_VERSION_OVERRIDE":"4.5","MESA_GLSL_VERSION_OVERRIDE":"450"})
+          "MESA_GL_VERSION_OVERRIDE":"4.5","MESA_GLSL_VERSION_OVERRIDE":"450","ALSOFT_DRIVERS":"null"})
     launchcmd=[str(launcher.resolve()),"--main-dir",str((ROOT/"launcher-data").resolve()),"start","fabric:1.21.1:0.19.5",
        "--mc-dir",str(GAME.resolve()),"-u","RGBPortTester","--join-server","127.0.0.1",
        "--join-server-port","25567","--resolution","1280x720"]
