@@ -33,9 +33,11 @@ def raw_url(url):
 def pick(project,prefix,loader):
     q=urllib.parse.urlencode({"game_versions":json.dumps([mc]),"loaders":json.dumps([loader])})
     versions=json_url(f"https://api.modrinth.com/v2/project/{project}/version?{q}")
-    matches=[v for v in versions if (v.get("version_number","")==prefix or
-       v.get("version_number","").startswith(prefix+"+") or
-       v.get("version_number","").startswith(prefix+"-"))]
+    # Modrinth uses both '0.6.13+mc1.21.1' and 'mc1.21.1-0.6.13-fabric'.
+    # Match a version component, not only a leading prefix; reject 0.6.130 etc.
+    import re
+    token=re.compile(r"(?<![0-9])"+re.escape(prefix)+r"(?![0-9])")
+    matches=[v for v in versions if token.search(v.get("version_number",""))]
     if not matches:raise RuntimeError("No exact supported "+project+" "+prefix+" for "+mc+" "+loader)
     matches.sort(key=lambda x:x.get("date_published",""),reverse=True)
     files=sorted(matches[0].get("files",[]),key=lambda f:not f.get("primary",False))
