@@ -109,7 +109,7 @@ slog,sthread=runthread(server,"SERVER",EVIDENCE/"server-console.log")
 client=None
 result={"scope":"Minecraft 1.20.1 production Forge 47.4.28 RGBBlock+C&B+Embeddium/Oculus, actual network connected RGB test scene",
         "shader_enabled":False,"screenshots":[],"block":block,"server_ready":False,"client_joined":False,
-        "rgb_server_commands":False,"render_thread":False,"atlas_ready":False,"resource_model_missing":None}
+        "rgb_server_commands":False,"rgb_light_propagation_verified":False,"render_thread":False,"atlas_ready":False,"resource_model_missing":None}
 try:
     result["server_ready"]=await_pattern(slog,"Done (",server,180,"server_boot")
     if not result["server_ready"]:raise AssertionError("Forge dedicated server did not reach Ready")
@@ -164,6 +164,7 @@ try:
     if client_game.is_file():
         txt=client_game.read_text(encoding="utf-8",errors="replace")
         shutil.copy2(client_game,EVIDENCE/"minecraft-client-latest.log")
+        result["rgb_light_propagation_verified"]="RGB_PORT_LIGHT_PROBE_PASS" in (txt+"\n"+"".join(clog))
         result["resource_model_missing"]=sum("FileNotFoundException: rgbblocks:models/" in x or
           ("rgbblocks:blockstates/" in x and "missing model for variant" in x)
           for x in txt.splitlines())
@@ -188,4 +189,5 @@ assert result["render_thread"] and result["atlas_ready"],"Client did not render 
 assert result["resource_model_missing"]==0,"RGB asset paths not loaded by client"
 assert not result["fatal"],"Minecraft client fatal shader/renderer/C&B incompatibility"
 assert result["screenshots"],"Failed to capture real game scene"
+assert result["rgb_light_propagation_verified"],"RGB light propagation runtime pixel-channel probe failed"
 record("PASS: Real Forge 1.20.1 client/server session, registered RGB world, render, 50k assets and saved screenshot")
