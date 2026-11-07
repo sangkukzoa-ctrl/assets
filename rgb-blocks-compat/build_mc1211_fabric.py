@@ -322,7 +322,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Pseudo
 @Mixin(targets="mod.chiselsandbits.client.colors.ChiseledBlockBlockColor",remap=false)
 public abstract class CnbChiseledBlockColorProviderMixin {
- @Inject(method="getColor(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/BlockAndTintGetter;Lnet/minecraft/core/BlockPos;I)I",
+ @Inject(method="getColor",
    at=@At("HEAD"),cancellable=true,require=1,remap=false)
  @Dynamic("C&B 21.1.40/20.1.20 direct BlockColor.getColor replaces 26.x collect")
  private void rgbblocks$avoidWorkerThreadTint(BlockState state,BlockAndTintGetter getter,BlockPos pos,int tint,
