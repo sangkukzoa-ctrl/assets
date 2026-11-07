@@ -82,7 +82,9 @@ start=time.monotonic()
 timeout=520
 while time.monotonic()-start<timeout and p.poll() is None:
     time.sleep(1)
-    if len(lines)>110000:break
+    # Never abort because the old client emits a large number of model warnings;
+    # log volume must be evaluated as a FAILURE rather than mistaken for success.
+    if len(lines)>750000:break
 if p.poll() is None:
     try:os.killpg(p.pid,signal.SIGTERM)
     except ProcessLookupError:pass
@@ -104,14 +106,18 @@ bad=[s for s in ["MixinApplyError","MixinInitialisationError","NoClassDefFoundEr
 signs={key:key.lower() in both.lower() for key in
        ["Render thread","OpenAL initialized","Backend library: LWJGL version",
         "Created:","Sound engine started","Iris","Oculus","Embeddium","rgbblocks"]}
-result={"scope":"Real production Forge 1.20.1+RGB 1.3.1+C&B20.1.20+Embeddium0.3.31+Oculus1.8.0, Xvfb/Mesa",
+rgb_missing_models=[line for line in game.splitlines() if "rgbblocks:models/item/" in line and "FileNotFoundException" in line]
+rgb_missing_blocks=[line for line in game.splitlines() if "rgbblocks:blockstates/" in line and "missing model for variant" in line]
+result={"rgb_item_model_missing_count":len(rgb_missing_models),"rgb_block_model_variant_missing_count":len(rgb_missing_blocks),"first_missing_item":rgb_missing_models[:2],"first_missing_block":rgb_missing_blocks[:2],
+        "scope":"Real production Forge 1.20.1+RGB 1.3.1+C&B20.1.20+Embeddium0.3.31+Oculus1.8.0, Xvfb/Mesa",
         "build":str(own),"launcher":"PortableMC v5.0.6, full version Forge 1.20.1-47.4.28",
         "embeddium":embeddium,"oculus":oculus,
         "seconds":round(time.monotonic()-start,1),
         "exit_code":p.returncode,"minecraft_log":bool(game),
         "markers":signs,"fatal_patterns":bad,"crash_reports":[f.name for f in crashfiles]}
 (OUT/"result.json").write_text(json.dumps(result,indent=2,ensure_ascii=False),encoding="utf-8")
+if rgb_missing_models or rgb_missing_blocks:raise AssertionError("RGB model/texture parity FAILED: missing items %d, blocks %d"%(len(rgb_missing_models),len(rgb_missing_blocks)))
 print("RESULT",json.dumps(result,ensure_ascii=False),flush=True)
 if bad or crashfiles:raise AssertionError("Production Forge RGB client crashed; check log details")
-if not game or not signs["Render thread"]:raise AssertionError("Production Forge client did not reach graphics thread")
+if not game or not signs["Render thread"] or not signs["Created:"]:raise AssertionError("Production Forge client did not finish resource-atlas graphics initialization")
 print("PASS: real production Forge 1.20.1 client reached graphics with RGB+C&B+Embeddium+Oculus",flush=True)
