@@ -218,15 +218,22 @@ jobs:
           } | ConvertTo-Json -Compress
           $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($record + [Environment]::NewLine))
           $apiPath = "repos/$env:GITHUB_REPOSITORY/contents/CHATLENS_BUILD_STATUS.json"
-          $previous = gh api $apiPath 2>$null
-          $existingSha = ""
-          if ($LASTEXITCODE -eq 0) { $existingSha = ($previous | ConvertFrom-Json).sha }
+          $lookupPath = $apiPath + "?ref=" + $env:GITHUB_REF_NAME
+          $existingSha = (& gh api $lookupPath --jq '.sha' 2>$null | Select-Object -First 1)
+          if ($existingSha) { $existingSha = $existingSha.Trim() }
+          if (-not $existingSha) {
+            Write-Host "No existing status SHA found; checking the current branch content."
+            $raw = & gh api $lookupPath
+            if ($LASTEXITCODE -ne 0) { throw "Unable to read existing build status from GitHub" }
+            $existingSha = ($raw -join [Environment]::NewLine | ConvertFrom-Json).sha
+          }
+          if (-not $existingSha) { throw "GitHub content SHA lookup returned empty value" }
           $request = @{
             message = "chore(ChatLens): record v0.4.1 GitHub Actions build outcome"
             content = $encoded
             branch = $env:GITHUB_REF_NAME
           }
-          if ($existingSha) { $request.sha = $existingSha }
+          $request.sha = $existingSha
           $inputFile = Join-Path $env:RUNNER_TEMP "chatlens-status-request.json"
           ($request | ConvertTo-Json -Compress) | Set-Content -LiteralPath $inputFile -Encoding utf8
           gh api --method PUT $apiPath --input $inputFile
