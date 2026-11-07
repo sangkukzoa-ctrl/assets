@@ -457,6 +457,130 @@ for jsonpath in (RES/"assets/rgbblocks/models/block").glob("*_glass.json"):
     obj["render_type"]="minecraft:translucent"
     jsonpath.write_text(json.dumps(obj,separators=(",",":")),encoding="utf-8")
 
+# Forge 1.20.1's uncompressed FML LOGIN registry handshake is capped at
+# 1 MiB per custom-query packet. RGB 1.3.1 registers 50,061 items and blocks,
+# so minecraft:item (and potentially minecraft:block) snapshot exceeds the
+# packet cap; the client accepts channels, then drops on registry sequence 7.
+# Preserve ALL registry IDs. Compress only large item/block login snapshots
+# using a symmetric Forge-only Mixin. Both endpoints MUST have RGB Blocks.
+registryCompression=CODE/"com/rgbblocks/mixin/ForgeRegistrySnapshotCompressionMixin.java"
+registryCompression.write_text('''package com.rgbblocks.mixin;
+import io.netty.buffer.Unpooled;
+import java.io.ByteArrayOutputStream;
+import java.util.zip.Deflater;
+import java.util.zip.Inflater;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.network.HandshakeMessages;
+import net.minecraftforge.registries.ForgeRegistry;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+/** Zero-loss Forge LOGIN-registry synchronization for the entire original
+ * RGB Blocks 1.3.1 50,061-item/block palette. This does NOT remove,
+ * abbreviate or renumber registry IDs. It compresses the same snapshot.
+ */
+@Pseudo
+@Mixin(targets="net.minecraftforge.network.HandshakeMessages$S2CRegistry",remap=false)
+public abstract class ForgeRegistrySnapshotCompressionMixin {
+  private static final int RGB_MAGIC=0x52474231; // RGB1
+  private static final int RAW_LIMIT=16*1024*1024;
+  private static final int COMPRESSED_LIMIT=900*1024;
+  @Shadow private ResourceLocation registryName;
+  @Shadow private ForgeRegistry.Snapshot snapshot;
+
+  private static boolean rgbblocks$largeVanillaRegistry(ResourceLocation id) {
+    return id!=null && "minecraft".equals(id.getNamespace())
+      && ("item".equals(id.getPath()) || "block".equals(id.getPath()));
+  }
+  @Inject(method="encode",at=@At("HEAD"),cancellable=true,remap=false)
+  private void rgbblocks$writeSnapshot(FriendlyByteBuf output,CallbackInfo ci){
+    if(!rgbblocks$largeVanillaRegistry(registryName) || snapshot==null)return;
+    FriendlyByteBuf data=snapshot.getPacketData();
+    final int len=data.readableBytes();
+    if(len<128*1024)return;
+    if(len>RAW_LIMIT)throw new IllegalStateException("RGB Forge snapshot exceeds safe bound "+len);
+    byte[] original=new byte[len];
+    data.getBytes(data.readerIndex(),original);
+    byte[] zipped=rgbblocks$deflate(original);
+    if(zipped.length>=COMPRESSED_LIMIT)
+      throw new IllegalStateException("RGB Forge snapshot still too large "+zipped.length+" for "+registryName);
+    output.writeResourceLocation(registryName);
+    output.writeBoolean(true);
+    output.writeInt(RGB_MAGIC);
+    output.writeVarInt(len);
+    output.writeVarInt(zipped.length);
+    output.writeBytes(zipped);
+    System.out.println("[RGB Blocks] Forge login registry compressed "+registryName+" "+len+" -> "+zipped.length);
+    ci.cancel();
+  }
+  @Inject(method="decode",at=@At("HEAD"),cancellable=true,remap=false)
+  private static void rgbblocks$readSnapshot(FriendlyByteBuf input,
+    CallbackInfoReturnable<HandshakeMessages.S2CRegistry> cir) {
+    int saved=input.readerIndex();
+    ResourceLocation name=input.readResourceLocation();
+    if (!rgbblocks$largeVanillaRegistry(name) || !input.readBoolean() || input.readableBytes()<4) {
+      input.readerIndex(saved);return;
+    }
+    if(input.readInt()!=RGB_MAGIC){input.readerIndex(saved);return;}
+    int rawSize=input.readVarInt();
+    int compressedSize=input.readVarInt();
+    if(rawSize<=0 || rawSize>RAW_LIMIT || compressedSize<=0 || compressedSize>COMPRESSED_LIMIT
+       || compressedSize>input.readableBytes())
+      throw new IllegalStateException("Malformed RGB registry snapshot "+name+" "+rawSize+"/"+compressedSize);
+    byte[] zipped=new byte[compressedSize];
+    input.readBytes(zipped);
+    byte[] original=rgbblocks$inflate(zipped,rawSize);
+    ForgeRegistry.Snapshot restored=ForgeRegistry.Snapshot.read(
+      new FriendlyByteBuf(Unpooled.wrappedBuffer(original)));
+    System.out.println("[RGB Blocks] Forge login registry restored "+name+" "+compressedSize+" -> "+rawSize
+       +" entries="+restored.ids.size());
+    cir.setReturnValue(new HandshakeMessages.S2CRegistry(name,restored));
+  }
+  private static byte[] rgbblocks$deflate(byte[] data) {
+    Deflater zip=new Deflater(Deflater.BEST_SPEED);
+    zip.setInput(data);zip.finish();
+    ByteArrayOutputStream out=new ByteArrayOutputStream(Math.max(2048,data.length/4));
+    byte[] buf=new byte[8192];
+    try {
+      while(!zip.finished()){
+        int n=zip.deflate(buf);
+        if(n>0)out.write(buf,0,n);
+        else if(zip.needsInput())throw new IllegalStateException("Unexpected zlib input exhaustion");
+      }
+    } finally {zip.end();}
+    return out.toByteArray();
+  }
+  private static byte[] rgbblocks$inflate(byte[] data,int originalLength) {
+    Inflater zip=new Inflater();
+    zip.setInput(data);
+    ByteArrayOutputStream out=new ByteArrayOutputStream(originalLength);
+    byte[] buf=new byte[8192];
+    try {
+      while(!zip.finished()){
+        int n=zip.inflate(buf);
+        if(n>0){
+          out.write(buf,0,n);
+          if(out.size()>originalLength)throw new IllegalStateException("RGB decompressed size overflow");
+        }else if(zip.needsInput()||zip.needsDictionary()){
+          throw new IllegalStateException("RGB compressed registry truncated");
+        }
+      }
+    } catch(java.util.zip.DataFormatException ex){
+      throw new IllegalStateException("RGB registry compression corrupt",ex);
+    } finally {zip.end();}
+    if(out.size()!=originalLength)
+      throw new IllegalStateException("RGB registry decompressed byte count mismatch "+out.size()+"!="+originalLength);
+    return out.toByteArray();
+  }
+}
+''',encoding="utf-8")
+
 # Legacy Forge metadata; generated variant includes full data and old model schema.
 modtoml=RES/"META-INF/mods.toml"
 modtoml.parent.mkdir(parents=True,exist_ok=True)
@@ -554,6 +678,9 @@ for file in RES.glob("*mixin*.json"):
     data=json.loads(file.read_text(encoding="utf-8"))
     data["compatibilityLevel"]="JAVA_17"
     data["refmap"]="rgbblocks.refmap.json"
+    data.setdefault("mixins",[])
+    if "ForgeRegistrySnapshotCompressionMixin" not in data["mixins"]:
+        data["mixins"].append("ForgeRegistrySnapshotCompressionMixin")
     data.setdefault("client",[])
     data["client"]=[name for name in data["client"] if "Sodium06BlockRendererMixin" not in name]
     if "client.Embeddium03BlockRendererMixin" not in data["client"]:
