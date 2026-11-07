@@ -1,0 +1,16 @@
+name: RGB Blocks 1.3.1 original item schema exact audit
+on:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths: ['rgb-blocks-compat/audit_item_resources.py','.github/workflows/rgb-blocks-item-schema-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect original 1.3.1 Fabric and NeoForge item-model paths
+        run: python3 rgb-blocks-compat/audit_item_resources.py
