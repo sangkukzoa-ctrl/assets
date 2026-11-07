@@ -1,0 +1,31 @@
+name: RGB Blocks upstream Forge loader pre-EULA smoke
+on:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths:
+      - 'rgb-blocks-compat/forge_loader_smoke.py'
+      - '.github/workflows/rgb-blocks-forge-loader-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  forge-upstream-pre-eula:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Forge and attempt C&B 20.1.20 loader startup without accepting EULA
+        run: python rgb-blocks-compat/forge_loader_smoke.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgb-blocks-forge-upstream-pre-eula-logs
+          path: audit-output/
+          retention-days: 14
