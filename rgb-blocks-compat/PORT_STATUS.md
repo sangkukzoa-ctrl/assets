@@ -1,4 +1,10 @@
 # RGB Blocks 1.3.1 — legacy port recovery and verification ledger
+
+> **OWNER'S LATEST TARGET REQUIREMENT (2026-11-07):** Release Minecraft **1.21.1 NeoForge** and Minecraft **1.20.1 Forge**, each with **the entire original RGB Blocks 1.3.1 architecture and functionality**. Former 1.21.1 Fabric work is diagnostic/intermediate only; it must NOT be presented as the required 1.21.1 release. Read [EXACT_131_PORT_CONTRACT.md](./EXACT_131_PORT_CONTRACT.md) before any additional changes. Work in bounded per-turn iterations: when the owner says "진행", continue from the last successful commit/build check, never reinterpret targets or silently relax original functionality.
+>
+> Current NeoForge 1.21.1 builder: `build_mc1211_neoforge.py`, CI `.github/workflows/rgb-blocks-port-mc1211-neoforge.yml`. Baseline dependency: official NeoForge C&B 21.1.32 (21.1.33 has reported startup failure). Native NeoForge port is **NOT YET FINAL VALIDATED**.
+
+
 Last verified: 2026-11-07 (Asia/Seoul)
 Branch: `rgb-blocks-legacy-compat-audit`
 
