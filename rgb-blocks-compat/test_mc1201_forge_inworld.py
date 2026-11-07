@@ -149,6 +149,11 @@ try:
          start_new_session=True,bufsize=1)
     clog,cthread=runthread(client,"CLIENT",EVIDENCE/"client-console.log")
     result["client_joined"]=await_pattern(slog,"RGBPortTester joined the game",server,190,"real_FML_player_join")
+    # Full original 50k RGB registry transferred losslessly across Forge login.
+    result["forge_login_compressed"] = any("Forge login registry compressed minecraft:item" in line for line in slog)
+    result["forge_login_restored"] = any("Forge login registry restored minecraft:item" in line for line in clog)
+    record("REGISTRY_SYNC compressed="+str(result["forge_login_compressed"])+
+           " restored="+str(result["forge_login_restored"]))
     if not result["client_joined"]:
         record("JOIN DIAGNOSTIC — client process state="+str(client.poll()))
         for pth in (GAME/"logs/latest.log", EVIDENCE/"client-console.log", EVIDENCE/"server-console.log"):
@@ -195,6 +200,7 @@ finally:
     record("RESULT "+json.dumps(result,ensure_ascii=False))
 assert result["server_ready"] and result["client_joined"],"Real client did not join real multiplayer server"
 assert result["render_thread"] and result["atlas_ready"],"Client did not render its scene/texture atlases"
+assert result["forge_login_compressed"] and result["forge_login_restored"],"Lossless 50k RGB registry sync not confirmed on both Forge endpoints"
 assert result["resource_model_missing"]==0,"RGB asset paths not loaded by client"
 assert not result["fatal"],"Minecraft client fatal shader/renderer/C&B incompatibility"
 assert result["screenshots"],"Failed to capture real game scene"
