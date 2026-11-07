@@ -4,6 +4,7 @@ on:
     branches: [rgb-blocks-legacy-compat-audit]
     paths:
       - 'rgb-blocks-compat/build_mc1211_fabric.py'
+      - 'rgb-blocks-compat/test_mc1211_fabric_server.py'
       - '.github/workflows/rgb-blocks-port-mc1211.yml'
   workflow_dispatch:
 permissions:
@@ -44,6 +45,18 @@ jobs:
                 if f.is_file():z.write(f,str(f.relative_to(root)))
           print('Source ZIP:',dst.stat().st_size,'bytes')
           PY
+      - name: Launch real Fabric dedicated server with C&B, test RGB commands and save/reload
+        if: success()
+        continue-on-error: true
+        run: python3 rgb-blocks-compat/test_mc1211_fabric_server.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgbblocks-1211-fabric-real-server-test-report
+          path: |
+            mc1211-fabric-runtime/*.log
+            mc1211-fabric-runtime/result.json
+          retention-days: 30
       - uses: actions/upload-artifact@v4
         if: always()
         with:
