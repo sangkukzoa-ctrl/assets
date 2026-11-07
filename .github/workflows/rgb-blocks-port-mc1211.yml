@@ -23,12 +23,42 @@ jobs:
           gradle-version: '8.12.1'
       - name: Rebuild source layout and adapt MC1.21.1 APIs
         run: python3 rgb-blocks-compat/build_mc1211_fabric.py
-      - name: Try full compilation and print failures
+      - name: Compile and build remapped mod jar
         working-directory: port-work/mc1211-fabric
-        run: gradle --no-daemon --stacktrace compileJava 2>&1 | tee compile.log; test "${PIPESTATUS[0]}" = 0
+        run: |
+          set -o pipefail
+          gradle --no-daemon --stacktrace build 2>&1 | tee compile.log
+      - name: Package recovered and ported source (including unchanged assets)
+        if: success()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile
+          root=Path('port-work/mc1211-fabric')
+          dst=Path('RgbBlocks-1.3.1-MC1.21.1-Fabric-port-source.zip')
+          with zipfile.ZipFile(dst,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=6,allowZip64=True) as z:
+            for base in ('src','build.gradle','settings.gradle','gradle.properties'):
+              p=root/base
+              files=p.rglob('*') if p.is_dir() else [p]
+              for f in files:
+                if f.is_file():z.write(f,str(f.relative_to(root)))
+          print('Source ZIP:',dst.stat().st_size,'bytes')
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rgbblocks-1211-fabric-compiler-output
+          name: rgbblocks-1211-fabric-build-logs
           path: port-work/mc1211-fabric/compile.log
-          retention-days: 14
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: rgbblocks-1211-fabric-installable-jar-UNVERIFIED-RUNTIME
+          path: port-work/mc1211-fabric/build/libs/*.jar
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: rgbblocks-1211-fabric-full-source
+          path: RgbBlocks-1.3.1-MC1.21.1-Fabric-port-source.zip
+          retention-days: 30
