@@ -29,7 +29,14 @@ deps={}
 get_file("https://mediafilez.forgecdn.net/files/7620/767/chisels-and-bits-forge-20.1.20.jar",
          MODS/"chisels-and-bits-forge-20.1.20.jar")
 deps["chiselsandbits"]="20.1.20"
-for name,version in [("embeddium","0.3.31"),("oculus","1.8.0")]:
+# Isolate RGB + C&B + Embeddium first: Oculus production SRG Mixin refmap
+# (texture.MixinAbstractTexture/@Shadow f_117950_) is not compatible with
+# ForgeGradle Mojang-named dev runtime. An independent distribution test
+# with RGB_TEST_OCULUS=1 retains the full-stack diagnosis.
+TEST_OCULUS=os.environ.get("RGB_TEST_OCULUS","0")=="1"
+targets=[("embeddium","0.3.31")]
+if TEST_OCULUS:targets.append(("oculus","1.8.0"))
+for name,version in targets:
     deps[name]=modrinth(name,version)
 (RUN/"options.txt").write_text("""fullscreen:false
 renderDistance:2
@@ -76,11 +83,11 @@ signs={mark:mark.lower() in (log+"\n"+game).lower() for mark in marks}
 fatal=[s for s in ["MixinApplyError","MixinInitialisationError","NoSuchMethodError","NoClassDefFoundError",
                     "ExceptionInInitializerError","Crash report saved","Failure to launch"]
        if s.lower() in (log+"\n"+game).lower()]
-result={"scope":"Real MC1.20.1 Forge RGBBlocks + C&B + Embeddium + Oculus Xvfb GUI launch",
-        "dependencies":deps,"exit_code":proc.returncode,"timed_out":time.monotonic()-start>=timeout,
+result={"scope":"Real MC1.20.1 Forge RGBBlocks + C&B + Embeddium" + (" + Oculus" if TEST_OCULUS else " (Oculus isolated)") + " Xvfb GUI launch",
+        "dependencies":deps,"oculus_test_enabled":TEST_OCULUS,"exit_code":proc.returncode,"timed_out":time.monotonic()-start>=timeout,
         "render_signs":signs,"fatal_patterns":fatal,"crashes":[x.name for x in crashes]}
 (OUT/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2))
 print("RESULT",json.dumps(result,ensure_ascii=False),flush=True)
 if fatal or crashes:raise AssertionError("Minecraft client startup contains fatal error; examine logs")
 if not signs["Render thread"]:raise AssertionError("Minecraft graphical client did not reach Render thread")
-print("PASS: RGBBlocks Minecraft 1.20.1 + C&B/Embeddium/Oculus actual graphical client start",flush=True)
+print("PASS: RGBBlocks Minecraft 1.20.1 + C&B/Embeddium actual graphical client start" + (" with Oculus" if TEST_OCULUS else ""),flush=True)
