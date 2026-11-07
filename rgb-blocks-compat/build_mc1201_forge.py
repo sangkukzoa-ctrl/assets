@@ -281,6 +281,12 @@ s=s.replace('brightness,red,green,blue,alpha,light,overlay,readExistingColor',
             'brightness,red,green,blue,light,overlay,readExistingColor')
 renderer.write_text(s,encoding="utf-8")
 
+# 1.20.1 Minecraft.disconnect(Screen) has no boolean second parameter.
+disconnect=CODE/"com/rgbblocks/mixin/client/MinecraftDisconnectMixin.java"
+patch(disconnect, lambda s:s.replace("disconnect(Lnet/minecraft/client/gui/screens/Screen;Z)V",
+    "disconnect(Lnet/minecraft/client/gui/screens/Screen;)V")
+    .replace("Screen screen,boolean transfer,CallbackInfo ci","Screen screen,CallbackInfo ci"))
+
 # Legacy Forge metadata; generated variant includes full data and old model schema.
 modtoml=RES/"META-INF/mods.toml"
 modtoml.parent.mkdir(parents=True,exist_ok=True)
@@ -322,7 +328,12 @@ org.gradle.daemon=false
 org.gradle.parallel=false
 ''')
 (WORK/"build.gradle").write_text("""
+buildscript {
+ repositories { maven {url='https://repo.spongepowered.org/repository/maven-public'};mavenCentral() }
+ dependencies { classpath 'org.spongepowered:mixingradle:0.7-SNAPSHOT' }
+}
 plugins { id 'net.minecraftforge.gradle' version '[6.0,6.2)' }
+apply plugin: 'org.spongepowered.mixin'
 group='com.rgbblocks'
 version='1.3.1+mc1.20.1'
 base { archivesName='RgbBlocksmod-MC1.20.1-Forge' }
@@ -338,6 +349,11 @@ dependencies {
 }
 tasks.withType(JavaCompile).configureEach {options.release=17; options.encoding='UTF-8'}
 tasks.withType(Zip).configureEach { zip64=true }
+mixin {
+  add sourceSets.main, 'rgbblocks.refmap.json'
+  config 'rgbblocks.mixins.json'
+}
+jar.finalizedBy('reobfJar')
 jar {
  manifest.attributes([
     'Specification-Title':'rgbblocks',
@@ -354,6 +370,7 @@ jar {
 for file in RES.glob("*mixin*.json"):
     data=json.loads(file.read_text(encoding="utf-8"))
     data["compatibilityLevel"]="JAVA_17"
+    data["refmap"]="rgbblocks.refmap.json"
     file.write_text(json.dumps(data,indent=2),encoding="utf-8")
 print("Forge 1.20.1 migration source staged: Java",len(list(CODE.rglob("*.java"))),
       "resources",len(list(RES.rglob("*"))),flush=True)
