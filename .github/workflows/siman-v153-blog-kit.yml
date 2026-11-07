@@ -1,4 +1,4 @@
-name: Package Siman v1.5.3 beta for Naver Blog
+name: Package Siman v1.5.3 beta for Naver Blog (plain text revision)
 on:
   push:
     branches: [main]
