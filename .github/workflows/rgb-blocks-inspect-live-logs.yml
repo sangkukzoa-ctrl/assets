@@ -1,0 +1,19 @@
+name: RGB Blocks full game log evidence diagnosis
+on:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths: ['rgb-blocks-compat/inspect_inworld_artifacts.py','.github/workflows/rgb-blocks-inspect-live-logs.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recover full real-client debug logs from failed multiplayer test artifact archives
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 rgb-blocks-compat/inspect_inworld_artifacts.py
