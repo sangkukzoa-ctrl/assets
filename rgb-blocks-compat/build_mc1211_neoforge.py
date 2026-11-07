@@ -133,7 +133,8 @@ public final class RgbBlocksMod {
         c.getSource().sendSuccess(()->Component.literal("RGB mode: MANUAL"),true);return 1;}))
       .then(Commands.literal("bake").executes(c->{
         var data=RGBRuntime.data(c.getSource().getServer());RGBRuntime.broadcastBake(c.getSource().getServer());
-        c.getSource().sendSuccess(()->Component.literal("RGB bake requested ("+data.bakeDescription()+")."),true);return 1;}))
+        c.getSource().sendSuccess(()->Component.literal("RGB bake requested ("+data.bakeDescription()+")."),true);return 1;})
+       .then(Commands.literal("get").executes(c->status(c.getSource().getServer(),c.getSource()))))
       .then(Commands.literal("get").executes(c->status(c.getSource().getServer(),c.getSource())))
       .then(Commands.literal("setbake")
        .then(Commands.literal("all").executes(c->{
