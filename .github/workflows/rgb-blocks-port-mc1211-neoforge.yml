@@ -1,0 +1,72 @@
+name: RGB Blocks 1.21.1 NeoForge native port build
+on:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths:
+      - rgb-blocks-compat/build_mc1211_neoforge.py
+      - .github/workflows/rgb-blocks-port-mc1211-neoforge.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Generate faithful 1.21.1 common resources and NeoForge native port code
+        run: |
+          set -euxo pipefail
+          python3 rgb-blocks-compat/build_mc1211_fabric.py
+          python3 rgb-blocks-compat/build_mc1211_neoforge.py
+      - name: Build the native NeoForge RGB Blocks 1.21.1 JAR
+        working-directory: port-work/mc1211-neoforge
+        run: |
+          set -o pipefail
+          gradle --no-daemon --stacktrace build 2>&1 | tee compile.log
+      - name: Verify original 1.3.1 resource and registry coverage
+        if: success()
+        run: |
+          python3 rgb-blocks-compat/validate_full_parity.py neoforge1211
+      - name: Archive full migrated NeoForge source
+        if: success()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile
+          base=Path('port-work/mc1211-neoforge')
+          dest=Path('RGBBlocks-1.3.1-MC1.21.1-NeoForge-FULL-SOURCE.zip')
+          with zipfile.ZipFile(dest,'w',zipfile.ZIP_DEFLATED,compresslevel=6,allowZip64=True) as out:
+             for p in sorted((base/'src').rglob('*')):
+                if p.is_file():out.write(p,str(p.relative_to(base)))
+             for name in ('build.gradle','settings.gradle','gradle.properties'):
+                out.write(base/name,name)
+          print('SOURCE:',dest.stat().st_size,'bytes')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgbblocks-1211-NEOFORGE-compiler-log
+          path: |
+            port-work/mc1211-neoforge/compile.log
+            audit-output/parity-neoforge1211.json
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: rgbblocks-1211-NEOFORGE-candidate-JAR
+          path: port-work/mc1211-neoforge/build/libs/*.jar
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: rgbblocks-1211-NEOFORGE-FULL-SOURCE
+          path: RGBBlocks-1.3.1-MC1.21.1-NeoForge-FULL-SOURCE.zip
+          retention-days: 30
