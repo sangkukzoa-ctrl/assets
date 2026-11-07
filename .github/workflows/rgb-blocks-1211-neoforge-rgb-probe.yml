@@ -4,6 +4,7 @@ on:
     branches: [rgb-blocks-legacy-compat-audit]
     paths:
       - 'rgb-blocks-compat/inject_ci_only_light_probe.py'
+      - 'rgb-blocks-compat/test_mc1211_neoforge_inworld.py'
       - '.github/workflows/rgb-blocks-1211-neoforge-rgb-probe.yml'
   workflow_dispatch:
 permissions:
@@ -14,6 +15,8 @@ jobs:
     timeout-minutes: 65
     steps:
       - uses: actions/checkout@v4
+      - name: Preflight Python syntax before costly Gradle build
+        run: python3 -m py_compile rgb-blocks-compat/test_mc1211_neoforge_inworld.py rgb-blocks-compat/inject_ci_only_light_probe.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
