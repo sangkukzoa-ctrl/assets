@@ -31,7 +31,7 @@ def get_version(project,prefix,mc="1.21.1"):
     f=sorted(vs[0]["files"],key=lambda f:not f.get("primary",False))[0]
     return vs[0],f
 dependencies={}
-for project,prefix in (("sodium","0.6.13"),("iris","1.8.12")):
+for project,prefix in (("sodium","0.6.13"),("iris","1.8.8")):
     version,file=get_version(project,prefix)
     fetch_file(file["url"],mods/file["filename"])
     dependencies[project]={"version":version["version_number"],"file":file["filename"]}
@@ -95,8 +95,8 @@ fatal=[p for p in ["MixinApplyError","MixinInitialisationError","NoSuchMethodErr
 scene_patterns=["Backend library: LWJGL version","OpenAL initialized","Created:","Sound engine started","Render thread"]
 signs={q:q.lower() in (log+"\n"+game).lower() for q in scene_patterns}
 crash=list((run/"crash-reports").glob("*.txt")) if (run/"crash-reports").exists() else []
-for p in crash:
- shutil.copy2(p,LOGROOT/p.name)
+for crash_file in crash:
+ shutil.copy2(crash_file,LOGROOT/crash_file.name)
 result={"scope":"Real 1.21.1 Fabric RGBBlocks + C&B + Sodium + Iris Xvfb software-GL client startup only",
         "deps":dependencies,
         "seconds":round(time.monotonic()-start,1),
