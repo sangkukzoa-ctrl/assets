@@ -165,7 +165,7 @@ try:
         cmd(server,"gamemode creative RGBPortTester")
         cmd(server,"rgb bake")
         time.sleep(35)
-        screenshot=EVIDENCE/"real-neoforge-rgb-normal-glow-glass-{}{}.png".format("shader-on" if SHADER_ON else "shader-off", "-strict" if STRICT_LIGHT_PROBE else "")"
+        screenshot=EVIDENCE/("real-neoforge-rgb-normal-glow-glass-{}{}.png".format("shader-on" if SHADER_ON else "shader-off", "-strict" if STRICT_LIGHT_PROBE else ""))
         shot=subprocess.run(["scrot",str(screenshot.resolve())],env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=45)
         if shot.returncode==0 and screenshot.is_file():
             result["screenshots"].append({"name":screenshot.name,"bytes":screenshot.stat().st_size})
