@@ -1,0 +1,89 @@
+name: Siman v1.4.0 regression and release
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/siman-v140-release.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore and hash-check source package
+        run: |
+          mkdir -p dist src
+          base64 -d siman/release/v140/Siman_v1.4.0_SOURCE.zip.base64 > dist/Siman_v1.4.0_SOURCE.zip
+          echo "8056fae5742f9ef2bfc2c66fa84ed90b6cc971d33342db8d8e36e73e09f12495  dist/Siman_v1.4.0_SOURCE.zip" | sha256sum -c -
+          unzip -q dist/Siman_v1.4.0_SOURCE.zip -d src
+      - name: JavaScript collector tests
+        run: |
+          node src/tests/collectors.test.cjs
+          for file in src/app/*.js; do node --check "$file"; done
+          node -e "const m=require('./src/app/manifest.json');if(m.version!=='1.4.0'||m.manifest_version!==3)process.exit(1)"
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run real Windows CMD fresh install and in-place update
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:SIMAN_CI_TEST = '1'
+          $folder=Join-Path $env:RUNNER_TEMP 'SimanV140'
+          New-Item -ItemType Directory -Force -Path $folder | Out-Null
+          $zip=Join-Path $folder 'install.zip'
+          $b64=Get-Content 'siman/release/v140/Siman_v1.4.0_INSTALL.zip.base64' -Raw
+          [IO.File]::WriteAllBytes($zip,[Convert]::FromBase64String($b64.Trim()))
+          $sha=(Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLower()
+          if($sha -ne '20e2edb5a8bb5128361942c6e22fa88370e3b3184dfa243fc26e424c81029d8a'){throw "Archive hash mismatch $sha"}
+          Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $folder 'unzipped')
+          $cmd=Join-Path $folder 'unzipped\INSTALL.cmd'
+          $bytes=[IO.File]::ReadAllBytes($cmd)
+          if([Text.Encoding]::ASCII.GetString($bytes) -match '(?<!\r)\n'){throw 'CMD contains Unix LF'}
+          $proc=Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/c',('"' + $cmd + '"')) -Wait -PassThru -NoNewWindow
+          if($proc.ExitCode -ne 0){throw "New install failure $($proc.ExitCode)"}
+          $target=Join-Path $env:LOCALAPPDATA '2bornot\Siman\app'
+          $v=(Get-Content (Join-Path $target 'manifest.json') -Raw | ConvertFrom-Json).version
+          if($v -ne '1.4.0'){throw "Unexpected version $v"}
+          if(!(Test-Path (Join-Path $target 'network.js'))){throw 'Network capture adapter missing'}
+          '{"manifest_version":3,"name":"심안 (心眼) — AI 대화 통합 검색","version":"1.3.1"}' | Set-Content (Join-Path $target 'manifest.json') -Encoding UTF8
+          $proc=Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/c',('"' + $cmd + '"')) -Wait -PassThru -NoNewWindow
+          if($proc.ExitCode -ne 0){throw "Update failure $($proc.ExitCode)"}
+          $v=(Get-Content (Join-Path $target 'manifest.json') -Raw | ConvertFrom-Json).version
+          if($v -ne '1.4.0'){throw "Update version mismatch $v"}
+          Write-Host 'SIMAN v1.4.0 Windows CMD fresh install and update PASS'
+  publish:
+    runs-on: ubuntu-latest
+    needs: [regression,windows-installer]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore release assets and verify hashes
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for f in siman/release/v140/Siman_v1.4.0_*.zip.base64; do base64 -d "$f" > "dist/$(basename "$f" .base64)"; done
+          echo "20e2edb5a8bb5128361942c6e22fa88370e3b3184dfa243fc26e424c81029d8a  dist/Siman_v1.4.0_INSTALL.zip" | sha256sum -c -
+          echo "3ea4cee783ba2ce4405065ba759e349e59c0d0639a717fa2f8690f98d99ab45e  dist/Siman_v1.4.0_WEBSTORE.zip" | sha256sum -c -
+          echo "8056fae5742f9ef2bfc2c66fa84ed90b6cc971d33342db8d8e36e73e09f12495  dist/Siman_v1.4.0_SOURCE.zip" | sha256sum -c -
+          (cd dist && sha256sum *.zip > SHA256SUMS.txt)
+      - name: GitHub preview release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag=siman-v1.4.0
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" dist/*.zip dist/SHA256SUMS.txt --title "심안 心眼 v1.4.0 (Preview)" --notes-file siman/RELEASE_NOTES_v1.4.0.md --prerelease --latest=false
+          else
+            gh release upload "$tag" dist/*.zip dist/SHA256SUMS.txt --clobber
+          fi
+      - name: Signed build provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: 'dist/*.zip'
