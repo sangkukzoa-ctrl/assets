@@ -191,7 +191,7 @@ pluginManagement {
 }
 rootProject.name='rgbblocks-1.21.1-fabric'
 """)
-(WORK/"gradle.properties").write_text("org.gradle.jvmargs=-Xmx4G\\norg.gradle.parallel=false\\norg.gradle.caching=true\\n")
+(WORK/"gradle.properties").write_text("org.gradle.jvmargs=-Xmx4G\norg.gradle.parallel=false\norg.gradle.caching=true\n")
 (WORK/"build.gradle").write_text("""
 plugins { id 'fabric-loom' version '1.9-SNAPSHOT' }
 group='com.rgbblocks'
