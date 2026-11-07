@@ -114,15 +114,19 @@ try:
     result["server_ready"]=await_pattern(slog,"Done (",server,180,"server_boot")
     if not result["server_ready"]:raise AssertionError("Forge dedicated server did not reach Ready")
     for c in ["gamerule doDaylightCycle false","time set midnight","weather clear","forceload add 0 0",
-              "fill -4 119 1 4 119 10 minecraft:stone",
+              "fill -5 119 -3 5 119 12 minecraft:stone",
               f"setblock -2 121 7 {block}",
               f"setblock 0 121 7 {block}_glow",
               f"setblock 2 121 7 {block}_glass",
               "setblock 4 121 7 chiselsandbits:chiseled",
+              f"execute if block -2 121 7 {block} run say RGB_FIXTURE_NORMAL_READY",
               f"execute if block 0 121 7 {block}_glow run say RGB_FIXTURE_GLOW_READY",
+              f"execute if block 2 121 7 {block}_glass run say RGB_FIXTURE_GLASS_READY",
               "rgb auto","rgb setbake all","rgb get"]:
         command(server,c);time.sleep(0.4)
-    assert await_pattern(slog,"RGB_FIXTURE_GLOW_READY",server,50,"fixture_created"),"RGB block not placed"
+    assert await_pattern(slog,"RGB_FIXTURE_NORMAL_READY",server,50,"normal_fixture"),"RGB normal block not placed"
+    assert await_pattern(slog,"RGB_FIXTURE_GLOW_READY",server,50,"glow_fixture"),"RGB glow block not placed"
+    assert await_pattern(slog,"RGB_FIXTURE_GLASS_READY",server,50,"glass_fixture"),"RGB glass block not placed"
     result["cnb_sculpted_fixture"]=await_pattern(slog,"RGB_PORT_CNB_FIXTURE_PASS",server,70,"actual_CnB_voxel_setup")
     result["rgb_server_commands"]=await_pattern(slog,"RGB mode: AUTO",server,50,"rgb_command")
     assert result["rgb_server_commands"]
@@ -164,6 +168,9 @@ try:
     result["atlas_ready"]=await_pattern(clog,"Created:",client,180,"texture_atlas")
     if result["client_joined"]:
         command(server,"tp RGBPortTester 0.5 120.0 0.5 facing 0.5 121.5 7.5")
+        # The camera must stand on a stone floor at Y=119 through capture;
+        # otherwise it falls from Y=120 and a green CI result can show empty sky.
+        assert await_pattern(slog,"Teleported RGBPortTester to 0.500000, 120.000000, 0.500000",server,25,"camera_teleport"),"Camera teleport not acknowledged"
         command(server,"effect give RGBPortTester minecraft:night_vision 45 0 true")
         command(server,"gamemode creative RGBPortTester")
         command(server,"rgb bake")
