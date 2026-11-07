@@ -4,6 +4,7 @@ on:
     branches: [rgb-blocks-legacy-compat-audit]
     paths:
       - rgb-blocks-compat/build_mc1211_neoforge.py
+      - rgb-blocks-compat/test_mc1211_neoforge_server.py
       - .github/workflows/rgb-blocks-port-mc1211-neoforge.yml
   workflow_dispatch:
 permissions:
@@ -35,6 +36,16 @@ jobs:
         if: success()
         run: |
           python3 rgb-blocks-compat/validate_full_parity.py neoforge1211
+      - name: Validate real NeoForge 1.21.1 dedicated server with C&B 21.1.32
+        run: python3 rgb-blocks-compat/test_mc1211_neoforge_server.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgbblocks-1211-NEOFORGE-production-server-evidence
+          path: |
+            mc1211-neoforge-runtime/*.log
+            mc1211-neoforge-runtime/result.json
+          retention-days: 30
       - name: Archive full migrated NeoForge source
         if: success()
         run: |
