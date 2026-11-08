@@ -110,6 +110,8 @@ jobs:
       # Verify screenshot layout without publishing any personal chat images.
       - name: Embedded desktop JPEGView FFXIV screenshot regression
         run: python ChatLensOCR/test_ffxiv_viewer_crop_v047.py
+      - name: Report real FFXIV row-level analysis progress
+        run: python ChatLensOCR/test_ffxiv_progress_v047.py
       - name: Automatic FFXIV job-icon learning and sticker continuity test
         run: python ChatLensOCR/test_auto_job_icons_v047.py
       - name: Overall chat classification and specialized OCR
