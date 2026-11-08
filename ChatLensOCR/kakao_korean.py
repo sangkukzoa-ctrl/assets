@@ -83,6 +83,11 @@ def read_bubble(crop,language="한국어",precise=True):
         ko,boxes,conf,zoom=agreed
     elif hangul<2:return None
     if conf<44 or _rate(ko,conf)<1.18:return None
+    # Only reread long, short-height lines where both separately processed
+    # pixels agree on one glyph near the end; never substitute a known word.
+    if precise:
+        from kakao_tail_rescue_v045 import rescue_korean_tail
+        ko,_=rescue_korean_tail(crop,ko)
     ko=normalize_visible_punctuation(ko)
     normal=[]
     for item in boxes:
