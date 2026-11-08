@@ -45,6 +45,9 @@ public static void sample() {
       +" neighboringLight=["+glow.r()+","+glow.g()+","+glow.b()+"] ticks="+ticks
       +" enabled="+com.rgbblocks.client.lighting.RGBRealLightEngine.enabled()
       +" bootstrap="+com.rgbblocks.client.lighting.RGBRealLightEngine.bootstrapAllowedAt(near)
+      +" worldId="+com.rgbblocks.runtime.RGBRuntime.clientWorldId()
+      +" stateVersion="+com.rgbblocks.runtime.RGBRuntime.clientStateVersion()
+      +" targetAuto="+com.rgbblocks.runtime.RGBRuntime.clientTargetAuto()
       +" sourceCell="+com.rgbblocks.client.lighting.RGBLightEngine.lightColorAt(src,0.5f,0.5f,0.5f));
  }
 
@@ -219,6 +222,29 @@ elif TARGET=="forge1201":
     if old_work not in server_logic:
         raise AssertionError("C&B fixture template drift")
     server_logic=server_logic.replace(old_work,new_work)
+    # CI-only heartbeat in the original tick engine, separate from the
+    # dedicated client-event probe. Distinguishes missing Mixin tick callbacks
+    # from a network-state/persistence initialization failure.
+    engine=code/"client/lighting/RGBRealLightEngine.java"
+    engine_code=engine.read_text(encoding="utf-8")
+    needle="         RGBLightPersistence.tick();"
+    if needle not in engine_code:
+        raise AssertionError("Forge original RGB engine tick call moved")
+    engine_code=engine_code.replace(needle,'''         if (!RGBPortCiTickHeartbeat.seen) {
+            RGBPortCiTickHeartbeat.seen=true;
+            System.out.println("RGB_PORT_REAL_ENGINE_TICK_ACTIVE world="+com.rgbblocks.runtime.RGBRuntime.clientWorldId());
+         }
+'''+needle,1)
+    # Use a compact private helper to preserve the original 1.3.1 engine logic.
+    marker="public final class RGBRealLightEngine {"
+    if marker not in engine_code:
+        raise AssertionError("Forge RGB engine class definition changed")
+    engine_code=engine_code.replace(marker,marker+'''
+   private static final class RGBPortCiTickHeartbeat {
+      private static boolean seen = false;
+   }
+''',1)
+    engine.write_text(engine_code,encoding="utf-8")
     fixture=code/"ci/RgbPortCnbFixture.java"
     fixture.write_text('''package com.rgbblocks.ci;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
