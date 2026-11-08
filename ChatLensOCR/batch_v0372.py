@@ -7,12 +7,14 @@ primary OCR output.
 """
 from debuglog_v0372 import note, exception, context, clear_context
 
-def analyze_batch(items, settings, icons, analyzer=None):
+def analyze_batch(items, settings, icons, analyzer=None, progress=None):
     if analyzer is None:
         from layout_v2 import analyze as analyzer
     results=[]
     selected_mode,language,precise,world=settings
+    total=len(items)
     for index,(name,img) in enumerate(items,1):
+        if progress:progress("file_start",index,total,0,0)
         width,height=img.size if img is not None else (0,0)
         context(filename=name,size=(width,height),index=index,mode=selected_mode,
                 language=language,precise=bool(precise))
@@ -20,8 +22,15 @@ def analyze_batch(items, settings, icons, analyzer=None):
         try:
             if img is None or width<=0 or height<=0:
                 raise ValueError("Empty or invalid input image")
+            # Existing injected analyzers retain the six-argument interface
+            # unless a progress callback is explicitly requested.
+            extra={}
+            if progress:
+                def line_progress(kind,current,count):
+                    progress("line",index,total,current,count)
+                extra["progress"]=line_progress
             detected,output,hits,meta,rows,raw=analyzer(
-                img,selected_mode,language,precise,world,icons)
+                img,selected_mode,language,precise,world,icons,**extra)
             results.append({"filename":name,"mode":detected,"result":output,
                             "ocr_lines":raw,"messages":meta,"icons":hits,
                             "rows":rows,"failed":False})
@@ -37,6 +46,7 @@ def analyze_batch(items, settings, icons, analyzer=None):
                             "icons":[],"rows":[],"failed":True})
         finally:
             clear_context()
+            if progress:progress("file_done",index,total,0,0)
     note("batch_analysis_complete",total=len(results),
          failed=sum(bool(v["failed"]) for v in results))
     return results

@@ -208,11 +208,14 @@ def _recheck_ffxiv_dialogue(crop,original,language):
         return candidate
     return original
 
-def ffxiv(img, language, precise, world, icons):
+def ffxiv(img, language, precise, world, icons, progress=None):
     lines=_fixed_lines(img)
     out=[]; raw=[]; metadata=[]; hits=[]
+    # Progress reports contain counts only, never private chat content.
+    if progress:progress("line",0,len(lines))
     # Crop one row, never ask recognizer to guess location inside entire chat log.
-    for y0,y1 in lines:
+    for row_index,(y0,y1) in enumerate(lines,1):
+        if progress:progress("line",row_index,len(lines))
         if y1-y0>36:continue
         top=max(0,y0-2);bottom=min(img.height,y1+2)
         crop=img.crop((0,top,img.width,bottom))
@@ -467,7 +470,7 @@ def generic(img,language,precise):
     return "범용","\n".join(v["text"] for v in rows),[],[{"confidence":v["score"]} for v in rows],items
 
 
-def analyze(img,mode,language,precise,world,icons):
+def analyze(img,mode,language,precise,world,icons,progress=None):
     # Screenshot of a viewer displaying the game: isolate the actual game
     # pixels before any OCR. This prevents titlebar/neighboring app text from
     # contaminating the same FFXIV chat rows; overlay coordinates are restored.
@@ -476,7 +479,7 @@ def analyze(img,mode,language,precise,world,icons):
         game_view,source_box=crop_viewer_chat(img)
         if source_box:
             return restore_coordinates(
-                analyze(game_view,"파판14",language,precise,world,icons),
+                analyze(game_view,"파판14",language,precise,world,icons,progress=progress),
                 source_box)
     if mode in ("자동","파판14"):
         from ffxiv_scoreboard_v037 import analyze as scoreboard_read
@@ -524,7 +527,7 @@ def analyze(img,mode,language,precise,world,icons):
             return detected,output,hits,metadata,merge_rows(lines),lines
     if mode=="자동":mode=detect_mode(img)
     if mode=="파판14":
-        result=ffxiv(img,language,precise,world,icons)
+        result=ffxiv(img,language,precise,world,icons,progress=progress)
     elif mode=="카카오톡":
         result=kakao(img,language,precise)
     else: result=generic(img,language,precise)

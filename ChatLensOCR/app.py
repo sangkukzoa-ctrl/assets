@@ -332,7 +332,7 @@ def gui():
     precise=tk.BooleanVar(value=True); world=tk.StringVar(value="모그리")
     status=tk.StringVar(value="준비 완료  ·  이미지 열기 → 분석 → 결과 저장")
     entries=[]; active=[None]; selection=[None]; last=[None]; photo=[None]; scale=[1.]
-    origin=[0,0]; jobs=[None]; events=queue.Queue(); worker=[None]; generation=[0]; analysis_start=[None]
+    origin=[0,0]; jobs=[None]; events=queue.Queue(); worker=[None]; generation=[0]; analysis_start=[None]; analysis_detail=[None]
     def label(parent,s):ttk.Label(parent,text=s).pack(side="left",padx=(8,3))
     def button(parent,s,cb):ttk.Button(parent,text=s,command=cb).pack(side="left",padx=3)
     header=ttk.Frame(root,padding=(16,12,16,5));header.pack(fill="x")
@@ -407,13 +407,17 @@ def gui():
             try:
                 from batch_v0372 import analyze_batch
                 xicons=Icons()
-                results=analyze_batch(todo,settings,xicons)
+                def report(stage,file_index,file_total,row_index,row_total):
+                    # Only counts go to the GUI; filenames/chat stay local to OCR.
+                    events.put(("progress",stamp,(stage,file_index,file_total,row_index,row_total)))
+                results=analyze_batch(todo,settings,xicons,progress=report)
                 events.put(("ok",stamp,results))
             except Exception as error:
                 debuglog.exception("analysis_worker_crash",error,total=len(todo),
                                    mode=settings[0])
                 events.put(("error",stamp,str(error)))
         analysis_start[0]=time.monotonic()
+        analysis_detail[0]=None
         worker[0]=threading.Thread(target=compute,daemon=True)
         worker[0].start();status.set("OCR 분석 중… 복잡한 채팅은 줄 단위로 처리합니다.")
     button(file_bar,"🔎 현재 이미지 분석",lambda:run(False));button(file_bar,"전체 이미지 일괄 분석",lambda:run(True))
@@ -642,13 +646,23 @@ def gui():
             kind,stamp,info=events.get_nowait()
             if stamp!=generation[0]:
                 root.after(120,poll);return
-            if kind=="error":
+            if kind=="progress":
+                stage,file_index,file_total,row_index,row_total=info
+                if stage=="line" and row_total:
+                    analysis_detail[0]=f"이미지 {file_index}/{file_total} · 파판14 채팅 {row_index}/{row_total}줄 판독 중"
+                elif stage=="file_start":
+                    analysis_detail[0]=f"이미지 {file_index}/{file_total} 판독 준비 중"
+                elif stage=="file_done":
+                    analysis_detail[0]=f"이미지 {file_index}/{file_total} 판독 완료"
+            elif kind=="error":
                 analysis_start[0]=None
+                analysis_detail[0]=None
                 messagebox.showerror("분석 오류",
                     "분석 중 오류가 발생했습니다. [디버그 로그]를 눌러 [로그 복사]로 내용을 복사하세요.\n"+str(info))
                 status.set("분석 오류 — 디버그 로그에서 확인")
-            else:
+            elif kind=="ok":
                 analysis_start[0]=None
+                analysis_detail[0]=None
                 last[0]=info
                 from review_v046 import format_batch_txt
                 setfield(fields[0],format_batch_txt(info))
@@ -670,7 +684,8 @@ def gui():
         except queue.Empty:pass
         if analysis_start[0] is not None and worker[0] and worker[0].is_alive():
             elapsed=int(time.monotonic()-analysis_start[0])
-            status.set(f"OCR 분석 진행 중 · {elapsed}초 경과 · 원문을 줄 단위로 판독하고 있습니다.")
+            detail=analysis_detail[0] or "분석 엔진 실행 중"
+            status.set(f"OCR 분석 진행 중 · {detail} · {elapsed}초 경과")
         root.after(120,poll)
     root.after(120,poll)
     root.bind("<Control-o>",lambda e:open_file())
