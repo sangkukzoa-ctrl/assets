@@ -1,0 +1,221 @@
+name: ChatLens OCR daily Windows development build (offline QA)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/chatlens-daily.yml']
+  schedule:
+    - cron: '0 19 * * *' # Every day 04:00 Asia/Seoul (UTC+9)
+  workflow_dispatch:
+concurrency:
+  group: chatlens-daily-dev
+  cancel-in-progress: true
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 110
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: '1'
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatlens-development
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: x64
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "rapidocr>=3.10,<4" "onnxruntime>=1.20,<2" "opencv-python-headless>=4.8" "Pillow>=10" "numpy>=1.26,<3" "pyinstaller>=6.10,<7" "pytesseract>=0.3.13,<1"
+      - name: Install Tesseract
+        run: choco install tesseract -y --no-progress
+      - name: Add Korean OCR data
+        run: |
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/kor.traineddata' -OutFile (Join-Path $env:ProgramFiles 'Tesseract-OCR/tessdata/kor.traineddata')
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/eng.traineddata' -OutFile (Join-Path $env:ProgramFiles 'Tesseract-OCR/tessdata/eng.traineddata')
+      - name: Download job icons
+        run: |
+          @'
+          import io, zipfile, urllib.request, pathlib
+          url="https://github.com/xivapi/classjob-icons/archive/refs/heads/master.zip"
+          req=urllib.request.Request(url,headers={"User-Agent":"ChatLensOCR-build"})
+          with urllib.request.urlopen(req, timeout=90) as res: z=zipfile.ZipFile(io.BytesIO(res.read()))
+          target=pathlib.Path("ChatLensOCR/assets/jobs");target.mkdir(parents=True,exist_ok=True)
+          for name in z.namelist():
+              if "/icons/" in name and name.endswith(".png"):
+                  (target/pathlib.Path(name).name).write_bytes(z.read(name))
+          print("icons",len(list(target.glob("*.png"))))
+          assert len(list(target.glob("*.png")))>=40
+          '@ | python -
+      - name: Warm up three OCR languages
+        run: |
+          @'
+          import sys, shutil
+          from pathlib import Path
+          from PIL import Image, ImageDraw, ImageFont
+          sys.path.insert(0,"ChatLensOCR")
+          from app import recognize
+          img=Image.new("RGB",(1000,220),"white")
+          font=ImageFont.truetype("C:/Windows/Fonts/arial.ttf",60)
+          ImageDraw.Draw(img).text((20,60),"CHATLENS OCR 12345",fill="black",font=font)
+          for lang in ["한국어","영어","일본어"]:
+              found=recognize(img,lang,False)
+              print("model loaded",repr(lang),len(found),flush=True)
+              assert found, "OCR failed"
+          import rapidocr
+          source=Path(rapidocr.__file__).parent/"models"
+          target=Path("ChatLensOCR/models")
+          shutil.copytree(source,target,dirs_exist_ok=True)
+          files=list(target.rglob("*.onnx"))
+          print("ONNX models",len(files),[p.name for p in files],flush=True)
+          assert len(files)>=4
+          '@ | python -
+      - name: Run three-mode synthetic screenshot OCR tests
+        run: python ChatLensOCR/test_layout_v2.py
+      - name: Test resize exception guard and debug log with product screenshots
+        run: python ChatLensOCR/test_resize_debug_v0372.py
+      - name: Validate versioned TXT test-result export
+        run: python ChatLensOCR/test_export_v0373_regression.py
+      - name: Validate multi-column shopping-card segmentation
+        run: python ChatLensOCR/test_shop_grid_v0374.py
+      - name: Validate field-test release metadata
+        run: python ChatLensOCR/test_release_v046.py
+      - name: Round 1 regression (Kakao nickname and micro-bubbles)
+        run: python ChatLensOCR/test_ocr_round1.py
+      - name: Round 2 regression (multiline fidelity)
+        run: python ChatLensOCR/test_ocr_round2.py
+      - name: Round 3 regression (FFXIV mixed Latin)
+        run: python ChatLensOCR/test_ocr_round3.py
+      - name: Round 3 regression (Explorer metadata cells)
+        run: python ChatLensOCR/test_explorer_cells_v0422.py
+      - name: Round 4 regression (general UI and image input)
+        run: python ChatLensOCR/test_ocr_round4.py
+      - name: Round 5 fidelity, short syllable and punctuation regression
+        run: python ChatLensOCR/test_ocr_round5.py
+      - name: Round 6 real Korean OCR and unreadable-bubble preservation
+        run: python ChatLensOCR/test_ocr_round6.py
+      - name: Round 7 real-pixel Korean suffix reread regression
+        run: python ChatLensOCR/test_ocr_round7.py
+      - name: Round 8 TXT review and JSON data integrity test
+        run: python ChatLensOCR/test_ocr_round8.py
+      - name: Automatic FFXIV job-icon learning and sticker continuity test
+        run: python ChatLensOCR/test_auto_job_icons_v047.py
+      - name: Overall chat classification and specialized OCR
+        run: python ChatLensOCR/test_layout_v2.py
+      - name: Build single Windows GUI executable
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name ChatLensOCR_v0.4.6 --version-file ChatLensOCR/version_info.txt --collect-all rapidocr --collect-all onnxruntime --collect-all cv2 --hidden-import=pytesseract --hidden-import=explorer_v1 --hidden-import=colored_page --hidden-import=pvp_v2 --hidden-import=kakao_stickers --hidden-import=kakao_korean --hidden-import=sticker_match_v035 --hidden-import=kakao_names_v036 --hidden-import=ffxiv_combat_v037 --hidden-import=ffxiv_scoreboard_v037 --hidden-import=multicolumn_v037 --hidden-import=shop_grid_v0374 --hidden-import=ffxiv_latin_v0422 --hidden-import=ui_input_v042 --hidden-import=kakao_fidelity_v043 --hidden-import=kakao_integrity_v044 --hidden-import=kakao_tail_rescue_v045 --hidden-import=review_v046 --hidden-import=auto_job_samples_v047 --hidden-import=tess_backend --hidden-import=ocr_guard_v0372 --hidden-import=debuglog_v0372 --hidden-import=batch_v0372 --hidden-import=test_export_v0373 --add-data "$env:ProgramFiles\Tesseract-OCR;tesseract" --add-data "ChatLensOCR/assets;assets" --add-data "ChatLensOCR/models;models" --add-data "ChatLensOCR/LICENSE;." --add-data "ChatLensOCR/NOTICE.md;." --hidden-import=rapidocr --hidden-import=onnxruntime ChatLensOCR/app.py
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
+      - name: Verify 2bornot EXE metadata
+        run: |
+          $info=(Get-Item (Resolve-Path "dist/ChatLensOCR_v0.4.6.exe")).VersionInfo
+          if ($info.CompanyName -ne "2bornot") { throw "CompanyName mismatch: $($info.CompanyName)" }
+          if ($info.LegalCopyright -notmatch "2bornot") { throw "LegalCopyright missing" }
+          if ($info.ProductName -ne "ChatLens OCR") { throw "ProductName mismatch" }
+          if ($info.ProductVersion -ne "0.4.6.0") { throw "ProductVersion mismatch" }
+          Write-Host "Verified developer 2bornot, Copyright 2026 and ProductVersion 0.4.6.0"
+      - name: Verify frozen executable with network blocked
+        run: |
+          $p = Start-Process -FilePath (Resolve-Path ".\dist\ChatLensOCR_v0.4.6.exe") -ArgumentList "--self-test", (Join-Path $PWD "selftest.json") -Wait -PassThru
+          if (Test-Path selftest.json) { Get-Content selftest.json }
+          if ($p.ExitCode -ne 0) { throw "OCR frozen selftest failed: $($p.ExitCode)" }
+          Get-Content selftest.json
+      - name: Authenticode-sign EXE if a trusted certificate is configured
+        id: codesign
+        env:
+          CODE_SIGN_PFX_BASE64: ${{ secrets.CHATLENS_SIGN_PFX_BASE64 }}
+          CODE_SIGN_PFX_PASSWORD: ${{ secrets.CHATLENS_SIGN_PFX_PASSWORD }}
+        run: |
+          if (-not $env:CODE_SIGN_PFX_BASE64 -or -not $env:CODE_SIGN_PFX_PASSWORD) {
+            "signed=false" >> $env:GITHUB_OUTPUT
+            Write-Host "No trusted certificate configured: release will be explicitly unsigned prerelease."
+            exit 0
+          }
+          $cert = Join-Path $env:RUNNER_TEMP 'chatlens_signing.pfx'
+          $exe = (Resolve-Path 'dist/ChatLensOCR_v0.4.6.exe').Path
+          try {
+            [IO.File]::WriteAllBytes($cert, [Convert]::FromBase64String($env:CODE_SIGN_PFX_BASE64))
+            $signtool = Get-ChildItem -Path 'C:\Program Files (x86)\Windows Kits\10\bin' -Filter signtool.exe -Recurse | Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+            if (-not $signtool) { throw 'Windows SDK SignTool is missing' }
+            & $signtool sign /f $cert /p $env:CODE_SIGN_PFX_PASSWORD /fd SHA256 /tr 'http://timestamp.digicert.com' /td SHA256 $exe
+            if ($LASTEXITCODE -ne 0) { throw 'Authenticode signing failed' }
+            & $signtool verify /pa /v $exe
+            if ($LASTEXITCODE -ne 0) { throw 'Authenticode verify failed' }
+            "signed=true" >> $env:GITHUB_OUTPUT
+          } finally {
+            Remove-Item -LiteralPath $cert -Force -ErrorAction SilentlyContinue
+          }
+      - name: Create and validate release archive
+        run: |
+          $exe = (Resolve-Path "dist/ChatLensOCR_v0.4.6.exe").Path
+          $zip = "dist/ChatLensOCR_v0.4.6_Windows_x64.zip"
+          $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ((Get-Item $exe).Length -lt 25MB) { throw "Executable unexpectedly small" }
+          Copy-Item "ChatLensOCR/LICENSE" "dist/LICENSE.txt"
+          Copy-Item "ChatLensOCR/NOTICE.md" "dist/NOTICE.md"
+          Copy-Item "ChatLensOCR/PRIVACY.md" "dist/PRIVACY.md"
+          Compress-Archive -Path $exe,"dist/LICENSE.txt","dist/NOTICE.md","dist/PRIVACY.md" -DestinationPath $zip -CompressionLevel Optimal -Force
+          $check = Join-Path $env:RUNNER_TEMP "ChatLensVerify"
+          New-Item -ItemType Directory -Force -Path $check | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $check -Force
+          $extracted = (Get-FileHash (Join-Path $check "ChatLensOCR_v0.4.6.exe") -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($sha -ne $extracted) { throw "Archive checksum mismatch" }
+          $zipSha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          @(
+            "$sha  ChatLensOCR_v0.4.6.exe"
+            "$zipSha  ChatLensOCR_v0.4.6_Windows_x64.zip"
+          ) | Set-Content "dist/SHA256SUMS.txt" -Encoding ascii
+          Get-Content "dist/SHA256SUMS.txt"
+          Write-Host "EXE bytes: $((Get-Item $exe).Length)"
+          Write-Host "ZIP bytes: $((Get-Item $zip).Length)"
+          Write-Host "ZIP extract checksum verified"
+      - name: Attest binary build provenance (different from Authenticode)
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/ChatLensOCR_v0.4.6.exe
+      - name: Record QA-only build manifest
+        env:
+          CODE_SIGNED: ${{ steps.codesign.outputs.signed }}
+        run: |
+          $json = @{
+            application = "ChatLens OCR"
+            version = "0.4.6"
+            qa_round = "nightly-development"
+            developer = "2bornot"
+            released_publicly = $false
+            authenticode_signed = ($env:CODE_SIGNED -eq "true")
+            workflow_run = "https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+            source_sha = (git rev-parse HEAD).Trim()
+          } | ConvertTo-Json
+          $json | Set-Content -LiteralPath dist/build-manifest.json -Encoding utf8
+          "## ChatLens OCR nightly development build" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "Binary selftest, baseline OCR regressions, job-icon auto-learning test, SHA256 verification and provenance attestation passed." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          if ($env:CODE_SIGNED -eq "true") {
+            "Authenticode: verified signature" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          } else {
+            "Authenticode: UNSIGNED, awaiting trusted certificate and SignPath Foundation approval." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          }
+          "This is an internal daily QA build from chatlens-development. No automatic public release or blog update." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ChatLensOCR-Daily-${{ github.run_number }}-Windows-x64
+          path: |
+            dist/ChatLensOCR_v0.4.6_Windows_x64.zip
+            dist/SHA256SUMS.txt
+            dist/LICENSE.txt
+            dist/NOTICE.md
+            dist/PRIVACY.md
+            dist/build-manifest.json
+            selftest.json
+          if-no-files-found: error
+          retention-days: 14
