@@ -29,5 +29,18 @@ assert _choose_consensus([("덜뚱이가",[],91,2),("덜팽이가",[],80,3),("�
 # Without agreement, retain the first source's candidate. Never auto-map 퉤/튀.
 assert _choose_consensus([("퉤",[],81,2),("튀",[],97,3),("",[],0,3)])[0]=="퉤"
 assert _preserve_lines("가나다   라마\n바사 아자")=="가나다 라마\n바사 아자"
+# One multiline bubble: alternative OCR must recover an omitted second line.
+import types
+from unittest.mock import patch as mock_patch
+import kakao_korean
+backend=types.ModuleType("tess_backend")
+def stub_read(img,mode,lang,psm=6,tess_lang=None):
+    if psm==11:
+        return ("올라올거면 10일에 알바끝난 날 데리고\n가는게 미션이다.",[],75)
+    return ("알바끝난 날 데리고",[],66)
+backend.read=stub_read
+with mock_patch.dict(sys.modules,{"tess_backend":backend}):
+    rescued=kakao_korean.read_bubble(Image.new("RGB",(225,40),"white"),"한국어",True)
+    assert rescued is not None and "가는게 미션이다." in rescued[0],rescued
 assert _synthetic()
 print("Round2 PASS: multiline preservation, disagreement safety, 5-column card segmentation")
