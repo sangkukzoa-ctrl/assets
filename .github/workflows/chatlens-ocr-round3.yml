@@ -1,0 +1,55 @@
+name: ChatLens OCR - Round 3 QA (no release)
+on:
+  push:
+    branches: [chatlens-v0422-ocr-round3]
+    paths:
+      - 'ChatLensOCR/**'
+      - '.github/workflows/chatlens-ocr-round3.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  localized_ocr_tests:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: x64
+      - name: Install offline test libraries
+        run: python -m pip install "numpy>=1.26,<3" "opencv-python-headless>=4.8" "Pillow>=10" "rapidocr>=3.10,<4" "onnxruntime>=1.20,<2" "pytesseract>=0.3.13,<1"
+      - name: Install Tesseract and Korean recognition data
+        shell: pwsh
+        run: |
+          choco install tesseract -y --no-progress
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/kor.traineddata' -OutFile (Join-Path $env:ProgramFiles 'Tesseract-OCR/tessdata/kor.traineddata')
+      - name: Warm up RapidOCR engines
+        shell: pwsh
+        run: |
+          @'
+          import sys
+          sys.path.insert(0,'ChatLensOCR')
+          from app import engine
+          for language in ('한국어','영어','일본어'):
+              engine(language)
+          print('offline engine warmup passed')
+          '@ | python -
+      - name: Validate Round 1 corrections
+        run: python ChatLensOCR/test_ocr_round1.py
+      - name: Validate Round 3 localized fidelity and line breaks
+        run: python ChatLensOCR/test_ocr_round2.py
+      - name: Validate Latin alphanumeric phrase fidelity
+        run: python ChatLensOCR/test_ocr_round3.py
+      - name: Validate Explorer metadata cell OCR fallback
+        run: python ChatLensOCR/test_explorer_cells_v0422.py
+      - name: Validate chat classification and icon tests
+        run: python ChatLensOCR/test_layout_v2.py
+      - name: Preserve QA log
+        if: always()
+        run: |
+          Write-Output "Round 3 is QA-only. No EXE signing, no release, no private user screenshots committed."
