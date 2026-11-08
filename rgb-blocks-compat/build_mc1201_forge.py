@@ -337,6 +337,21 @@ rgbengine=CODE/"com/rgbblocks/client/lighting/RGBRealLightEngine.java"
 patch(rgbengine,lambda s:s.replace(
  "if (clientLevel() instanceof BlockGetter getter) {",
  "BlockGetter getter = clientLevel();\\n         if (getter != null) {".replace("\\n","\n")))
+# Original 1.3.1 C&B 26.x exposes BlockInformation as a record with
+# blockState(). On the supported Forge 1.20.1, Chisels & Bits 20.1.20
+# exposes IBlockInformation#getBlockState() instead. The port used to
+# swallow NoSuchMethodException while calculating C&B source statistics;
+# a real 4095-bit RGB glow sculpture then emitted BLACK, even though
+# RGB full blocks and native Forge tick bootstrapping worked.
+# This is a version-specific API translation only; preserve all emission math.
+def forge_cnb_information_api(source):
+    obsolete='invokeNoArg(information, "blockState")'
+    translated='invokeNoArg(information, "getBlockState")'
+    if obsolete not in source:
+        raise AssertionError("Original C&B BlockInformation accessor moved")
+    return source.replace(obsolete, translated)
+patch(rgbengine,forge_cnb_information_api)
+
 
 # Convert original Fabric MixinPlugin early mod-discovery to Forge-loading
 # registry; this plugin runs before standard ModList initialization.
