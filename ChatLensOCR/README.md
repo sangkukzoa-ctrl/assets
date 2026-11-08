@@ -1,17 +1,17 @@
 **Developer / 개발자:** 2bornot  ·  **Copyright © 2026 2bornot**  ·  **License:** [MIT](LICENSE)
 
-**Code signing policy:** [SignPath Foundation application plan](CODE_SIGNING_POLICY.md). The current v0.4.1 field-test build is a **pre-release** and may be unsigned until approved. Windows certificate Publisher will say SignPath Foundation if signing is eventually approved. It is separate from the project developer attribution.
+**Code signing policy:** [SignPath Foundation application plan](CODE_SIGNING_POLICY.md). The current v0.4.2 (4/8) build is an internal-quality-test artifact distributed through GitHub Actions, not the final public release. It is unsigned unless a valid signature is verified. Windows certificate Publisher will say SignPath Foundation if signing is eventually approved. It is separate from the project developer attribution.
 
 [Privacy](PRIVACY.md) · [Third-party notices](NOTICE.md)
 
-# ChatLens OCR v0.4.1
+# ChatLens OCR v0.4.2
 
 **Windows x64 · 무료 오프라인 이미지 문자 인식 프로그램**
 
 스크린샷을 분석하여 일반 문서와 웹페이지, 쇼핑몰 상품 목록, 카카오톡 대화, 파이널판타지14 채팅·전투 로그를 텍스트로 추출합니다.
 
 ## 사용 방법
-1. GitHub Releases에서 Windows x64 ZIP 또는 EXE 다운로드
+1. 개발자가 제공한 GitHub Actions 검증 빌드에서 Windows x64 ZIP 다운로드
 2. ZIP이라면 압축 해제 후 EXE 실행 (Python 설치 불필요)
 3. **이미지 열기** 또는 **붙여넣기**로 스크린샷 추가
 4. **자동** 유형에서 **선택 분석** 또는 **전체 이미지 분석**
