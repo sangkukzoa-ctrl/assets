@@ -297,7 +297,7 @@ def selftest(outpath):
 def gui():
     import tkinter as tk
     from tkinter import ttk, filedialog, messagebox, simpledialog
-    from PIL import Image, ImageGrab, ImageTk, ImageDraw, ImageOps
+    from PIL import Image, ImageGrab, ImageTk, ImageDraw
     root=tk.Tk();root.title("ChatLens OCR v0.4.2  |  이미지 문자 인식")
     root.geometry("1420x860");root.minsize(1060,680);root.configure(bg="#101722")
     debuglog.note("gui_started")
@@ -342,19 +342,14 @@ def gui():
             "오프라인 이미지 문자 인식 / Offline OCR\n"
             "공식 소스 및 배포: github.com/sangkukzoa-ctrl/assets\n"
             "타사 라이브러리·이미지 및 상표는 각각의 권리자에게 귀속됩니다.\n\n"
-            "이번 버전은 품질 검증 4/8 시험판입니다. 정식 공개는 8차 검증 후 결정합니다.\\n"
+            "이번 버전은 품질 검증 4/8 시험판입니다. 정식 공개는 8차 검증 후 결정합니다.\n"
             "Windows 코드서명 여부는 파일 속성 및 배포 안내에서 확인하세요.",
             parent=root)
     ttk.Button(header,text="프로그램 정보 / About",command=show_about).pack(side="right",padx=9)
     def add_image(im,name):
-        im=ImageOps.exif_transpose(im).convert("RGB")
-        # Duplicate image names must not collide with JSON exports or overlays.
-        used={key for key,_ in entries}
-        if name in used:
-            stem,suffix=os.path.splitext(name)
-            index=2
-            while f"{stem} ({index}){suffix}" in used:index+=1
-            name=f"{stem} ({index}){suffix}"
+        from ui_input_v042 import normalize_imported_image, unique_image_name
+        im=normalize_imported_image(im)
+        name=unique_image_name(name,entries)
         entries.append((name,im))
         lb.insert("end",name);lb.selection_clear(0,"end");lb.selection_set("end");lb.see("end")
         active[0]=im;selection[0]=None;last[0]=None
