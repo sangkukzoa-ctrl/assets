@@ -12,6 +12,9 @@ jobs:
   localized_ocr_tests:
     runs-on: windows-2022
     timeout-minutes: 25
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
