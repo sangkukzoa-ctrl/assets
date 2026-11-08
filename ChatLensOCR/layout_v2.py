@@ -468,6 +468,16 @@ def generic(img,language,precise):
 
 
 def analyze(img,mode,language,precise,world,icons):
+    # Screenshot of a viewer displaying the game: isolate the actual game
+    # pixels before any OCR. This prevents titlebar/neighboring app text from
+    # contaminating the same FFXIV chat rows; overlay coordinates are restored.
+    if mode in ("자동","파판14"):
+        from ffxiv_viewer_crop_v047 import crop_viewer_chat,restore_coordinates
+        game_view,source_box=crop_viewer_chat(img)
+        if source_box:
+            return restore_coordinates(
+                analyze(game_view,"파판14",language,precise,world,icons),
+                source_box)
     if mode in ("자동","파판14"):
         from ffxiv_scoreboard_v037 import analyze as scoreboard_read
         from ffxiv_combat_v037 import analyze as combat_read
