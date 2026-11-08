@@ -618,8 +618,12 @@ def gui():
                 setfield(fields[1],"\n".join(f'{v["filename"]} {z["box"]} ({z["score"]:.2f}) {z["text"]}' for v in info for z in v["ocr_lines"]))
                 setfield(fields[2],json.dumps([{"filename":v["filename"],"mode":v["mode"],"icons":v["icons"],"messages":v["messages"]} for v in info],ensure_ascii=False,indent=2))
                 failed=sum(bool(v.get("failed")) for v in info)
+                unreadable=sum(bool(item.get("needs_review")) for v in info for item in v.get("messages",[]))
+                               if isinstance(item,dict))
                 if failed:
                     status.set(f"분석 완료 {len(info)}개 중 오류 {failed}개 | [디버그 로그] → [로그 복사]")
+                elif unreadable:
+                    status.set(f"분석 완료: {len(info)}개 이미지 · 글자 미인식 말풍선 {unreadable}개 (TXT에서 확인)")
                 else:
                     status.set(f"분석 완료: {len(info)}개 이미지")
                 show()
