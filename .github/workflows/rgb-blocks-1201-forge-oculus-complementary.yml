@@ -4,6 +4,9 @@ on:
     branches: [rgb-blocks-legacy-compat-audit]
     paths:
       - '.github/workflows/rgb-blocks-1201-forge-oculus-complementary.yml'
+      - 'rgb-blocks-compat/build_mc1201_forge.py'
+      - 'rgb-blocks-compat/test_mc1201_forge_inworld.py'
+      - 'rgb-blocks-compat/inject_ci_only_light_probe.py'
   workflow_dispatch:
 permissions:
   contents: read
