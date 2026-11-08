@@ -2,7 +2,7 @@
 """ChatLens OCR - Windows offline standalone application.
 Screenshots stay local. Supports FFXIV, KakaoTalk and general documents.
 """
-import os, sys, re, json, socket, traceback, threading, queue, uuid
+import os, sys, re, json, socket, traceback, threading, queue, uuid, time
 import debuglog_v0372 as debuglog
 from pathlib import Path
 
@@ -332,7 +332,7 @@ def gui():
     precise=tk.BooleanVar(value=True); world=tk.StringVar(value="모그리")
     status=tk.StringVar(value="준비 완료  ·  이미지 열기 → 분석 → 결과 저장")
     entries=[]; active=[None]; selection=[None]; last=[None]; photo=[None]; scale=[1.]
-    origin=[0,0]; jobs=[None]; events=queue.Queue(); worker=[None]; generation=[0]
+    origin=[0,0]; jobs=[None]; events=queue.Queue(); worker=[None]; generation=[0]; analysis_start=[None]
     def label(parent,s):ttk.Label(parent,text=s).pack(side="left",padx=(8,3))
     def button(parent,s,cb):ttk.Button(parent,text=s,command=cb).pack(side="left",padx=3)
     header=ttk.Frame(root,padding=(16,12,16,5));header.pack(fill="x")
@@ -413,8 +413,9 @@ def gui():
                 debuglog.exception("analysis_worker_crash",error,total=len(todo),
                                    mode=settings[0])
                 events.put(("error",stamp,str(error)))
+        analysis_start[0]=time.monotonic()
         worker[0]=threading.Thread(target=compute,daemon=True)
-        worker[0].start();status.set("OCR 분석 중...")
+        worker[0].start();status.set("OCR 분석 중… 복잡한 채팅은 줄 단위로 처리합니다.")
     button(file_bar,"🔎 현재 이미지 분석",lambda:run(False));button(file_bar,"전체 이미지 일괄 분석",lambda:run(True))
     label(options_bar,"이미지 종류");mode_box=ttk.Combobox(options_bar,textvariable=mode,
         values=["자동","범용","쇼핑몰 목록","카카오톡","파판14","파일 탐색기"],
@@ -642,10 +643,12 @@ def gui():
             if stamp!=generation[0]:
                 root.after(120,poll);return
             if kind=="error":
+                analysis_start[0]=None
                 messagebox.showerror("분석 오류",
                     "분석 중 오류가 발생했습니다. [디버그 로그]를 눌러 [로그 복사]로 내용을 복사하세요.\n"+str(info))
                 status.set("분석 오류 — 디버그 로그에서 확인")
             else:
+                analysis_start[0]=None
                 last[0]=info
                 from review_v046 import format_batch_txt
                 setfield(fields[0],format_batch_txt(info))
@@ -665,6 +668,9 @@ def gui():
                     status.set(f"분석 완료: {len(info)}개 이미지")
                 show()
         except queue.Empty:pass
+        if analysis_start[0] is not None and worker[0] and worker[0].is_alive():
+            elapsed=int(time.monotonic()-analysis_start[0])
+            status.set(f"OCR 분석 진행 중 · {elapsed}초 경과 · 원문을 줄 단위로 판독하고 있습니다.")
         root.after(120,poll)
     root.after(120,poll)
     root.bind("<Control-o>",lambda e:open_file())
