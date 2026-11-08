@@ -186,6 +186,20 @@ try:
         shutil.copy2(client_game,EVIDENCE/"minecraft-client-latest.log")
         result["rgb_light_propagation_verified"]="RGB_PORT_LIGHT_PROBE_PASS" in (txt+"\n"+"".join(clog))
         result["cnb_rgb_propagation_verified"]="RGB_PORT_CNB_LIGHT_PROBE_PASS" in (txt+"\n"+"".join(clog))
+        # Keep CI diagnosis in the job log: the client and launcher output are
+        # otherwise only uploaded to an artifact, making a failed gate opaque.
+        probe_lines=[ln for ln in (txt+"\n"+"".join(clog)).splitlines()
+           if any(token in ln for token in (
+             "RGB_PORT_", "RGBRealLightEngine", "RGBLightEngine",
+             "RGBClientConfig", "RGB Blocks client", "MixinApplyError"))]
+        (EVIDENCE/"forge-rgb-probe-diagnostics.log").write_text(
+             "\n".join(probe_lines),encoding="utf-8")
+        for diagnostic in probe_lines[-36:]:
+            record("FORGE_RGB_DIAGNOSTIC "+diagnostic[:500])
+        result["probe_diagnostic_count"]=len(probe_lines)
+        result["forge_tick_event_seen"]=any("RGB_PORT_FORGE_TICK_EVENT_RECEIVED" in ln for ln in probe_lines)
+        result["world_tick_sample_seen"]=any("RGB_PORT_PROBE_CLIENT_TICK_ACTIVE" in ln for ln in probe_lines)
+
         result["resource_model_missing"]=sum("FileNotFoundException: rgbblocks:models/" in x or
           ("rgbblocks:blockstates/" in x and "missing model for variant" in x)
           for x in txt.splitlines())
