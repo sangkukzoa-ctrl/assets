@@ -1,10 +1,10 @@
 **Developer / 개발자:** 2bornot  ·  **Copyright © 2026 2bornot**  ·  **License:** [MIT](LICENSE)
 
-**Code signing policy:** [SignPath Foundation application plan](CODE_SIGNING_POLICY.md). The current v0.4.2 (4/8) build is an internal-quality-test artifact distributed through GitHub Actions, not the final public release. It is unsigned unless a valid signature is verified. Windows certificate Publisher will say SignPath Foundation if signing is eventually approved. It is separate from the project developer attribution.
+**Code signing policy:** [SignPath Foundation application plan](CODE_SIGNING_POLICY.md). The current v0.4.3 (5/8) build is an internal-quality-test artifact distributed through GitHub Actions, not the final public release. It is unsigned unless a valid signature is verified. Windows certificate Publisher will say SignPath Foundation if signing is eventually approved. It is separate from the project developer attribution.
 
 [Privacy](PRIVACY.md) · [Third-party notices](NOTICE.md)
 
-# ChatLens OCR v0.4.2
+# ChatLens OCR v0.4.3
 
 **Windows x64 · 무료 오프라인 이미지 문자 인식 프로그램**
 
