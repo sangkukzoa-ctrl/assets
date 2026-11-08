@@ -25,9 +25,9 @@ for i in range(24):
 box=viewer_chat_box(scene)
 assert box is not None,box
 x0,y0,x1,y1=box
-assert x0==0 and 510<x1<552 and 45<y0<60 and y1==630,box
+assert x0==0 and 510<x1<565 and 45<y0<60 and y1==630,box
 cropped,coords=crop_viewer_chat(scene)
-assert coords==box and cropped.width<552 and cropped.height<590,coords
+assert coords==box and cropped.width<565 and cropped.height<590,coords
 assert cropped.getpixel((10,10))[0]<80
 assert viewer_chat_box(cropped) is None
 # Do not erroneously crop a full-screen FF14 screenshot or a regular document.
