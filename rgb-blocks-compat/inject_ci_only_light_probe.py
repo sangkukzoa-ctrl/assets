@@ -79,6 +79,62 @@ public static void sample() {
  }
 }
 '''
+# Forge-only CI diagnostics. In the real C&B 20.1.20 production client,
+# distinguish absent block entity, empty/unreadable statistics, wrong bit
+# states and a missing RGB engine cache. Never instrument the release JAR.
+if TARGET=="forge1201":
+    probe_line='''       com.rgbblocks.client.lighting.RGBRealLightEngine.refreshCnbBlockEntity(mc.level.getBlockEntity(cnb));'''
+    assert probe_line in logic
+    debug=r'''       if(ticks%120==0 && ticks<=360){
+          Object tile=mc.level.getBlockEntity(cnb);
+          System.out.println("RGB_PORT_CNB_CLIENT_DETAILS tick="+ticks+" tile="+(tile==null?"null":tile.getClass().getName())
+            +" tracking="+com.rgbblocks.client.config.RGBClientConfig.ENABLE_CNB_SOURCE_TRACKING_CACHED);
+          if(tile!=null){
+            try{
+              java.lang.reflect.Method getStatistics=tile.getClass().getMethod("getStatistics");
+              getStatistics.setAccessible(true);
+              Object statistics=getStatistics.invoke(tile);
+              java.lang.reflect.Method getCounts=statistics.getClass().getMethod("getStateCounts");
+              getCounts.setAccessible(true);
+              Object counts=getCounts.invoke(statistics);
+              if(counts instanceof java.util.Map<?,?> m){
+                System.out.println("RGB_PORT_CNB_CLIENT_COUNTS count="+m.size());
+                int logged=0;
+                for(var item:m.entrySet()){
+                  if(logged++>=4)break;
+                  Object info=item.getKey();
+                  try{
+                    java.lang.reflect.Method stateMethod=info.getClass().getMethod("getBlockState");
+                    stateMethod.setAccessible(true);
+                    Object blockState=stateMethod.invoke(info);
+                    System.out.println("RGB_PORT_CNB_CLIENT_ENTRY class="+info.getClass().getName()
+                       +" state="+blockState+" count="+item.getValue());
+                  }catch(Throwable e){
+                    System.out.println("RGB_PORT_CNB_CLIENT_ENTRY_ERROR "+e);
+                  }
+                }
+              }else{
+                System.out.println("RGB_PORT_CNB_CLIENT_COUNTS unexpected="+counts);
+              }
+            }catch(Throwable e){
+              System.out.println("RGB_PORT_CNB_CLIENT_STATISTICS_ERROR "+e);
+            }
+          }
+          try{
+            Class<?> engine=com.rgbblocks.client.lighting.RGBRealLightEngine.class;
+            for(String name:new String[]{"CNB_PENDING","CNB_CACHE","MANUAL_CNB_SHADOW"}){
+              java.lang.reflect.Field f=engine.getDeclaredField(name);
+              f.setAccessible(true);
+              Object value=f.get(null);
+              if(value instanceof java.util.Map<?,?> m)
+                System.out.println("RGB_PORT_CNB_ENGINE_MAP "+name+" size="+m.size()
+                  +" fixture="+m.get(cnb.asLong()));
+            }
+          }catch(Throwable e){System.out.println("RGB_PORT_CNB_ENGINE_DIAGNOSTIC_ERROR "+e);}
+       }
+'''
+    logic=logic.replace(probe_line,debug+probe_line,1)
+
 if TARGET=="fabric1211":
     probe.write_text('''package com.rgbblocks.ci;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
