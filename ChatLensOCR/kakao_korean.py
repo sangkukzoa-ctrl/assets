@@ -15,22 +15,47 @@ def _rate(text, confidence):
     junk=len(re.findall(r"[|©€¤{}]",text))
     return (confidence/100)*2.2 + min(hangul/16,1.0) - ascii_fragments*.23 - junk*.25
 
+def _preserve_lines(text):
+    """Keep the original line breaks of longer user chat bubbles."""
+    return "\n".join(" ".join(line.split()) for line in text.splitlines() if line.strip())
+
+def _choose_consensus(readings):
+    """Prefer repeated OCR readings over a single outlier; do not guess words."""
+    from collections import Counter
+    usable=[]
+    for text,boxes,conf,zoom in readings:
+        text=_preserve_lines(text)
+        key=text.strip().strip(" |_[].").replace(" ", "")
+        if key and re.search(r"[가-힣]",key):
+            usable.append((key,text,boxes,conf,zoom))
+    if not usable:return None
+    votes=Counter(k for k,*_ in usable)
+    if max(votes.values())>=2:
+        best=max(votes,key=lambda k:(votes[k],max(x[3] for x in usable if x[0]==k)))
+        return max((x for x in usable if x[0]==best),key=lambda x:x[3])[1:]
+    return usable[0][1:]
+
 def read_bubble(crop,language="한국어",precise=True):
     if language!="한국어":return None
     from tess_backend import read
     height=crop.height
-    # For one-line chat, 2x keeps sub-pixel anti-aliasing; multiline needs 3x.
     zoom=3 if height>=37 else 2
     im=crop.convert("RGB").resize((max(1,crop.width*zoom),max(1,crop.height*zoom)),Image.Resampling.LANCZOS)
     psm=6 if height>=37 else 7
     ko,boxes,conf=read(im,"카카오톡","한국어",psm=psm,tess_lang="kor")
-    # On short conventional chat bubbles the separate Korean recognizer gives
-    # cleaner words without the erroneous Latin tokens of the joint model.
-    if ko:
-        ko=" ".join(ko.split())
-    if len(re.findall(r"[가-힣]",ko))<2 or conf<44:
-        return None
-    # Do not accept a transcript with an implausibly high markup ratio.
+    readings=[(ko,boxes,conf,zoom)]
+    # Small Korean messages and nicknames are particularly susceptible
+    # to visually similar syllable substitutions. Re-evaluate the cropped
+    # pixels using an independent scale and Tesseract page segmentation.
+    if precise and height<=35 and crop.width<=240:
+        check=crop.convert("RGB").resize((max(1,crop.width*3),max(1,crop.height*3)),Image.Resampling.LANCZOS)
+        for alternative_psm in (7,13):
+            candidate,b,confidence=read(check,"카카오톡","한국어",psm=alternative_psm,tess_lang="kor")
+            readings.append((candidate,b,confidence,3))
+    selected=_choose_consensus(readings)
+    if selected is None:return None
+    ko,boxes,conf,zoom=selected
+    if len(re.findall(r"[가-힣]",ko))<2 or conf<44:return None
     if _rate(ko,conf)<1.18:return None
     normal=[]
     for item in boxes:
