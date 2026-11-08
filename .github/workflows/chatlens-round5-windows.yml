@@ -94,7 +94,7 @@ jobs:
       - name: Round 3 regression (Explorer metadata cells)
         run: python ChatLensOCR/test_explorer_cells_v0422.py
       - name: Round 4 regression (general UI and image input)
-        run: python ChatLensOCR/test_ocr_round5.py
+        run: python ChatLensOCR/test_ocr_round4.py
       - name: Round 5 fidelity, short syllable and punctuation regression
         run: python ChatLensOCR/test_ocr_round5.py
       - name: Overall chat classification and specialized OCR
