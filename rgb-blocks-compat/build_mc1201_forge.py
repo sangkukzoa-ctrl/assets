@@ -352,6 +352,18 @@ def forge_cnb_information_api(source):
     return source.replace(obsolete, translated)
 patch(rgbengine,forge_cnb_information_api)
 
+# The original 1.3.1 C&B vanilla-emission suppression hook also reflects
+# BlockInformation#blockState(), separately from the real RGB light engine.
+# C&B 20.1.20 implements IBlockInformation#getBlockState(), so both readers
+# must be adapted. This preserves the original no-double-light behavior.
+cnb_emission_mixin=CODE/"com/rgbblocks/mixin/client/CnbMutableStatisticsLightEmissionMixin.java"
+def forge_cnb_emission_api(source):
+    old='getMethod("blockState")'
+    if old not in source:
+        raise AssertionError("Original C&B vanilla emission accessor moved")
+    return source.replace(old, 'getMethod("getBlockState")')
+patch(cnb_emission_mixin, forge_cnb_emission_api)
+
 
 # Convert original Fabric MixinPlugin early mod-discovery to Forge-loading
 # registry; this plugin runs before standard ModList initialization.
