@@ -69,7 +69,7 @@ jobs:
           done
           for asset in ChatLensOCR.exe ChatLensOCR-Windows-x64.zip; do
             expected=$(jq -er --arg n "$asset" '.assets[] | select(.name == $n) | .digest' release.json)
-            actual="sha256:$(awk -v name="$asset" '$2 == name {print $1}' SHA256SUMS-LATEST.txt)"
+            actual="sha256:$(tr -d '\r' < SHA256SUMS-LATEST.txt | awk -v name="$asset" '$2 == name {print $1}')"
             test "$expected" = "$actual" || { echo "Published $asset SHA256 mismatch"; exit 1; }
           done
 
