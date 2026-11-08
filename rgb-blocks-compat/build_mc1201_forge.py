@@ -312,11 +312,17 @@ import com.rgbblocks.client.cnb.RGBCnbReloadWakeup;
 import com.rgbblocks.client.lighting.RGBRealLightEngine;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 @Mod.EventBusSubscriber(modid="rgbblocks", value=Dist.CLIENT)
 public final class RGBForgeLogoutEvents {
   private RGBForgeLogoutEvents(){}
+  // Native Forge 1.20.1 game bus tick; avoids a silent, unregistered old
+  // MinecraftDisconnectMixin callback that left RGB persistence NOT_LOADED.
+  @SubscribeEvent public static void clientTick(TickEvent.ClientTickEvent event) {
+    if(event.phase==TickEvent.Phase.END) RGBRealLightEngine.processClientTick();
+  }
   @SubscribeEvent public static void loggedOut(ClientPlayerNetworkEvent.LoggingOut event) {
     RGBRealLightEngine.onClientDisconnect();
     RGBCnbGeometryBakeDebouncer.reset();
@@ -682,7 +688,11 @@ for file in RES.glob("*mixin*.json"):
     if "ForgeRegistrySnapshotCompressionMixin" not in data["mixins"]:
         data["mixins"].append("ForgeRegistrySnapshotCompressionMixin")
     data.setdefault("client",[])
-    data["client"]=[name for name in data["client"] if "Sodium06BlockRendererMixin" not in name]
+    # The previous port generated a Minecraft.tick Mixin but never reliably
+    # loaded it in the production Forge runtime. Forge ClientTickEvent above
+    # owns this callback exclusively; never invoke twice on one client tick.
+    data["client"]=[name for name in data["client"]
+        if "Sodium06BlockRendererMixin" not in name and "MinecraftDisconnectMixin" not in name]
     if "client.Embeddium03BlockRendererMixin" not in data["client"]:
        data["client"].append("client.Embeddium03BlockRendererMixin")
     file.write_text(json.dumps(data,indent=2),encoding="utf-8")
