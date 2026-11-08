@@ -112,6 +112,12 @@ jobs:
         run: python ChatLensOCR/test_ffxiv_viewer_crop_v047.py
       - name: Report real FFXIV row-level analysis progress
         run: python ChatLensOCR/test_ffxiv_progress_v047.py
+      - name: FFXIV bright-background chat row segmentation regression
+        run: |
+          foreach ($round in 1..3) {
+            python ChatLensOCR/test_ffxiv_line_segmentation_v048.py
+            if ($LASTEXITCODE -ne 0) { throw "FFXIV row segmentation failed on repeat $round" }
+          }
       - name: Repeated FFXIV damaged header and system classification regression
         run: |
           foreach ($round in 1..3) {
