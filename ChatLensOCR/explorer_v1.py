@@ -118,6 +118,10 @@ def analyze(image,language="한국어"):
     # Column-wide evidence can repair illegible repetitions of a fixed file
     # type, but must not rewrite genuinely different file types.
     stable_zip=bool(common_kind)
+    # Bounds prevent a slow per-row retry cascade in large folders.
+    rechecked_dates=0
+    rechecked_sizes=0
+    max_cell_rechecks=6
     for i,top in enumerate(centers):
         y0=max(0,top-5);y1=min(h,top+max(16,int(pitch*.60)))
         x0=28
@@ -131,6 +135,12 @@ def analyze(image,language="한국어"):
             box=t["box"]
             raw.append({**t,"box":(int(box[0]+x0),int(box[1]+y0),int(box[2]+x0),int(box[3]+y0))})
         date=dates[i]
+        if (not re.search(r"20\d{2}\s*[-.]\s*\d{1,2}\s*[-.]\s*\d{1,2}",date)
+            and rechecked_dates<max_cell_rechecks):
+            rechecked_dates+=1
+            reread,_,_=_ocr_single(image.crop((date_start,y0,date_end,y1)),"kor")
+            if re.search(r"20\d{2}\s*[-.]\s*\d{1,2}\s*[-.]\s*\d{1,2}",reread):
+                date=reread
         # Date OCR is accepted only when a recognizable YYYY-MM-DD is present.
         # Do not silently forge damaged digits.
         date=date if re.search(r"20\d{2}\s*[-.]\s*\d{1,2}\s*[-.]\s*\d{1,2}",date) else (date or "[날짜 미인식]")
@@ -141,6 +151,13 @@ def analyze(image,language="한국어"):
                 kind=common_kind
         size=sizes[i]
         m=re.search(r"(?i)(\d{1,7})\s*(KB|MB|GB|B)\b",size)
+        if not m and rechecked_sizes<max_cell_rechecks:
+            rechecked_sizes+=1
+            reread,_,_=_ocr_single(image.crop((size_start,y0,w,y1)),"eng")
+            alt_match=re.search(r"(?i)(\d{1,7})\s*(KB|MB|GB|B)\b",reread)
+            if alt_match:
+                size=reread
+                m=alt_match
         size=(m.group(1)+m.group(2).upper()) if m else (size or "[크기 미인식]")
         outputs.append("\t".join((filename or "[파일명 미인식]",date,kind,size)))
         diagnostics.append({"row":i+1,"y":top,"name":filename,"score":conf,
