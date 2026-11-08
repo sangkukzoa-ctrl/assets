@@ -28,7 +28,7 @@ x0,y0,x1,y1=box
 assert x0==0 and 510<x1<565 and 45<y0<60 and y1==630,box
 cropped,coords=crop_viewer_chat(scene)
 assert coords==box and cropped.width<565 and cropped.height<590,coords
-assert cropped.getpixel((10,10))[0]<80
+assert cropped.getpixel((500,10))[0]<80  # sample background, not drawn chat glyph
 assert viewer_chat_box(cropped) is None
 # Do not erroneously crop a full-screen FF14 screenshot or a regular document.
 native=scene.crop((0,54,550,630))
