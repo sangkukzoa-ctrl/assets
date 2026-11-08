@@ -7,7 +7,7 @@ Preserve multiline reading order and all visible glyphs; never use a language
 model or dictionary to guess what the sender meant.
 """
 import re
-from PIL import Image
+from PIL import Image, ImageOps
 
 def _rate(text, confidence):
     hangul=len(re.findall(r"[가-힣]",text))
@@ -52,7 +52,22 @@ def read_bubble(crop,language="한국어",precise=True):
         for alternative_psm in (7,13):
             candidate,b,confidence=read(check,"카카오톡","한국어",psm=alternative_psm,tess_lang="kor")
             readings.append((candidate,b,confidence,3))
-    selected=_choose_consensus(readings)
+    # PSM6 sometimes discards a genuine continuation line. PSM11 on the
+    # already-isolated, contrast-adjusted bubble can recover it.
+    # Require substantially more actual Hangul and adequate confidence,
+    # otherwise keep the primary reading. No dictionary substitutions.
+    multiline_rescue = None
+    if precise and 36 <= height <= 145 and crop.width <= 450:
+        enhanced=ImageOps.autocontrast(crop.convert("L"),cutoff=1)
+        enhanced=enhanced.resize((max(1,crop.width*2),max(1,crop.height*2)),Image.Resampling.LANCZOS)
+        alternative,alt_boxes,alt_conf=read(enhanced,"카카오톡","한국어",psm=11,tess_lang="kor")
+        base_hangul=len(re.findall(r"[가-힣]",ko))
+        alt_hangul=len(re.findall(r"[가-힣]",alternative))
+        if (alt_hangul >= base_hangul+max(4,round(base_hangul*.20))
+            and alt_conf >= max(45,conf-20)
+            and alt_hangul >= 8):
+            multiline_rescue=(alternative,alt_boxes,alt_conf,2)
+    selected=multiline_rescue or _choose_consensus(readings)
     if selected is None:return None
     ko,boxes,conf,zoom=selected
     if len(re.findall(r"[가-힣]",ko))<2 or conf<44:return None
