@@ -99,7 +99,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Download full public Windows ZIP and verify archive end-to-end (on demand or workflow update)
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        if: github.event_name != 'schedule'
         shell: bash
         run: |
           set -euo pipefail
