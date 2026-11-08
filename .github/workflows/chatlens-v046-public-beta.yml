@@ -1,0 +1,143 @@
+name: Publish ChatLens OCR v0.4.6 public beta (verified round 8)
+on:
+  push:
+    branches: [chatlens-v0460-ocr-round8-rc]
+    paths: ['.github/workflows/chatlens-v046-public-beta.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: chatlens-v046-public-beta
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download exact previously verified Windows round-8 binary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 42464851957 --repo "$GITHUB_REPOSITORY" --name "ChatLensOCR-v0.4.6-Round8-Windows-x64" --dir artifact
+          find artifact -maxdepth 3 -type f -printf '%p %s bytes\n' | sort
+
+      - name: Verify source build, EXE and ZIP checksums; assemble public assets
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, shutil, zipfile
+          from pathlib import Path
+
+          artifact = Path("artifact")
+          dist = artifact / "dist"
+          out = Path("release")
+          out.mkdir(exist_ok=True)
+          expected_source_sha = "84bf890b8dddf55bf417889b49675c1b9d5e3930"
+          expected_run = "https://github.com/sangkukzoa-ctrl/assets/actions/runs/42464851957"
+
+          manifest = json.loads((dist / "build-manifest.json").read_text(encoding="utf-8-sig"))
+          assert manifest["source_sha"] == expected_source_sha, manifest
+          assert manifest["workflow_run"] == expected_run, manifest
+          assert manifest["version"] == "0.4.6", manifest
+          assert manifest["authenticode_signed"] is False, "Unexpected signing status: stop release"
+
+          def sha256(path):
+              h = hashlib.sha256()
+              with open(path, "rb") as stream:
+                  for part in iter(lambda: stream.read(4*1024*1024), b""):
+                      h.update(part)
+              return h.hexdigest()
+
+          expected = {}
+          for line in (dist / "SHA256SUMS.txt").read_text(encoding="ascii").splitlines():
+              if line.strip():
+                  value, filename = line.split(maxsplit=1)
+                  expected[filename.strip("* ")] = value.lower()
+
+          zipname = "ChatLensOCR_v0.4.6_Windows_x64.zip"
+          exename = "ChatLensOCR_v0.4.6.exe"
+          bundle = dist / zipname
+          assert bundle.is_file() and bundle.stat().st_size > 25_000_000
+          assert sha256(bundle) == expected[zipname], "Windows ZIP hash mismatch"
+          shutil.copy2(bundle, out / zipname)
+
+          with zipfile.ZipFile(bundle) as archive:
+              assert archive.testzip() is None
+              names = archive.namelist()
+              executable = next((n for n in names if n.endswith(exename)), None)
+              assert executable, names
+              for required in ("LICENSE.txt", "NOTICE.md", "PRIVACY.md"):
+                  assert any(n.endswith(required) for n in names), (required, names)
+              with archive.open(executable) as source, (out/exename).open("wb") as dest:
+                  shutil.copyfileobj(source, dest, length=4*1024*1024)
+
+          assert (out/exename).stat().st_size > 25_000_000
+          assert sha256(out/exename) == expected[exename], "EXE hash mismatch"
+
+          base = Path("ChatLensOCR")
+          source_zip = out / "ChatLensOCR_v0.4.6_SOURCE.zip"
+          allowed = {".py", ".md", ".txt", ".json", ".toml", ".spec", ".yml", ".yaml"}
+          with zipfile.ZipFile(source_zip, "w", zipfile.ZIP_DEFLATED, compresslevel=7) as archive:
+              for p in sorted(base.rglob("*")):
+                  if not p.is_file(): continue
+                  if any(part.startswith(".") or part == "__pycache__" for part in p.parts): continue
+                  if p.suffix.lower() in allowed or p.name == "LICENSE":
+                      archive.write(p, p.as_posix())
+
+          shutil.copy2(dist / "LICENSE.txt", out / "LICENSE.txt")
+          shutil.copy2(dist / "NOTICE.md", out / "NOTICE.md")
+          shutil.copy2(dist / "PRIVACY.md", out / "PRIVACY.md")
+          if (artifact / "selftest.json").is_file():
+              shutil.copy2(artifact / "selftest.json", out / "selftest.json")
+
+          docs = Path("ChatLensOCR/DISTRIBUTION")
+          for name in ("ChatLensOCR_v0.4.6_네이버블로그_게시글.txt",
+                       "ChatLensOCR_v0.4.6_사용안내.txt"):
+              shutil.copy2(docs / name, out / name)
+
+          files = (exename, zipname, source_zip.name)
+          (out / "SHA256SUMS.txt").write_text(
+              "".join(sha256(out/p) + "  " + p + "\n" for p in files), encoding="ascii"
+          )
+          source_data = {
+              "version": "0.4.6",
+              "distribution": "free public beta / still under development",
+              "developer": "2bornot",
+              "source_commit_for_binary": expected_source_sha,
+              "verified_build_run": expected_run,
+              "authenticode_signed": False,
+              "tests": "rounds 1-8 passed in Windows CI; known OCR errors remain",
+              "exe_sha256": sha256(out/exename),
+              "zip_sha256": sha256(out/zipname)
+          }
+          (out/"BUILD_INFO.json").write_text(
+              json.dumps(source_data, ensure_ascii=False, indent=2)+"\n", encoding="utf-8"
+          )
+          print("EXE verified:", (out/exename).stat().st_size, source_data["exe_sha256"])
+          print("ZIP verified:", (out/zipname).stat().st_size, source_data["zip_sha256"])
+          print("Release assets:", sorted(p.name for p in out.iterdir()))
+          PY
+
+      - name: Publish reusable public prerelease and direct download assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="chatlens-v0.4.6"
+          title="ChatLens OCR v0.4.6 | 무료 공개 테스트판 (Windows x64 · unsigned)"
+          notes="ChatLensOCR/DISTRIBUTION/RELEASE_NOTES_v0.4.6.md"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" release/* --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$tag" --title "$title" --notes-file "$notes" --prerelease --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" release/* --repo "$GITHUB_REPOSITORY" \
+              --target "84bf890b8dddf55bf417889b49675c1b9d5e3930" \
+              --title "$title" --notes-file "$notes" --prerelease
+          fi
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url,isPrerelease,assets
+          echo "Public Windows EXE: https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/ChatLensOCR_v0.4.6.exe" >> "$GITHUB_STEP_SUMMARY"
+          echo "Public Windows ZIP: https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/ChatLensOCR_v0.4.6_Windows_x64.zip" >> "$GITHUB_STEP_SUMMARY"
