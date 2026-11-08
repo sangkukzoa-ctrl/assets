@@ -13,7 +13,7 @@ def normalize_visible_punctuation(text):
     """
     if not text:
         return text
-    return re.sub(r"\\.{1,3}…", "...", text).replace("…", "...")
+    return re.sub(r"\.{1,3}…", "...", text).replace("…", "...")
 
 def one_syllable_agreement(readings, min_confidence=72):
     """Accept a 1-Hangul-character bubble only when two independent passes agree.
