@@ -218,4 +218,14 @@ jobs:
             dist/build-manifest.json
             selftest.json
           if-no-files-found: error
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ChatLensOCR-Daily-Reports-${{ github.run_number }}
+          path: |
+            dist/SHA256SUMS.txt
+            dist/build-manifest.json
+            selftest.json
+          if-no-files-found: warn
           retention-days: 14
