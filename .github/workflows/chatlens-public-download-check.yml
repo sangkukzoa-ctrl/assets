@@ -1,0 +1,95 @@
+name: ChatLens OCR public beta download verification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/chatlens-public-download-check.yml'
+  schedule:
+    - cron: '25 19 * * *' # 04:25 Asia/Seoul; after the 04:00 Windows build
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chatlens-public-download-check
+  cancel-in-progress: true
+
+jobs:
+  public-download:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      REPOSITORY: sangkukzoa-ctrl/assets
+      BETA_TAG: chatlens-beta
+    steps:
+      - name: Verify published release metadata anonymously
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --retry 3 --max-time 40 \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/${REPOSITORY}/releases/tags/${BETA_TAG}" -o release.json
+          jq -e --arg tag "$BETA_TAG" \
+            '(.tag_name == $tag) and (.draft == false) and (.prerelease == true)' release.json
+          for asset in ChatLensOCR.exe ChatLensOCR-Windows-x64.zip ChatLensOCR_SOURCE.zip SHA256SUMS-LATEST.txt BETA_RELEASE_NOTES.md; do
+            jq -e --arg n "$asset" \
+              '.assets | any(.[]; .name == $n and .state == "uploaded" and .size > 100 and (.digest | startswith("sha256:")))' \
+              release.json
+          done
+          jq -e '.assets | any(.[]; .name == "ChatLensOCR.exe" and .size > 25000000)' release.json
+          jq -e '.assets | any(.[]; .name == "ChatLensOCR-Windows-x64.zip" and .size > 25000000)' release.json
+
+      - name: Download public checksums and source ZIP, compare asset hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://github.com/${REPOSITORY}/releases/download/${BETA_TAG}"
+          curl --fail --location --silent --show-error --retry 3 --max-time 70 \
+            "$base/SHA256SUMS-LATEST.txt" -o SHA256SUMS-LATEST.txt
+          curl --fail --location --silent --show-error --retry 3 --max-time 70 \
+            "$base/ChatLensOCR_SOURCE.zip" -o ChatLensOCR_SOURCE.zip
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          p=Path("ChatLensOCR_SOURCE.zip")
+          with ZipFile(p) as archive:
+              bad=archive.testzip()
+              assert bad is None, f"Damaged source archive member: {bad}"
+              names=set(archive.namelist())
+              assert "ChatLensOCR/app.py" in names
+              assert "ChatLensOCR/DISTRIBUTION/BLOG_SINGLE_PAGE_CURRENT_KR.txt" in names
+          print("Unauthenticated source ZIP GET and internal integrity: PASS")
+          PY
+          for asset in SHA256SUMS-LATEST.txt ChatLensOCR_SOURCE.zip; do
+            expected=$(jq -er --arg n "$asset" '.assets[] | select(.name == $n) | .digest' release.json)
+            actual="sha256:$(sha256sum "$asset" | cut -d' ' -f1)"
+            test "$expected" = "$actual" || { echo "Downloaded $asset SHA256 mismatch"; exit 1; }
+          done
+          for asset in ChatLensOCR.exe ChatLensOCR-Windows-x64.zip; do
+            expected=$(jq -er --arg n "$asset" '.assets[] | select(.name == $n) | .digest' release.json)
+            actual="sha256:$(awk -v name="$asset" '$2 == name {print $1}' SHA256SUMS-LATEST.txt)"
+            test "$expected" = "$actual" || { echo "Published $asset SHA256 mismatch"; exit 1; }
+          done
+
+      - name: Check public Windows EXE and ZIP direct-download endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://github.com/${REPOSITORY}/releases/download/${BETA_TAG}"
+          for asset in ChatLensOCR.exe ChatLensOCR-Windows-x64.zip; do
+            status=$(curl --silent --show-error --location --head --retry 3 \
+              --max-time 90 --output /dev/null --write-out '%{http_code}' "$base/$asset")
+            if [ "$status" != "200" ]; then
+              echo "::error::$asset returned HTTP $status through public download URL"
+              exit 1
+            fi
+            echo "Public endpoint: $asset HTTP $status"
+          done
+          {
+            echo "### ChatLens OCR public beta downloads"
+            echo "Fixed page: https://github.com/${REPOSITORY}/releases/tag/${BETA_TAG}"
+            echo "Unauthenticated checksum and source ZIP GET, source ZIP integrity, GitHub-hosted SHA256 digest comparisons, and public EXE/ZIP HTTP HEAD: PASS."
+            echo "Binary bodies are verified by the separate Windows release workflow; this lightweight check does not redownload 600 MB each day."
+          } >> "$GITHUB_STEP_SUMMARY"
