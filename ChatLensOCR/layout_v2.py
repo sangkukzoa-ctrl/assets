@@ -357,7 +357,7 @@ def _bubble_text(image,language,precise):
             lines.append(content)
             all_boxes.extend(_offset(items,0,y))
             sc.append(score)
-    return " ".join(lines),all_boxes,sum(sc)/max(1,len(sc))
+    return "\n".join(lines),all_boxes,sum(sc)/max(1,len(sc))
 
 def kakao(img,language,precise):
     from collections import Counter
