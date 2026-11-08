@@ -41,24 +41,37 @@ def _clean_name(text):
 
 def resolve(img, fallback="상대"):
     from tess_backend import read
+    # Collect multiple OCR observations for the same Kakao sender label.
+    # Wide regions can contain the avatar; narrow regions can clip the first
+    # syllable. Compare both rather than blindly trusting one reading.
     names=[]
-    for top,bottom in avatar_rows(img):
-        x0=43
-        y0=max(0,top-3)
-        x1=min(img.width,145)
-        y1=min(img.height,top+26)
-        if y1-y0<12:continue
-        crop=img.crop((x0,y0,x1,y1))
-        zoom=3
-        crop=crop.resize((crop.width*zoom,crop.height*zoom),Image.Resampling.LANCZOS)
-        content,boxes,conf=read(crop,"카카오톡","한국어",psm=7,tess_lang="kor")
-        name=_clean_name(content)
-        if name and conf>=35:names.append((name,conf))
+    rows=avatar_rows(img)
+    if len(rows)>4:
+        rows=[rows[0],rows[len(rows)//2],rows[-1]]
+    for top,bottom in rows:
+        for x0,x1,topoff in ((43,145,-3),(53,133,-1),(58,119,-1)):
+            y0=max(0,top+topoff)
+            y1=min(img.height,top+25)
+            if y1-y0<12 or x0>=img.width:continue
+            crop=img.crop((x0,y0,min(img.width,x1),y1))
+            if crop.width<10:continue
+            zoom=3
+            crop=crop.resize((crop.width*zoom,crop.height*zoom),Image.Resampling.LANCZOS)
+            content,boxes,conf=read(crop,"카카오톡","한국어",psm=7,tess_lang="kor")
+            name=_clean_name(content)
+            if name and conf>=35:names.append((name,conf))
     if not names:return fallback
-    counts=Counter(n for n,_ in names)
-    winning=max(counts,key=lambda n:(counts[n],sum(c for name,c in names if name==n)))
-    if counts[winning]==1 and len(names)>1:
-        # If all readings disagree, the fallback is more reliable.
+    all_names={name for name,_ in names}
+    resolved=[]
+    for name,conf in names:
+        # If a tight region has clipped the start of the name, count that
+        # observation toward the uniquely matching full-length reading.
+        expansions=[longer for longer in all_names if len(longer)>len(name) and longer.endswith(name)]
+        if len(expansions)==1:name=expansions[0]
+        resolved.append((name,conf))
+    counts=Counter(n for n,_ in resolved)
+    winning=max(counts,key=lambda n:(counts[n],sum(c for name,c in resolved if name==n),len(n)))
+    if counts[winning]==1 and len(resolved)>1:
         return fallback if fallback!="상대" else winning
     return winning
 
