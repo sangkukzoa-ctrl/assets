@@ -107,6 +107,7 @@ jobs:
         run: python ChatLensOCR/test_ocr_round7.py
       - name: Round 8 TXT review and JSON data integrity test
         run: python ChatLensOCR/test_ocr_round8.py
+      # Verify screenshot layout without publishing any personal chat images.
       - name: Embedded desktop JPEGView FFXIV screenshot regression
         run: python ChatLensOCR/test_ffxiv_viewer_crop_v047.py
       - name: Automatic FFXIV job-icon learning and sticker continuity test
