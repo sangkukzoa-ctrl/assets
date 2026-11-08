@@ -30,17 +30,46 @@ def _assemble(words):
         prev=w
     return "".join(pieces)
 
+def resolve_tesseract_paths(base=None):
+    """Locate the bundled OCR executable first; use an installed copy only
+    in source/development mode. Does not download or run third-party code.
+    """
+    import os,sys,shutil
+    from pathlib import Path
+    if base is None:
+        from app import BASE
+        base=BASE
+    embedded=Path(base)/"tesseract"/"tesseract.exe"
+    installed=[]
+    if not getattr(sys,"frozen",False):
+        for env_var in ("ProgramFiles","ProgramW6432"):
+            folder=os.environ.get(env_var)
+            if folder:installed.append(Path(folder)/"Tesseract-OCR"/"tesseract.exe")
+        found=shutil.which("tesseract")
+        if found:installed.append(Path(found))
+    for exe in [embedded]+installed:
+        if not exe.is_file():continue
+        datas=[exe.parent/"tessdata"]
+        prefix=os.environ.get("TESSDATA_PREFIX","")
+        if prefix:datas.append(Path(prefix))
+        # Linux local QA can use the system language packs as well.
+        if not getattr(sys,"frozen",False) and os.name!="nt":
+            datas.extend(Path("/usr/share/tesseract-ocr").glob("*/tessdata"))
+        for data in datas:
+            if data.is_dir() and (data/"eng.traineddata").is_file():
+                return str(exe),str(data)
+    return None,None
+
+
 def read(image,mode,language,psm=None,tess_lang=None):
     try:
         import os
         import pytesseract
         from pytesseract import Output
-        from app import BASE
-        exe=BASE/"tesseract"/"tesseract.exe"
-        data=BASE/"tesseract"/"tessdata"
-        if not exe.is_file() or not data.is_dir():return "",[],0.
-        pytesseract.pytesseract.tesseract_cmd=str(exe)
-        os.environ["TESSDATA_PREFIX"]=str(data)
+        exe,data=resolve_tesseract_paths()
+        if not exe or not data:return "",[],0.
+        pytesseract.pytesseract.tesseract_cmd=exe
+        os.environ["TESSDATA_PREFIX"]=data
         lang=tess_lang or ("kor+eng" if language=="한국어" else "jpn+eng" if language=="일본어" else "eng")
         if psm is None:
             psm=6 if mode=="파판14" else 7 if image.height<52 else 6
