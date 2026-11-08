@@ -410,7 +410,10 @@ def kakao(img,language,precise):
         if crop.width<5 or crop.height<5:continue
         content,items,score=_bubble_text(crop,language,precise)
         if not content:continue
-        content=_HHMM.sub("",content).strip()
+        # Preserve OCR wording, but convert equivalent ellipsis glyphs to
+        # ASCII triplets for faithful plain TXT exports (e.g. '.…?' -> '...?').
+        from kakao_fidelity_v043 import normalize_visible_punctuation
+        content=normalize_visible_punctuation(_HHMM.sub("",content)).strip()
         if not content:continue
         raw.extend(_offset(items,x+margin,y+4))
         who="나" if kind=="나" else nickname
