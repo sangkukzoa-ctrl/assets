@@ -13,11 +13,13 @@ probe=code/"ci/RgbPortLightProbe.java";probe.parent.mkdir(parents=True,exist_ok=
 logic=r'''private static int ticks = 0;
 private static boolean passed = false;
 private static boolean cnbPassed = false;
+private static int tickCallbackCount = 0;
 public static void sample() {
  if (passed && cnbPassed) return;
  net.minecraft.client.Minecraft mc=net.minecraft.client.Minecraft.getInstance();
  if (mc==null || mc.level==null || mc.player==null) return;
  ticks++;
+ if(ticks==1) System.out.println("RGB_PORT_PROBE_CLIENT_TICK_ACTIVE level="+mc.level.dimension().location());
  if(ticks%30!=0)return;
  net.minecraft.core.BlockPos src=new net.minecraft.core.BlockPos(0,121,7);
  net.minecraft.core.BlockPos near=new net.minecraft.core.BlockPos(0,121,6);
@@ -99,7 +101,10 @@ import net.minecraftforge.event.TickEvent;
 public final class RgbPortLightProbe {
  private RgbPortLightProbe(){}
  @SubscribeEvent public static void tick(TickEvent.ClientTickEvent e){
-   if(e.phase==TickEvent.Phase.END)sample();
+   if(e.phase==TickEvent.Phase.END){
+     if(++tickCallbackCount==1) System.out.println("RGB_PORT_FORGE_TICK_EVENT_RECEIVED");
+     sample();
+   }
  }
 '''+logic+"}\n",encoding="utf-8")
 
