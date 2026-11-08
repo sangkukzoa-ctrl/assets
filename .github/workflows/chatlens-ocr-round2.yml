@@ -19,7 +19,23 @@ jobs:
           python-version: '3.11'
           architecture: x64
       - name: Install offline test libraries
-        run: python -m pip install "numpy>=1.26,<3" "opencv-python-headless>=4.8" "Pillow>=10"
+        run: python -m pip install "numpy>=1.26,<3" "opencv-python-headless>=4.8" "Pillow>=10" "rapidocr>=3.10,<4" "onnxruntime>=1.20,<2" "pytesseract>=0.3.13,<1"
+      - name: Install Tesseract and Korean recognition data
+        shell: pwsh
+        run: |
+          choco install tesseract -y --no-progress
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/kor.traineddata' -OutFile (Join-Path $env:ProgramFiles 'Tesseract-OCR/tessdata/kor.traineddata')
+      - name: Warm up RapidOCR engines
+        shell: pwsh
+        run: |
+          @'
+          import sys
+          sys.path.insert(0,'ChatLensOCR')
+          from app import engine
+          for language in ('한국어','영어','일본어'):
+              engine(language)
+          print('offline engine warmup passed')
+          '@ | python -
       - name: Validate Round 1 corrections
         run: python ChatLensOCR/test_ocr_round1.py
       - name: Validate Round 2 localized fidelity and line breaks
