@@ -9,7 +9,7 @@
 ## Official source and release chain
 
 - Repository: https://github.com/sangkukzoa-ctrl/assets (the ChatLensOCR directory, with its own MIT LICENSE).
-- Official branch for next build: `chatlens-v0450-ocr-round7-build`.
+- Official branch for next build: `chatlens-v0460-ocr-round8-rc`.
 - Windows x64 EXE built from checked-in sources using GitHub-hosted Windows runners.
 - Release downloads: https://github.com/sangkukzoa-ctrl/assets/releases
 - SHA256 checksum files are published with each EXE and ZIP. Build provenance, if available, is separate from code signing.
