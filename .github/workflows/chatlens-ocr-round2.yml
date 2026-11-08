@@ -1,0 +1,32 @@
+name: ChatLens OCR - Round 2 QA (no release)
+on:
+  push:
+    branches: [chatlens-v0421-ocr-round2]
+    paths:
+      - 'ChatLensOCR/**'
+      - '.github/workflows/chatlens-ocr-round2.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  localized_ocr_tests:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: x64
+      - name: Install offline test libraries
+        run: python -m pip install "numpy>=1.26,<3" "opencv-python-headless>=4.8" "Pillow>=10"
+      - name: Validate Round 1 corrections
+        run: python ChatLensOCR/test_ocr_round1.py
+      - name: Validate Round 2 localized fidelity and line breaks
+        run: python ChatLensOCR/test_ocr_round2.py
+      - name: Validate chat classification and icon tests
+        run: python ChatLensOCR/test_layout_v2.py
+      - name: Preserve QA log
+        if: always()
+        run: |
+          Write-Output "Round 2 is QA-only. No EXE signing, no release, no user screenshots committed."
