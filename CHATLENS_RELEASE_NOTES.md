@@ -1,3 +1,17 @@
+# ChatLens OCR v0.4.6 — 8/8 release candidate, not public stable
+
+**Developer and copyright:** 2bornot · © 2026 2bornot · MIT License for original application source.
+
+**Verified Windows build:** https://github.com/sangkukzoa-ctrl/assets/actions/runs/42464851957
+
+Final QA improvements: Locate unreadable speech bubbles from the result pane (button or Ctrl+G); edit transcription and save TXT; preserve original recognized JSON together with optional user-corrected text in `user_edited_full_txt`; present release-ready general UI wording.
+
+All 1–8 regression tests, Windows executable offline self-test, metadata and SHA256 verification passed. The manually verified Kakao benchmark remains **14/16**, with unresolved small-glyph `오잉` and `퉤`. The full 34-screenshot transcription ground truth is not complete. Authenticode signing is **not yet configured**; GitHub attestation is not a Windows code-signing certificate.
+
+**Decision:** usable 8/8 release candidate (Actions artifact), public stable release deferred pending quality and signing. Full report: [Final QA](CHATLENS_V046_FINAL_QA.md).
+
+---
+
 # ChatLens OCR v0.4.1 — Field-test build
 
 **Developer:** 2bornot · **Copyright © 2026 2bornot** · MIT License for original application source.
