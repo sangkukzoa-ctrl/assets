@@ -22,7 +22,9 @@ def _one_safe_tail_edit(original, alternative):
     if len(changed) != 1:
         return False
     i = changed[0]
-    if i < len(original) - max(3, len(original) // 5):
+    # Keep final syllables unchanged: edge/crop artifacts at word endings
+    # produced a false positive elsewhere in the full 57-bubble audit.
+    if i < len(original) - max(3, len(original) // 5) or i >= len(original) - 1:
         return False
     a, b = original[i], alternative[i]
     return "가" <= a <= "힣" and "가" <= b <= "힣"
