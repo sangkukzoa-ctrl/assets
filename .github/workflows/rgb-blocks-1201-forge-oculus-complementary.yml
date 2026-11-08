@@ -1,0 +1,46 @@
+name: RGB Blocks 1.20.1 Forge original ecosystem Oculus Complementary ON
+on:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths:
+      - '.github/workflows/rgb-blocks-1201-forge-oculus-complementary.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  forge-complementary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Python acceptance test syntax before Gradle
+        run: python3 -m py_compile rgb-blocks-compat/test_mc1201_forge_inworld.py rgb-blocks-compat/inject_ci_only_light_probe.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.8'
+      - name: Provision graphical virtual display
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb scrot mesa-utils libgl1-mesa-dri libgl1 libasound2t64 libxrandr2 libxcursor1 libxinerama1 libxi6
+      - name: Build Forge 1.20.1 RGB port with CI-only source and C&B color telemetry
+        run: |
+          set -euxo pipefail
+          python3 rgb-blocks-compat/build_mc1211_fabric.py
+          python3 rgb-blocks-compat/build_mc1201_forge.py
+          python3 rgb-blocks-compat/inject_ci_only_light_probe.py forge1201
+          cd port-work/mc1201-forge
+          gradle --no-daemon build
+      - name: Test REAL Forge+C&B+Embeddium+Oculus+Complementary RGB light
+        env:
+          RGB_PORT_SHADER_ON: '1'
+        run: python3 rgb-blocks-compat/test_mc1201_forge_inworld.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgbblocks-1201-FORGE-Oculus-Complementary-ON-evidence
+          path: mc1201-forge-inworld/evidence/
+          retention-days: 30
