@@ -2,6 +2,18 @@
 
 > Owner command: **"진행"** means resume **actual source editing, real GitHub Actions build, failure diagnosis and commit** from the most recent live CI status. Do not ask the owner to restate goals or redo work. Do not give a progress-summary-only answer. Work in bounded iterations to avoid long-turn failure. This file is the entrypoint if chat memory or the prior context collapses.
 
+## LIVE UPDATE: 2026-11-09 third session (supersedes old four-run checkpoint below)
+**Latest persisted branch work:** `cc119150` status ledger, `57e470d` fixed CI-only Forge diagnostic injection, `aa8953d` real Forge C&B vanilla-emission hook getter fix, `3b996fc` added CI-only C&B state/cache telemetry. The existing section "Exact active work as of commit 1b9a0ef" below is HISTORICAL. Do not revert these edits.
+
+**Checked old four runs:** 42505523026 native Forge build/server/JAR/source+MRPACK PASS; 42505522986 normal production GUI PASS; 42505523022 (shader OFF) and 42505522987 (shader ON) real Forge C&B RGB microbit emitted [0,0,0] FAIL, despite full block RGB emission [15,6,8] and verified surviving chiselsandbits:chiseled fixture. NeoForge 1.21.1 combined C&B+Iris/Sodium+Complementary previously PASSED.
+
+**New work**:
+- Real source `build_mc1201_forge.py` also changes `CnbMutableStatisticsLightEmissionMixin` reflection `getMethod("blockState")` to Forge C&B 20.1.20 `getMethod("getBlockState")`; preserves original no-vanilla-double-emission rule, no change to NeoForge.
+- CI-only `inject_ci_only_light_probe.py` Forge variant now logs C&B client tile, state count, RGB bit states, RGB engine CNB_PENDING/CNB_CACHE/MANUAL_CNB_SHADOW. The first exploratory runs #42506526231 and #42506526355 failed BEFORE runtime due diagnostic text anchor whitespace; fixed in `57e470d`.
+- **Check these real runtime runs based on corrected injection `57e470d`:** [Forge shader OFF #42506740128](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42506740128), [Forge shader ON #42506740170](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42506740170). Inspect `RGB_PORT_CNB_CLIENT_DETAILS`, `RGB_PORT_CNB_CLIENT_COUNTS`, `RGB_PORT_CNB_CLIENT_ENTRY`, `RGB_PORT_CNB_ENGINE_MAP` and build/game exceptions. NeoForge regression [#42506740366](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42506740366), combined [#42506740144](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42506740144).
+- Do NOT mark Forge release-ready from compile alone, do NOT disable C&B strict test. Fix any diagnosed real Forge client C&B issue then commit. Next acceptance after strict PASS: two-client sync, C&B mixed colors/glass and world reload/dirty bake parity on both targets.
+
+
 ## The work itself survives across sessions
 - **GitHub repository:** `sangkukzoa-ctrl/assets`
 - **Active source branch:** `rgb-blocks-legacy-compat-audit`
