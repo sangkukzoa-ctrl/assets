@@ -93,3 +93,22 @@ jobs:
             echo "Unauthenticated checksum and source ZIP GET, source ZIP integrity, GitHub-hosted SHA256 digest comparisons, and public EXE/ZIP HTTP HEAD: PASS."
             echo "Binary bodies are verified by the separate Windows release workflow; this lightweight check does not redownload 600 MB each day."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Download full public Windows ZIP and verify archive end-to-end (on demand or workflow update)
+        if: github.event_name != 'schedule'
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://github.com/${REPOSITORY}/releases/download/${BETA_TAG}/ChatLensOCR-Windows-x64.zip"
+          curl --fail --location --silent --show-error --retry 3 --max-time 240 \
+            "$url" -o ChatLensOCR-Windows-x64.zip
+          expected=$(jq -er '.assets[] | select(.name == "ChatLensOCR-Windows-x64.zip") | .digest' release.json)
+          actual="sha256:$(sha256sum ChatLensOCR-Windows-x64.zip | cut -d' ' -f1)"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::Full public Windows ZIP download SHA256 mismatch"
+            exit 1
+          fi
+          unzip -tq ChatLensOCR-Windows-x64.zip
+          unzip -Z1 ChatLensOCR-Windows-x64.zip | grep -Eq '^ChatLensOCR_v[0-9]+[.][0-9]+[.][0-9]+[.]exe$'
+          echo "Public full Windows ZIP GET, SHA256 and archive integrity: PASS"
+          echo "Full public Windows ZIP body download, SHA256 digest and extraction integrity: PASS." >> "$GITHUB_STEP_SUMMARY"
