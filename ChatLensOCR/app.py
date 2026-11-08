@@ -120,7 +120,8 @@ class Icons:
     def __init__(self):
         import cv2, numpy as np
         self.icons=[]
-        for directory in [BASE/"assets"/"jobs",DATA/"job_samples"]:
+        self.official_templates=set()
+        for directory in [BASE/"assets"/"jobs",DATA/"job_samples",DATA/"job_samples"/"auto"]:
             if not directory.exists():continue
             for p in directory.glob("*.png"):
                 job=JOBS.get(p.stem,p.stem.split("__")[0])
@@ -131,6 +132,8 @@ class Icons:
                 if img.ndim==3:img=cv2.cvtColor(img[:,:,:3],cv2.COLOR_BGR2GRAY)
                 if min(img.shape)<8:continue
                 self.icons.append((job,img))
+                if directory==BASE/"assets"/"jobs":
+                    self.official_templates.add(id(img))
 
     def match(self,image,box):
         import cv2, numpy as np
@@ -155,12 +158,23 @@ class Icons:
                 if abs(mid_y-center)>h*.68 or left+x+size/2>box[0]+.6*h:continue
                 weighted=float(score)-.10*abs(mid_y-center)/h
                 if job not in matches or weighted>matches[job][0]:
-                    matches[job]=(weighted,(left+x,top+y,left+x+size,top+y+size))
+                    matches[job]=(weighted,(left+x,top+y,left+x+size,top+y+size),
+                                  id(raw) in self.official_templates)
         if not matches:return ("",None,0.)
         ranked=sorted(matches.items(),key=lambda a:-a[1][0])
-        job,(score,rect)=ranked[0]
+        job,(score,rect,is_official)=ranked[0]
         runner=ranked[1][1][0] if len(ranked)>1 else 0.
         if score<.71 or score-runner<.025:return ("",None,score)
+        # Only a high-confidence match against a bundled source reference
+        # can add a local sample. Learned samples cannot self-reinforce.
+        if is_official and score>=.90 and score-runner>=.12:
+            from auto_job_samples_v047 import learn_verified_icon
+            learned=learn_verified_icon(image,rect,job,score,score-runner,DATA,
+                                       allowed_jobs=set(JOBS.values()))
+            if learned:
+                new_icon=cv2.imread(str(learned),cv2.IMREAD_GRAYSCALE)
+                if new_icon is not None:
+                    self.icons.append((job,new_icon))
         return (job,rect,score)
 
 def describe_sticker(image, rect):
@@ -430,7 +444,7 @@ def gui():
         d=DATA/"job_samples";d.mkdir(parents=True,exist_ok=True)
         active[0].crop(selection[0]).save(d/(name+"__"+uuid.uuid4().hex[:8]+".png"))
         status.set("직업 아이콘 샘플 저장됨: "+name)
-    button(icon_tools,"직업 아이콘 학습",teach_icon)
+    button(icon_tools,"직업 아이콘 직접 등록 (선택)",teach_icon)
     def teach_sticker():
         if not selection[0] or active[0] is None:messagebox.showinfo("영역","스티커를 드래그로 선택하세요.");return
         detail=simpledialog.askstring("스티커 설명",describe_sticker(active[0],selection[0])+"\n설명을 수정해 저장:")
