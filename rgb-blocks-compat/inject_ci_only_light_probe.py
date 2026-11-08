@@ -83,7 +83,7 @@ public static void sample() {
 # distinguish absent block entity, empty/unreadable statistics, wrong bit
 # states and a missing RGB engine cache. Never instrument the release JAR.
 if TARGET=="forge1201":
-    probe_line='''       com.rgbblocks.client.lighting.RGBRealLightEngine.refreshCnbBlockEntity(mc.level.getBlockEntity(cnb));'''
+    probe_line='''      com.rgbblocks.client.lighting.RGBRealLightEngine.refreshCnbBlockEntity(mc.level.getBlockEntity(cnb));'''
     assert probe_line in logic
     debug=r'''       if(ticks%120==0 && ticks<=360){
           Object tile=mc.level.getBlockEntity(cnb);
