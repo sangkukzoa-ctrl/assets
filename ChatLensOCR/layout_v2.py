@@ -45,6 +45,27 @@ def _looks_system_message(value):
         return True
     return bool(re.match(r"^\s*[［\[\(]?\s*\d{1,2}\s*[:：]\s*\d{2}\s*[\]］\)]",value))
 
+def _recover_damaged_ffxiv_chat_header(value):
+    """Recover a speaker only when an OCR-damaged channel header precedes name>.
+
+    Restrict recovery to timestamp + bracketed chat-channel evidence. Native
+    system notices and unstructured prose must not become invented speakers.
+    Returns a match with groups (speaker, message), as the normal parser does.
+    """
+    timestamp=re.match(r"^\s*[\[［【]\s*\d{1,2}\s*[:：]\s*\d{2}\s*[\]］】]",value)
+    if not timestamp:return None
+    tail=value[timestamp.end():].lstrip()
+    if not tail.startswith(("[","［","【")):return None
+    if re.match(r"^[\[［【]\s*(?:시스템|전투|공지|알림|임무)\b",tail):
+        return None
+    # OCR may turn '[채널 5]<동료>' into '[채널 515동료>'
+    # or '[채널 51<=동료>'. Only recover the intact name> suffix.
+    candidate=re.search(
+        r"(?<![가-힣A-Za-z])([가-힣]{2,16}(?:[&＠@][가-힣A-Za-z]{2,16})?)\s*[>〉＞]\s*(\S.*)$",
+        tail)
+    if not candidate or candidate.start(1)>65:return None
+    return candidate
+
 def detect_mode(img):
     rgb=np.asarray(img.convert("RGB"))
     h,w=rgb.shape[:2]
@@ -272,6 +293,8 @@ def ffxiv(img, language, precise, world, icons, progress=None):
                 nick=candidate.group(1).strip()
                 if re.search(r"[가-힣]",nick) and not re.search(r"(?i)^se[.．]?\d",nick):
                     match=candidate
+        if match is None:
+            match=_recover_damaged_ffxiv_chat_header(value)
         if match:
             nickname=match.group(1).strip()
             message=match.group(2).strip()
