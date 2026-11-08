@@ -1,10 +1,10 @@
 **Developer / 개발자:** 2bornot  ·  **Copyright © 2026 2bornot**  ·  **License:** [MIT](LICENSE)
 
-**Code signing policy:** [SignPath Foundation application plan](CODE_SIGNING_POLICY.md). The v0.4.6 public beta is distributed from GitHub Releases. It is NOT Authenticode signed; Windows may warn about an unknown publisher. GitHub build attestation does not provide a Windows publisher signature. Windows certificate Publisher will say SignPath Foundation if signing is eventually approved. It is separate from the project developer attribution.
+**Code signing policy:** [SignPath Foundation application plan](CODE_SIGNING_POLICY.md). Current beta downloads are distributed from GitHub Releases at the stable link https://github.com/sangkukzoa-ctrl/assets/releases/tag/chatlens-beta. It is NOT Authenticode signed; Windows may warn about an unknown publisher. GitHub build attestation does not provide a Windows publisher signature. Windows certificate Publisher will say SignPath Foundation if signing is eventually approved. It is separate from the project developer attribution.
 
 [Privacy](PRIVACY.md) · [Third-party notices](NOTICE.md)
 
-# ChatLens OCR v0.4.6 (무료 공개 테스트판 · Beta)
+## Development build v0.4.7\n\nLatest public download: https://github.com/sangkukzoa-ctrl/assets/releases/tag/chatlens-beta\n\n# ChatLens OCR v0.4.7 (무료 공개 테스트판 · Beta)
 
 **개발 중이며 문자 인식 오류가 발생할 수 있습니다. 정확도 개선을 지속하고 있습니다.** 추출한 이름·금액·날짜 및 중요한 문장은 원본 이미지와 비교해 주세요.
 
