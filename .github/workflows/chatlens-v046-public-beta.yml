@@ -95,9 +95,14 @@ jobs:
               shutil.copy2(artifact / "selftest.json", out / "selftest.json")
 
           docs = Path("ChatLensOCR/DISTRIBUTION")
-          for name in ("ChatLensOCR_v0.4.6_네이버블로그_게시글.txt",
-                       "ChatLensOCR_v0.4.6_사용안내.txt"):
-              shutil.copy2(docs / name, out / name)
+          # GitHub release assets normalize non-ASCII filenames. Keep original
+          # Korean file contents but use stable ASCII names for direct URLs.
+          published_docs = {
+              "ChatLensOCR_v0.4.6_네이버블로그_게시글.txt": "ChatLensOCR_v0.4.6_NAVER_BLOG_POST_KR.txt",
+              "ChatLensOCR_v0.4.6_사용안내.txt": "ChatLensOCR_v0.4.6_USER_GUIDE_KR.txt",
+          }
+          for original, public_name in published_docs.items():
+              shutil.copy2(docs / original, out / public_name)
 
           files = (exename, zipname, source_zip.name)
           (out / "SHA256SUMS.txt").write_text(
@@ -131,7 +136,11 @@ jobs:
           title="ChatLens OCR v0.4.6 | 무료 공개 테스트판 (Windows x64 · unsigned)"
           notes="ChatLensOCR/DISTRIBUTION/RELEASE_NOTES_v0.4.6.md"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$tag" release/* --clobber --repo "$GITHUB_REPOSITORY"
+            # Existing verified binary assets remain untouched on reruns.
+            gh release upload "$tag"               release/ChatLensOCR_v0.4.6_NAVER_BLOG_POST_KR.txt               release/ChatLensOCR_v0.4.6_USER_GUIDE_KR.txt               --clobber --repo "$GITHUB_REPOSITORY"
+            for stale in "ChatLensOCR_v0.4.6_.txt" "ChatLensOCR_v0.4.6_._.txt"; do
+              gh release delete-asset "$tag" "$stale" --yes --repo "$GITHUB_REPOSITORY" || true
+            done
             gh release edit "$tag" --title "$title" --notes-file "$notes" --prerelease --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$tag" release/* --repo "$GITHUB_REPOSITORY" \
