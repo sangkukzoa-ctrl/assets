@@ -4,7 +4,11 @@
 
 [Privacy](PRIVACY.md) · [Third-party notices](NOTICE.md)
 
-## Development build v0.4.7\n\nLatest public download: https://github.com/sangkukzoa-ctrl/assets/releases/tag/chatlens-beta\n\n# ChatLens OCR v0.4.7 (무료 공개 테스트판 · Beta)
+## Development build v0.4.8
+
+Latest public download: https://github.com/sangkukzoa-ctrl/assets/releases/tag/chatlens-beta
+
+# ChatLens OCR v0.4.8 (무료 공개 테스트판 · Beta)
 
 **개발 중이며 문자 인식 오류가 발생할 수 있습니다. 정확도 개선을 지속하고 있습니다.** 추출한 이름·금액·날짜 및 중요한 문장은 원본 이미지와 비교해 주세요.
 
@@ -13,7 +17,7 @@
 스크린샷을 분석하여 일반 문서와 웹페이지, 쇼핑몰 상품 목록, 카카오톡 대화, 파이널판타지14 채팅·전투 로그를 텍스트로 추출합니다.
 
 ## 사용 방법
-1. [공식 GitHub Releases](https://github.com/sangkukzoa-ctrl/assets/releases/tag/chatlens-v0.4.6)에서 Windows x64 EXE 또는 ZIP 다운로드
+1. [공식 GitHub Releases](https://github.com/sangkukzoa-ctrl/assets/releases/tag/chatlens-beta)에서 Windows x64 EXE 또는 ZIP 다운로드
 2. ZIP이라면 압축 해제 후 EXE 실행 (Python 설치 불필요)
 3. **이미지 열기** 또는 **붙여넣기**로 스크린샷 추가
 4. **자동** 유형에서 **현재 이미지 분석** 또는 **전체 이미지 일괄 분석**
