@@ -9,6 +9,7 @@ shader pixel-equivalence proof.
 import json,os,signal,pathlib,subprocess,threading,time,urllib.request,zipfile,tarfile,hashlib,shutil
 from pathlib import Path
 
+SHADER_ON=os.environ.get("RGB_PORT_SHADER_ON")=="1"
 ROOT=Path("mc1201-forge-inworld")
 SERVER=ROOT/"server";GAME=ROOT/"client"
 EVIDENCE=ROOT/"evidence";S_MODS=SERVER/"mods";C_MODS=GAME/"mods"
@@ -84,6 +85,22 @@ fetch("https://mediafilez.forgecdn.net/files/7620/767/"+cb,S_MODS/cb)
 shutil.copy2(S_MODS/cb,C_MODS/cb)
 emb=fetch_mod("embeddium","0.3.31")
 oculus=fetch_mod("oculus","1.8.0")
+shader_filename=None
+if SHADER_ON:
+    # Oculus 1.20.1 is Iris-based, but uses MODID 'oculus', so its
+    # actual config file is config/oculus.properties (verified upstream).
+    version=jsonurl("https://api.modrinth.com/v2/version/Bqen1mJX")
+    assert version["version_number"]=="r5.9.3","Complementary version changed"
+    shaderfile=next(x for x in version["files"] if x["filename"].lower().endswith(".zip"))
+    shader_filename=shaderfile["filename"]
+    dest=GAME/"shaderpacks"/shader_filename
+    dest.parent.mkdir(parents=True,exist_ok=True)
+    data=fetch(shaderfile["url"],dest)
+    if shaderfile.get("hashes",{}).get("sha512"):
+        assert hashlib.sha512(data).hexdigest()==shaderfile["hashes"]["sha512"],"Shader integrity mismatch"
+    cfg=GAME/"config";cfg.mkdir(parents=True,exist_ok=True)
+    (cfg/"oculus.properties").write_text("shaderPack="+shader_filename+"\nenableShaders=true\n",encoding="utf-8")
+    record("FORGE_COMPLEMENTARY_SHADER_REQUESTED "+shader_filename)
 
 # Real Forge install server and a pre-generated flat world.
 fetch("https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.28/forge-1.20.1-47.4.28-installer.jar",SERVER/"installer.jar")
@@ -108,7 +125,7 @@ server=subprocess.Popen(["bash","./run.sh","nogui"],cwd=SERVER,stdin=subprocess.
 slog,sthread=runthread(server,"SERVER",EVIDENCE/"server-console.log")
 client=None
 result={"scope":"Minecraft 1.20.1 production Forge 47.4.28 RGBBlock+C&B+Embeddium/Oculus, actual network connected RGB test scene",
-        "shader_enabled":False,"screenshots":[],"block":block,"server_ready":False,"client_joined":False,
+        "shader_enabled":False,"shader_requested":SHADER_ON,"shader_pack":shader_filename,"screenshots":[],"block":block,"server_ready":False,"client_joined":False,
         "rgb_server_commands":False,"rgb_light_propagation_verified":False,"cnb_sculpted_fixture":False,"cnb_rgb_propagation_verified":False,"render_thread":False,"atlas_ready":False,"resource_model_missing":None}
 try:
     result["server_ready"]=await_pattern(slog,"Done (",server,180,"server_boot")
@@ -175,7 +192,7 @@ try:
         command(server,"gamemode creative RGBPortTester")
         command(server,"rgb bake")
         time.sleep(35)
-        screenshot=EVIDENCE/"inworld-rgb-glow-glass.png"
+        screenshot=EVIDENCE/("inworld-rgb-glow-glass-shader-"+("ON" if SHADER_ON else "OFF")+".png")
         shot=subprocess.run(["scrot",str(screenshot.resolve())],env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=40)
         if shot.returncode==0 and screenshot.is_file():
             result["screenshots"].append({"file":screenshot.name,"size":screenshot.stat().st_size})
@@ -186,6 +203,23 @@ try:
         shutil.copy2(client_game,EVIDENCE/"minecraft-client-latest.log")
         result["rgb_light_propagation_verified"]="RGB_PORT_LIGHT_PROBE_PASS" in (txt+"\n"+"".join(clog))
         result["cnb_rgb_propagation_verified"]="RGB_PORT_CNB_LIGHT_PROBE_PASS" in (txt+"\n"+"".join(clog))
+        if SHADER_ON:
+            shader_lines=[ln for ln in (txt+"\n"+"".join(clog)).splitlines()
+                if ("iris" in ln.lower() or "oculus" in ln.lower()
+                    or "shaderpack" in ln.lower() or "complementary" in ln.lower())]
+            (EVIDENCE/"oculus-shader-on-evidence.log").write_text(
+                "\n".join(shader_lines),encoding="utf-8")
+            evidence="\n".join(shader_lines).lower()
+            missing=("shaders are disabled","shaderpack could not be loaded",
+                     "failed to load shaderpack","falling back to normal rendering")
+            result["shader_enabled"]=(shader_filename.lower() in evidence
+                and any(phrase in evidence for phrase in
+                  ("using shaderpack","loading shaderpack","loaded shaderpack",
+                   "shaderpack loaded","shader pack"))
+                and not any(reason in evidence for reason in missing))
+            record("FORGE_COMPLEMENTARY_SHADER_ACTIVE "+str(result["shader_enabled"])
+                   +" log_lines="+str(len(shader_lines)))
+
         # Keep CI diagnosis in the job log: the client and launcher output are
         # otherwise only uploaded to an artifact, making a failed gate opaque.
         probe_lines=[ln for ln in (txt+"\n"+"".join(clog)).splitlines()
@@ -225,6 +259,8 @@ assert result["forge_login_compressed"] and result["forge_login_restored"],"Loss
 assert result["resource_model_missing"]==0,"RGB asset paths not loaded by client"
 assert not result["fatal"],"Minecraft client fatal shader/renderer/C&B incompatibility"
 assert result["screenshots"],"Failed to capture real game scene"
+if SHADER_ON:
+    assert result["shader_enabled"],"Oculus failed to activate Complementary in real Forge 1.20.1 game"
 assert result["rgb_light_propagation_verified"],"RGB light propagation runtime pixel-channel probe failed"
 assert result["cnb_sculpted_fixture"],"C&B 4095 RGB microbits fixture was not constructed"
 assert result["cnb_rgb_propagation_verified"],"C&B chiselled RGB-colored light failed to propagate into adjacent voxel"
