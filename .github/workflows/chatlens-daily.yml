@@ -208,7 +208,7 @@ jobs:
           }
           "QA-gated daily build from chatlens-development. Public beta assets refresh only after checks pass; blog URL stays fixed." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: success()
         with:
           name: ChatLensOCR-Daily-${{ github.run_number }}-Windows-x64
           path: |
