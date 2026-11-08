@@ -172,7 +172,8 @@ class Icons:
             learned=learn_verified_icon(image,rect,job,score,score-runner,DATA,
                                        allowed_jobs=set(JOBS.values()))
             if learned:
-                new_icon=cv2.imread(str(learned),cv2.IMREAD_GRAYSCALE)
+                raw_bytes=np.fromfile(str(learned),dtype=np.uint8)
+                new_icon=cv2.imdecode(raw_bytes,cv2.IMREAD_GRAYSCALE)
                 if new_icon is not None:
                     self.icons.append((job,new_icon))
         return (job,rect,score)
