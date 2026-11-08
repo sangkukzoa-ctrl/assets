@@ -15,9 +15,11 @@ def _rate(text, confidence):
     junk=len(re.findall(r"[|©€¤{}]",text))
     return (confidence/100)*2.2 + min(hangul/16,1.0) - ascii_fragments*.23 - junk*.25
 
+from kakao_fidelity_v043 import normalize_visible_punctuation, one_syllable_agreement
+
 def _preserve_lines(text):
     """Keep the original line breaks of longer user chat bubbles."""
-    return "\n".join(" ".join(line.split()) for line in text.splitlines() if line.strip())
+    return "\n".join(normalize_visible_punctuation(" ".join(line.split())) for line in text.splitlines() if line.strip())
 
 def _choose_consensus(readings):
     """Prefer repeated OCR readings over a single outlier; do not guess words."""
@@ -70,8 +72,18 @@ def read_bubble(crop,language="한국어",precise=True):
     selected=multiline_rescue or _choose_consensus(readings)
     if selected is None:return None
     ko,boxes,conf,zoom=selected
-    if len(re.findall(r"[가-힣]",ko))<2 or conf<44:return None
-    if _rate(ko,conf)<1.18:return None
+    hangul=len(re.findall(r"[가-힣]",ko))
+    if hangul==1 and len(ko.strip())==1 and precise and height<=35 and crop.width<=90:
+        # PSM10 is specialized for a single text glyph. Do not accept a
+        # potentially wrong glyph unless at least two pixel passes agree.
+        zoomed=crop.convert("RGB").resize((max(1,crop.width*4),max(1,crop.height*4)),Image.Resampling.LANCZOS)
+        glyph,glyph_boxes,glyph_conf=read(zoomed,"카카오톡","한국어",psm=10,tess_lang="kor")
+        agreed=one_syllable_agreement(readings+[(glyph,glyph_boxes,glyph_conf,4)])
+        if agreed is None:return None
+        ko,boxes,conf,zoom=agreed
+    elif hangul<2:return None
+    if conf<44 or _rate(ko,conf)<1.18:return None
+    ko=normalize_visible_punctuation(ko)
     normal=[]
     for item in boxes:
         x1,y1,x2,y2=item["box"]
