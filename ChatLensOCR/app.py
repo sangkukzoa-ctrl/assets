@@ -298,7 +298,7 @@ def gui():
     import tkinter as tk
     from tkinter import ttk, filedialog, messagebox, simpledialog
     from PIL import Image, ImageGrab, ImageTk, ImageDraw
-    root=tk.Tk();root.title("ChatLens OCR v0.4.3  |  이미지 문자 인식")
+    root=tk.Tk();root.title("ChatLens OCR v0.4.4  |  이미지 문자 인식")
     root.geometry("1420x860");root.minsize(1060,680);root.configure(bg="#101722")
     debuglog.note("gui_started")
     def report_callback_exception(exc_type,exc,tb):
@@ -315,7 +315,7 @@ def gui():
     style.configure("TCombobox",padding=(5,4))
     mode=tk.StringVar(value="자동"); language=tk.StringVar(value="한국어")
     precise=tk.BooleanVar(value=True); world=tk.StringVar(value="모그리")
-    status=tk.StringVar(value="준비 완료  ·  이미지 열기 → 분석 → 결과 저장  |  검증 5/8")
+    status=tk.StringVar(value="준비 완료  ·  이미지 열기 → 분석 → 결과 저장  |  검증 6/8")
     entries=[]; active=[None]; selection=[None]; last=[None]; photo=[None]; scale=[1.]
     origin=[0,0]; jobs=[None]; events=queue.Queue(); worker=[None]; generation=[0]
     def label(parent,s):ttk.Label(parent,text=s).pack(side="left",padx=(8,3))
@@ -323,7 +323,7 @@ def gui():
     header=ttk.Frame(root,padding=(16,12,16,5));header.pack(fill="x")
     ttk.Label(header,text="ChatLens OCR",font=("Malgun Gothic",18,"bold"),
               foreground="#f1f6ff").pack(side="left")
-    ttk.Label(header,text="v0.4.3  ·  검증 5/8  ·  오프라인 OCR",foreground="#95adc4").pack(side="left",padx=14)
+    ttk.Label(header,text="v0.4.4  ·  검증 6/8  ·  오프라인 OCR",foreground="#95adc4").pack(side="left",padx=14)
     ttk.Label(header,text="by 2bornot  ·  © 2026",foreground="#b9c9dc").pack(side="right",padx=(10,3))
     tagline=ttk.Frame(root,padding=(16,0,16,10));tagline.pack(fill="x")
     ttk.Label(tagline,text="이미지와 스크린샷의 문자를 추출합니다. 자동 분석부터 시작하세요. 이미지는 외부로 전송되지 않습니다.",
@@ -335,14 +335,14 @@ def gui():
     options_bar=ttk.Frame(bar);options_bar.pack(fill="x")
     def show_about():
         messagebox.showinfo("ChatLens OCR 정보",
-            "ChatLens OCR v0.4.3\n\n"
+            "ChatLens OCR v0.4.4\n\n"
             "Developer: 2bornot\n"
             "Copyright © 2026 2bornot. All rights reserved under MIT License.\n"
             "License: MIT (application source code)\n\n"
             "오프라인 이미지 문자 인식 / Offline OCR\n"
             "공식 소스 및 배포: github.com/sangkukzoa-ctrl/assets\n"
             "타사 라이브러리·이미지 및 상표는 각각의 권리자에게 귀속됩니다.\n\n"
-            "이번 버전은 품질 검증 5/8 시험판입니다. 정식 공개는 8차 검증 후 결정합니다.\n"
+            "이번 버전은 품질 검증 6/8 시험판입니다. 정식 공개는 8차 검증 후 결정합니다.\n"
             "Windows 코드서명 여부는 파일 속성 및 배포 안내에서 확인하세요.",
             parent=root)
     ttk.Button(header,text="프로그램 정보 / About",command=show_about).pack(side="right",padx=9)
@@ -519,7 +519,7 @@ def gui():
             status.set("저장 완료: "+str(f))
     def show_debug_log():
         dialog=tk.Toplevel(root)
-        dialog.title("ChatLens OCR v0.4.3 | 디버그 로그")
+        dialog.title("ChatLens OCR v0.4.4 | 디버그 로그")
         dialog.geometry("960x650")
         dialog.minsize(600,360)
         dialog.transient(root)
@@ -551,7 +551,7 @@ def gui():
             status.set("디버그 로그 전체를 클립보드에 복사했습니다")
         def save_log():
             filename=filedialog.asksaveasfilename(
-                defaultextension=".txt",initialfile="ChatLensOCR_v0.4.3_debug.txt",
+                defaultextension=".txt",initialfile="ChatLensOCR_v0.4.4_debug.txt",
                 filetypes=[("텍스트 파일","*.txt")],parent=dialog)
             if filename:
                 Path(filename).write_text(debuglog.recent_text(),encoding="utf-8")
