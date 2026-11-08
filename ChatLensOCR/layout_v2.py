@@ -248,6 +248,11 @@ def ffxiv(img, language, precise, world, icons):
                 value=alt
                 items=_offset(alt_boxes,0,0,3)
                 score=alt_conf/20
+        # Re-read low-confidence mixed Latin/digit names from their own pixels.
+        # This is not a dictionary replacement, and needs PSM7/13 agreement.
+        if precise and items and language=="한국어":
+            from ffxiv_latin_v0422 import recover_low_confidence_latin
+            value=recover_low_confidence_latin(crop,value,items)
         raw.extend(_offset(items,0,top))
         value=re.sub(r"\s+([:：>〉）\]])",r"\1",value)
         novice=_novice_chat(value,world)
