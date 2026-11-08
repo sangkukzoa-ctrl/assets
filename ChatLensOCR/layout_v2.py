@@ -409,7 +409,11 @@ def kakao(img,language,precise):
         crop=img.crop((x+margin,y+4,x+w-3,y+h-3))
         if crop.width<5 or crop.height<5:continue
         content,items,score=_bubble_text(crop,language,precise)
-        if not content:continue
+        from kakao_integrity_v044 import text_or_unreadable,UNREADABLE_BUBBLE
+        content=text_or_unreadable(crop,content)
+        if content is None:continue
+        unreadable=(content==UNREADABLE_BUBBLE)
+        if unreadable:score=0
         # Preserve OCR wording, but convert equivalent ellipsis glyphs to
         # ASCII triplets for faithful plain TXT exports (e.g. '.…?' -> '...?').
         from kakao_fidelity_v043 import normalize_visible_punctuation
@@ -418,7 +422,7 @@ def kakao(img,language,precise):
         raw.extend(_offset(items,x+margin,y+4))
         who="나" if kind=="나" else nickname
         events.append((y, f"{who}: {content}",
-                       {"speaker":who,"kind":"bubble","box":(x,y,x+w,y+h),"ocr_score":score}))
+                       {"speaker":who,"kind":"bubble","box":(x,y,x+w,y+h),"ocr_score":score,"needs_review":unreadable}))
     for sticker in stickers:
         box=sticker["box"]
         label=sticker["description"]
