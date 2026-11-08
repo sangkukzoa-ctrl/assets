@@ -176,11 +176,20 @@ def _fixed_lines(img, color="ffxiv"):
     else:
         selected=(r<160)&(b-r>20)&(g-r>14)&(b>80)
     amount=selected.sum(axis=1)
-    # The projection is stable despite glyph differences and anti-aliasing.
-    # Do NOT dilate the projection: in dense FFXIV chat, adjacent
-    # 19px-spaced lines otherwise bridge into one huge block.
+    # Do not dilate the projection: dense FFXIV rows are only ~20px apart.
+    # A bright game-world surface behind the right side can connect multiple
+    # chat lines into a single 80px+ slab. The old code skipped that whole slab.
     proj=amount>=max(6,img.width//110)
-    return _runs(proj, min_length=3, gap=0)
+    full_lines=_runs(proj,min_length=3,gap=0)
+    if img.width>=320 and any(y1-y0>36 for y0,y1 in full_lines):
+        # Chat timestamps and channel headers are left-anchored; use only
+        # their area to find row boundaries, while OCR still reads full width.
+        anchor_width=min(img.width,max(190,min(300,int(img.width*.55))))
+        anchor_amount=selected[:,:anchor_width].sum(axis=1)
+        anchor=_runs(anchor_amount>=max(6,anchor_width//110),min_length=3,gap=0)
+        if len(anchor)>len(full_lines) and not any(b-a>36 for a,b in anchor):
+            return anchor
+    return full_lines
 
 def _pvp_color_read(crop,language):
     """Extract saturated PvP name and chat colors from the dark game scene.
