@@ -4,11 +4,11 @@
 
 [Privacy](PRIVACY.md) · [Third-party notices](NOTICE.md)
 
-## Development build v0.4.8
+## Development build v0.4.9 — single-pass Tesseract OCR
 
 Latest public download: https://github.com/sangkukzoa-ctrl/assets/releases/tag/chatlens-beta
 
-# ChatLens OCR v0.4.8 (무료 공개 테스트판 · Beta)
+# ChatLens OCR v0.4.9 (무료 공개 테스트판 · Beta)
 
 **개발 중이며 문자 인식 오류가 발생할 수 있습니다. 정확도 개선을 지속하고 있습니다.** 추출한 이름·금액·날짜 및 중요한 문장은 원본 이미지와 비교해 주세요.
 
