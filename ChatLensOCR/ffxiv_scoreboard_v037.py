@@ -17,7 +17,7 @@ def is_scoreboard(image):
     a=np.asarray(image.convert("RGB")).astype(np.int16)
     h,w=a.shape[:2]
     mid=a[int(h*.33):int(h*.88)]
-    beige=(mid[:,:,0]>195)&(mid[:,:,1]>175)&(mid[:,:,2]>155)&(mid[:,:,0]<245)
+    # Genuine HUD beige has a warm blue deficit. Pink chat cards often pass\n    # the old RGB bounds but have G == B, producing false scoreboards.\n    beige=((mid[:,:,0]>195)&(mid[:,:,1]>175)&(mid[:,:,2]>155)\n           &(mid[:,:,0]<245)&((mid[:,:,1]-mid[:,:,2])>4)\n           &((mid[:,:,0]-mid[:,:,1])>1))
     if beige.mean()<.70:return False
     return len(row_bands(image))>=7
 
