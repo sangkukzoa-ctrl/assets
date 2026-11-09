@@ -540,7 +540,25 @@ def analyze(img,mode,language,precise,world,icons,progress=None):
                 source_box)
     if mode in ("자동","파판14"):
         from ffxiv_scoreboard_v037 import analyze as scoreboard_read
+        from ffxiv_scoreboard_grid_v0412 import embedded_scoreboard_box
         from ffxiv_combat_v037 import analyze as combat_read
+        # Real scoreboards may be surrounded by scenery, HUD or desktop
+        # pixels. Find the verified panel first; otherwise the generic OCR
+        # path destroys K/D/A column alignment or treats it as prose.
+        region=embedded_scoreboard_box(img)
+        if region:
+            special=scoreboard_read(img.crop(region),language)
+            if special is not None:
+                d,output,hits,meta,items=special
+                raw=_offset(items,region[0],region[1])
+                shifted=[]
+                for record in meta:
+                    entry=dict(record)
+                    if "y" in entry:entry["y"]+=region[1]
+                    shifted.append(entry)
+                shifted.insert(0,{"type":"embedded_scoreboard","box":region})
+                from app import merge_rows
+                return d,output,hits,shifted,merge_rows(raw),raw
         special=scoreboard_read(img,language)
         if special is None:special=combat_read(img,language,precise)
         if special is not None:
