@@ -288,6 +288,17 @@ def ffxiv(img, language, precise, world, icons, progress=None):
             value=recover_low_confidence_latin(crop,value,items)
         raw.extend(_offset(items,0,top))
         value=re.sub(r"\s+([:：>〉）\]])",r"\1",value)
+        # v0.4.10: Human-readable Korean dialogue uses pixel-derived second
+        # opinions. Never invent a nickname or rewrite a system/PvP notice.
+        if precise and language=="한국어":
+            visible=_FFXIV.match(value)
+            if visible is None:
+                visible=re.search(r"[<〈＜]\s*([가-힣A-Za-z0-9_＆&＠@ ]{2,32})\s*[>〉＞]\s*(.*)",value)
+            if visible is None:
+                visible=_recover_damaged_ffxiv_chat_header(value)
+            if visible:
+                from ffxiv_fidelity_v0410 import refine_ffxiv_dialogue
+                value=refine_ffxiv_dialogue(crop,value,visible.group(1).strip(),language)
         novice=_novice_chat(value,world)
         if novice:
             out.append(novice)
