@@ -34,6 +34,8 @@ jobs:
           architecture: x64
       - name: Python syntax gate before expensive OCR dependencies
         run: python -m compileall -q ChatLensOCR
+      - name: Verify versioned result export before dependency installation
+        run: python ChatLensOCR/test_export_v0373_regression.py
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
