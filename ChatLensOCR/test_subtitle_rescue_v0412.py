@@ -7,7 +7,7 @@ from generic_subtitle_fidelity_v0412 import restore_white_subtitle
 
 w,h=545,363
 yy,xx=np.mgrid[0:h,0:w]
-v=(28+(xx/w)*105+(yy/h)*35).clip(0,150).astype(np.uint8)
+v=(10+(xx/w)*220+(yy/h)*60).clip(0,235).astype(np.uint8)
 scene=Image.fromarray(np.stack([v,v//2+17,v//2+25],axis=2),"RGB")
 d=ImageDraw.Draw(scene)
 font=ImageFont.truetype("C:/Windows/Fonts/malgun.ttf",23)
