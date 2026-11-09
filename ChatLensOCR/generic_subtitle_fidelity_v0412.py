@@ -18,7 +18,7 @@ def _lines(value):
             if len(_normal(v.strip()))>=4]
 
 def restore_white_subtitle(image,original,language):
-    if language!="한국어" or not original or not _normal(original):return original
+    if language!="한국어" or not original or len(re.findall("[가-힣]",original))<4:return original
     w,h=image.size
     if not (380<=w<=1600 and 250<=h<=1050):return original
     rgb=np.asarray(image.convert("RGB"),dtype=np.int16)
