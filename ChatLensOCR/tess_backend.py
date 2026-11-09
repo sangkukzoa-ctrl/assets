@@ -111,9 +111,9 @@ def read(image,mode,language,psm=None,tess_lang=None):
         for d in csv.DictReader(io.StringIO(tsv),delimiter="\t"):
             t=(d.get("text") or "").strip()
             if not t:continue
-            confidence=float(d["conf"])
+            confidence=float(int(float(d["conf"])))
             if confidence<=0:continue
-            key=(d["block_num"],d["par_num"],d["line_num"])
+            key=tuple(int(d[k]) for k in ("block_num","par_num","line_num"))
             x,y,w,h=(int(d[z]) for z in ("left","top","width","height"))
             item={"text":t,"score":confidence/100,"box":(x,y,x+w,y+h)}
             groups[key].append(item)
