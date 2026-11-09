@@ -10,10 +10,10 @@ from ui_input_v042 import normalize_imported_image,unique_image_name
 root=Path(__file__).resolve().parent
 code=(root/"app.py").read_text(encoding="utf-8")
 ast.parse(code,filename=str(root/"app.py"))
-assert 'root.title("ChatLens OCR v0.4.9' in code
+assert 'root.title("ChatLens OCR v0.4.10' in code
 assert 'by 2bornot' in code
 assert 'Copyright © 2026 2bornot' in code
-assert 'v0.4.9  ·  오프라인 OCR' in code
+assert 'v0.4.10  ·  오프라인 OCR' in code
 assert 'file_bar=ttk.Frame(bar)' in code
 assert 'options_bar=ttk.Frame(bar)' in code
 assert 'button(file_bar,"🔎 현재 이미지 분석"' in code
