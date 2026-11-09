@@ -17,7 +17,11 @@ def is_scoreboard(image):
     a=np.asarray(image.convert("RGB")).astype(np.int16)
     h,w=a.shape[:2]
     mid=a[int(h*.33):int(h*.88)]
-    # Genuine HUD beige has a warm blue deficit. Pink chat cards often pass\n    # the old RGB bounds but have G == B, producing false scoreboards.\n    beige=((mid[:,:,0]>195)&(mid[:,:,1]>175)&(mid[:,:,2]>155)\n           &(mid[:,:,0]<245)&((mid[:,:,1]-mid[:,:,2])>4)\n           &((mid[:,:,0]-mid[:,:,1])>1))
+    # Genuine HUD beige has a warm blue deficit. Pink chat cards often pass
+    # the old RGB bounds but have G == B, producing false scoreboards.
+    beige=((mid[:,:,0]>195)&(mid[:,:,1]>175)&(mid[:,:,2]>155)
+           &(mid[:,:,0]<245)&((mid[:,:,1]-mid[:,:,2])>4)
+           &((mid[:,:,0]-mid[:,:,1])>1))
     if beige.mean()<.70:return False
     return len(row_bands(image))>=7
 
@@ -93,7 +97,8 @@ def analyze(image,language="한국어"):
         output.append("\t".join(values))
         metadata.append({"type":"scoreboard_row","index":idx+1,
                          "y":round(center),"cells":values})
-    return "파판14","\n".join(output),[],metadata,raw
+    return "파판14","
+".join(output),[],metadata,raw
 
 def _synthetic():
     from PIL import ImageDraw,ImageFont
