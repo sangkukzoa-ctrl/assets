@@ -524,7 +524,14 @@ def generic(img,language,precise):
     from app import recognize,merge_rows
     items=recognize(img,language,precise)
     rows=merge_rows(items)
-    return "범용","\n".join(v["text"] for v in rows),[],[{"confidence":v["score"]} for v in rows],items
+    original="\n".join(v["text"] for v in rows)
+    from generic_subtitle_fidelity_v0412 import restore_white_subtitle
+    reread=restore_white_subtitle(img,original,language)
+    metadata=[{"confidence":v["score"]} for v in rows]
+    if reread!=original:
+        metadata.append({"type":"pixel_verified_white_subtitle",
+                         "box":(0,round(img.height*.67),img.width,img.height)})
+    return "범용",reread,[],metadata,items
 
 
 def analyze(img,mode,language,precise,world,icons,progress=None):
