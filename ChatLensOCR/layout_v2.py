@@ -80,12 +80,26 @@ def detect_mode(img):
     yellow=((rgb[:,:,0]>225)&(rgb[:,:,1]>165)&(rgb[:,:,2]<145)).sum()
     if yellow>140 and bg[2]>bg[0]+12 and bg[1]>bg[0]+8 and bg[2]<245:
         return "카카오톡"
-    # FFXIV chat window: mostly black/dark with dense 1-2 px high glyphs
-    # and timestamps at the first few columns.
+    # A dark panel with pale labels is not necessarily FFXIV. In the
+    # 166-image offline field set, Unity/PlayMaker inspector panes, product
+    # cards, and movie subtitles all matched the old black+light shortcut.
+    # Require compact chat-shaped geometry and actual chromatic chat glyphs.
     left=rgb[:, :min(w,65)]
     darkness=(rgb.mean(axis=2)<75).mean()
     light=((left[:,:,0]>130)&(left[:,:,1]>125)&(left[:,:,2]>70)).sum()
-    if darkness>.55 and light>50: return "파판14"
+    if darkness>.55 and light>50 and w<=740 and 65<=h<=w*1.50:
+        spread=left.max(axis=2).astype(np.int16)-left.min(axis=2).astype(np.int16)
+        colored=(spread>32)&(left.max(axis=2)>110)
+        density=float(colored.mean())
+        upper=float(colored[:max(2,int(h*.35))].mean())
+        lower=float(colored[h//2:].mean())
+        if density>=.018 and upper>=.010 and lower>=.004:
+            # Decorative neon ASCII panels have full-width colored rules;
+            # FFXIV chat text consists of separated, narrow glyph rows.
+            full=rgb.max(axis=2).astype(np.int16)-rgb.min(axis=2).astype(np.int16)
+            saturated=(full>35)&(rgb.max(axis=2)>110)
+            if int((saturated.mean(axis=1)>.60).sum())<3:
+                return "파판14"
     return "범용"
 
 def _flatten_ocr(img, language="한국어", precise=True):
