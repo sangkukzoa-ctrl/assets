@@ -61,40 +61,66 @@ def resolve_tesseract_paths(base=None):
     return None,None
 
 
+
+def _single_pass_text_and_tsv(image, executable, tessdata, lang, psm):
+    """Run Tesseract once with identical PSM for native text and TSV geometry.
+
+    ImageToData + ImageToString used to launch two separate OCR processes for
+    every candidate row. Native Tesseract supports combined 'txt tsv' outputs.
+    Output is local and transient; no chat or image data is sent to a server.
+    """
+    import os
+    import subprocess
+    import tempfile
+    from pathlib import Path
+    with tempfile.TemporaryDirectory(prefix="chatlens_ocr_") as work:
+        source=Path(work)/"input.png"
+        target=Path(work)/"result"
+        image.save(source,format="PNG")
+        env=os.environ.copy()
+        env["TESSDATA_PREFIX"]=str(tessdata)
+        flags=getattr(subprocess,"CREATE_NO_WINDOW",0) if os.name=="nt" else 0
+        run=subprocess.run(
+            [str(executable),str(source),str(target),"-l",lang,
+             "--psm",str(psm),"txt","tsv"],
+            stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,timeout=20,env=env,creationflags=flags,
+            check=False)
+        if run.returncode!=0:
+            raise RuntimeError("Bundled Tesseract failed (%d): %s" %
+                               (run.returncode,run.stderr.decode("utf-8","replace")[:240]))
+        native=Path(str(target)+".txt").read_text(encoding="utf-8-sig").strip()
+        tsv=Path(str(target)+".tsv").read_text(encoding="utf-8-sig")
+        return native,tsv
+
+
 def read(image,mode,language,psm=None,tess_lang=None):
+    """Return native text and per-word boxes from ONE Tesseract invocation."""
     try:
-        import os
-        import pytesseract
-        from pytesseract import Output
+        import csv
+        import io
+        from collections import defaultdict
         exe,data=resolve_tesseract_paths()
         if not exe or not data:return "",[],0.
-        pytesseract.pytesseract.tesseract_cmd=exe
-        os.environ["TESSDATA_PREFIX"]=data
         lang=tess_lang or ("kor+eng" if language=="한국어" else "jpn+eng" if language=="일본어" else "eng")
         if psm is None:
             psm=6 if mode=="파판14" else 7 if image.height<52 else 6
-        d=pytesseract.image_to_data(image,lang=lang,config=f"--psm {psm}",output_type=Output.DICT,timeout=20)
+        native,tsv=_single_pass_text_and_tsv(image,exe,data,lang,psm)
         groups=defaultdict(list)
         parts=[];confs=[]
-        for i,t in enumerate(d["text"]):
-            t=t.strip()
+        for d in csv.DictReader(io.StringIO(tsv),delimiter="\t"):
+            t=(d.get("text") or "").strip()
             if not t:continue
-            confidence=float(d["conf"][i])
+            confidence=float(d["conf"])
             if confidence<=0:continue
-            key=(d["block_num"][i],d["par_num"][i],d["line_num"][i])
-            x,y,w,h=(int(d[z][i]) for z in ("left","top","width","height"))
+            key=(d["block_num"],d["par_num"],d["line_num"])
+            x,y,w,h=(int(d[z]) for z in ("left","top","width","height"))
             item={"text":t,"score":confidence/100,"box":(x,y,x+w,y+h)}
             groups[key].append(item)
             parts.append(item)
             confs.append(confidence)
         lines=sorted(groups.values(),key=lambda a:min(t["box"][1] for t in a))
-        # Tesseract's text renderer has already reconstructed Korean word
-        # boundaries at OCR time. Reassembling TSV tokens by box distance
-        # repeatedly introduced arbitrary syllable spaces (e.g. 꼬이 는군).
-        # Use native text as canonical transcription. Keep TSV for geometry.
-        native=pytesseract.image_to_string(
-            image,lang=lang,config=f"--psm {psm}",timeout=20).strip()
         reconstructed="\n".join(_assemble(row) for row in lines)
-        transcript=native if native else reconstructed
-        return transcript,parts,sum(confs)/max(1,len(confs))
-    except Exception:return "",[],0.
+        return native if native else reconstructed,parts,sum(confs)/max(1,len(confs))
+    except Exception:
+        return "",[],0.
