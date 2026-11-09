@@ -93,7 +93,7 @@ def detect_mode(img):
         density=float(colored.mean())
         upper=float(colored[:max(2,int(h*.35))].mean())
         lower=float(colored[h//2:].mean())
-        if density>=.018 and upper>=.010 and lower>=.004:
+        if density>=.018 and upper>=.010 and (lower>=.004 or h<=275):
             # Decorative neon ASCII panels have full-width colored rules;
             # FFXIV chat text consists of separated, narrow glyph rows.
             full=rgb.max(axis=2).astype(np.int16)-rgb.min(axis=2).astype(np.int16)
