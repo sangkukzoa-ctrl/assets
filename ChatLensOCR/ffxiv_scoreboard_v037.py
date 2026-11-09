@@ -8,9 +8,12 @@ import re
 import numpy as np
 from PIL import Image
 
-HEADERS=("캐릭터","서버","K","D","A","총 공격량","총 피해량","총 회복량","총 확보 시간")
-COLUMNS=((50,228),(229,354),(354,394),(394,433),(433,472),
-         (472,611),(611,752),(752,839),(839,930))
+from ffxiv_scoreboard_grid_v0412 import header_geometry,HEADERS8,HEADERS9
+HEADERS=HEADERS8
+# Fallback is the eight-column layout; the actual HUD header determines
+# whether its ninth field contains a separate capture counter.
+COLUMNS=((49,234),(234,359),(359,398),(398,437),(437,475),
+         (475,627),(627,778),(778,930))
 
 def is_scoreboard(image):
     if image.width<700 or image.height<440:return False
@@ -26,27 +29,30 @@ def is_scoreboard(image):
     return len(row_bands(image))>=7
 
 def row_bands(image):
-    a=np.asarray(image.convert("RGB")).astype(np.int16)
+    a=np.asarray(image.convert("RGB"),dtype=np.int16)
     h,w=a.shape[:2]
     if w<700:return []
-    col=a[:,round(w*50/938):round(w*229/938)]
-    high=col.max(axis=2);low=col.min(axis=2)
-    ink=(high<150)&(low<145) | ((high-low>55)&(low<145))
-    count=ink.sum(axis=1)
-    valid=(count>=8)&(np.arange(h)>=int(h*.35))&(np.arange(h)<int(h*.90))
-    coords=np.flatnonzero(valid)
-    if not len(coords):return []
-    runs=[];start=last=int(coords[0])
-    for y in coords[1:]:
-        y=int(y)
-        if y-last>3:
-            if 7<=last-start+1<=22:runs.append((start,last+1))
-            start=y
-        last=y
-    if 7<=last-start+1<=22:runs.append((start,last+1))
-    if len(runs)<7:return []
-    # Overlap/duplicate headings don't create extra score rows.
-    return runs
+    # Different jobs and alliance badges can flood the left player-name
+    # column with color. A server or damage column contains the same row
+    # geometry even when the name region fails to segment.
+    for left,right in ((50,228),(229,354),(472,611)):
+        col=a[:,round(w*left/938):round(w*right/938)]
+        high=col.max(axis=2);low=col.min(axis=2)
+        ink=((high<150)&(low<145))|((high-low>55)&(low<145))
+        count=ink.sum(axis=1)
+        valid=(count>=8)&(np.arange(h)>=int(h*.35))&(np.arange(h)<int(h*.90))
+        coords=np.flatnonzero(valid)
+        if not len(coords):continue
+        runs=[];first=last=int(coords[0])
+        for y in coords[1:]:
+            y=int(y)
+            if y-last>3:
+                if 7<=last-first+1<=22:runs.append((first,last+1))
+                first=y
+            last=y
+        if 7<=last-first+1<=22:runs.append((first,last+1))
+        if len(runs)>=7:return runs
+    return []
 
 def _read_cell(image,bounds,lang,zoom=3):
     from tess_backend import read
@@ -70,19 +76,27 @@ def analyze(image,language="한국어"):
     bands=row_bands(image)
     w,h=image.size
     sx=w/938.
+    inferred=header_geometry(image)
+    if inferred is None:
+        headers=HEADERS8
+        columns=[(round(a*sx),round(b*sx)) for a,b in COLUMNS]
+    else:
+        headers,columns=inferred
     head,_items,_=_read_cell(image,(round(215*sx),0,round(735*sx),
                                   max(36,round(.07*h))),language)
-    # Character name and server world are two separate columns. Numeric
-    # values are read with English-digits OCR to preserve their exact format.
+    # Character name, server, K/D/A and the numeric statistics occupy
+    # image-measured columns. They must not be split using a fake fixed ninth
+    # field; the ninth field is a capture counter *only if visible*.
     output=["[전장 스코어보드] "+(head or "경기 결과"),
-            "\t".join(HEADERS)]
+            "\t".join(headers)]
     metadata=[];raw=[]
     for idx,(first,last) in enumerate(bands):
         center=(first+last)/2
         y0=max(0,round(center-12));y1=min(h,round(center+12))
         values=[]
-        for ci,(a,b) in enumerate(COLUMNS):
-            x0=max(0,round(a*sx));x1=min(w,round(b*sx))
+        for ci,(a,b) in enumerate(columns):
+            # Stay inside true text cells, not the vertical column strokes.
+            x0=max(0,round(a)+2);x1=min(w,round(b)-2)
             text,boxes,confidence=_read_cell(image,(x0,y0,x1,y1),
                                             language if ci<2 else "영어")
             # Short stat fields are digits or mm:ss, not Korean prose.
