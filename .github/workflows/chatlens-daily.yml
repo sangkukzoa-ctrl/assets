@@ -79,7 +79,7 @@ jobs:
           print("ONNX models",len(files),[p.name for p in files],flush=True)
           assert len(files)>=4
           '@ | python -
-      - name: Verify Tesseract single-pass TXT and TSV compatibility twice
+      - name: Verify Tesseract single-pass TXT, TSV and integer confidence compatibility twice
         run: |
           foreach ($round in 1..2) {
             Write-Host "Tesseract compatibility regression $round/2"
