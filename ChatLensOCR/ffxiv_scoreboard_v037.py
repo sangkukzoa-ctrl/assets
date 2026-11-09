@@ -97,8 +97,7 @@ def analyze(image,language="한국어"):
         output.append("\t".join(values))
         metadata.append({"type":"scoreboard_row","index":idx+1,
                          "y":round(center),"cells":values})
-    return "파판14","
-".join(output),[],metadata,raw
+    return "파판14","\n".join(output),[],metadata,raw
 
 def _synthetic():
     from PIL import ImageDraw,ImageFont
