@@ -51,9 +51,11 @@ def restore_white_subtitle(image,original,language):
         normalized=_normal(line)
         if normalized in base:continue
         if len(re.findall("[가-힣]",line))<4:continue
+        # An already-recognized second line must not corroborate an
+        # unrelated *new* first line merely through common Hangul suffixes.
         if not any(difflib.SequenceMatcher(
                 None,normalized,_normal(other)).ratio()>=.78
-                for other in m_lines):continue
+                for other in m_lines if _normal(other) not in base):continue
         result.append(line)
     if not result:return original
     # Preserve the existing exact recognized text, including punctuation.
