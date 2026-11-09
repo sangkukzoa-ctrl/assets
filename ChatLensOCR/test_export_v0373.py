@@ -6,7 +6,7 @@ text payload and UTF-8 encoding; only the suggested filename differs.
 """
 from datetime import date
 
-VERSION = "0.4.11"
+VERSION = "0.4.12"
 
 def default_test_result_filename(on_date=None):
     """Return version-test result-local calendar date.txt.
