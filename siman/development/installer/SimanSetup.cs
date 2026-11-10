@@ -16,8 +16,8 @@ namespace SimanSetup
 {
     internal static class Program
     {
-        public const string AppVersion = "1.5.6";
-        public const string InstallerRevision = "3";
+        public const string AppVersion = "1.5.7";
+        public const string InstallerRevision = "4";
         public static readonly string Root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "2bornot", "Siman");
         public static readonly string Target = Path.Combine(Root, "app");
         public static readonly string LogPath = Path.Combine(Root, "setup.log");
@@ -30,7 +30,7 @@ namespace SimanSetup
                 try
                 {
                     if (args[0] == "--verify") { VerifyPayload(); return 0; }
-                    if (args[0] == "--install") { InstallCore(); return 0; }
+                    if (args[0] == "--install" || args[0] == "--update") { InstallCore(); return 0; }
                     if (args[0] == "--show-path") { return Directory.Exists(Target) ? 0 : 3; }
                 }
                 catch (Exception e) { Log("CLI ERROR: " + e.ToString()); return 2; }
@@ -84,14 +84,84 @@ namespace SimanSetup
             }
         }
 
+        // Stable installation root. Never touch Chrome/Edge profiles or extension storage.
+        // All archives remain keyed to the extension ID because the unpacked path stays put.
+        private const string ManagedListName = ".siman-managed-files.txt";
+
+        private static string Child(string root, string relative)
+        {
+            string full = Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
+            string prefix = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (!full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("설치 경로 밖 파일 접근이 차단됐습니다.");
+            return full;
+        }
+
+        private static string[] Files(string dir)
+        {
+            var items = new List<string>();
+            foreach (string file in Directory.GetFiles(dir, "*", SearchOption.AllDirectories))
+            {
+                string relative = file.Substring(dir.TrimEnd(Path.DirectorySeparatorChar).Length + 1)
+                    .Replace(Path.DirectorySeparatorChar, '/');
+                if (!String.Equals(relative, ManagedListName, StringComparison.OrdinalIgnoreCase))
+                    items.Add(relative);
+            }
+            items.Sort(StringComparer.Ordinal);
+            return items.ToArray();
+        }
+
+        private static void CopyDirectory(string source, string destination)
+        {
+            Directory.CreateDirectory(destination);
+            foreach (string item in Files(source))
+            {
+                string to = Child(destination, item);
+                Directory.CreateDirectory(Path.GetDirectoryName(to));
+                File.Copy(Child(source, item), to, true);
+            }
+            string managed = Path.Combine(source, ManagedListName);
+            if (File.Exists(managed))
+                File.Copy(managed, Path.Combine(destination, ManagedListName), true);
+        }
+
+        private static HashSet<string> ReadManagedFiles(string dir)
+        {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            string file = Path.Combine(dir, ManagedListName);
+            if (!File.Exists(file)) return names; // v1.5.6 and earlier used whole-folder swaps.
+            foreach (string name in File.ReadAllLines(file, Encoding.UTF8))
+            {
+                if (String.IsNullOrWhiteSpace(name)) continue;
+                Child(dir, name); // Reject unsafe old manifests before deleting any file.
+                names.Add(name.Trim().Replace('\\', '/'));
+            }
+            return names;
+        }
+
+        public static string InstalledVersion()
+        {
+            try
+            {
+                string manifest = Path.Combine(Target, "manifest.json");
+                if (!File.Exists(manifest)) return "";
+                Match match = Regex.Match(File.ReadAllText(manifest, Encoding.UTF8),
+                    "\\\"version\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
+                return match.Success ? match.Groups[1].Value : "";
+            }
+            catch { return ""; }
+        }
+
         public static string InstallCore()
         {
             VerifyPayload();
             Directory.CreateDirectory(Root);
             string stage = Path.Combine(Root, ".siman-stage-" + Guid.NewGuid().ToString("N"));
-            string old = Path.Combine(Root, ".siman-previous-" + Guid.NewGuid().ToString("N"));
-            bool movedOld = false;
-            bool movedNew = false;
+            string backup = Path.Combine(Root, ".siman-rollback-" + Guid.NewGuid().ToString("N"));
+            bool existing = Directory.Exists(Target);
+            bool backupReady = false;
+            bool changed = false;
+            string before = InstalledVersion();
             try
             {
                 Directory.CreateDirectory(stage);
@@ -100,37 +170,75 @@ namespace SimanSetup
                 {
                     foreach (ZipArchiveEntry entry in za.Entries)
                     {
-                        if (string.IsNullOrEmpty(entry.Name)) continue;
-                        string path = Path.GetFullPath(Path.Combine(stage, entry.FullName.Replace('/', Path.DirectorySeparatorChar)));
-                        string stageFull = Path.GetFullPath(stage) + Path.DirectorySeparatorChar;
-                        if (!path.StartsWith(stageFull, StringComparison.OrdinalIgnoreCase))
-                            throw new InvalidDataException("비정상 설치 파일 경로가 발견됐습니다.");
+                        if (String.IsNullOrEmpty(entry.Name)) continue;
+                        string path = Child(stage, entry.FullName);
                         Directory.CreateDirectory(Path.GetDirectoryName(path));
                         using (Stream input = entry.Open())
-                        using (FileStream output = new FileStream(path, FileMode.CreateNew, FileAccess.Write)) input.CopyTo(output);
+                        using (FileStream output = new FileStream(path, FileMode.CreateNew, FileAccess.Write))
+                            input.CopyTo(output);
                     }
                 }
-                if (!File.Exists(Path.Combine(stage, "manifest.json")) || !File.Exists(Path.Combine(stage, "search.html")) || !File.Exists(Path.Combine(stage, "store.js")))
+                if (!File.Exists(Path.Combine(stage, "manifest.json")) ||
+                    !File.Exists(Path.Combine(stage, "search.html")) ||
+                    !File.Exists(Path.Combine(stage, "store.js")))
                     throw new InvalidDataException("확장프로그램 구성 파일이 일부 누락됐습니다.");
-                if (Directory.Exists(Target)) { Directory.Move(Target, old); movedOld = true; }
-                Directory.Move(stage, Target); movedNew = true;
+
+                string[] incoming = Files(stage);
+                HashSet<string> incomingSet = new HashSet<string>(incoming, StringComparer.OrdinalIgnoreCase);
+                if (existing)
+                {
+                    // Back up every existing app-directory file for an on-disk rollback.
+                    // Do not delete the folder/re-register the browser extension.
+                    CopyDirectory(Target, backup);
+                    backupReady = true;
+                    HashSet<string> managedBefore = ReadManagedFiles(Target);
+                    changed = true;
+                    CopyDirectory(stage, Target);
+                    // Delete only files managed by a previous Siman installer.
+                    // Preserve unrecognized files, personal notes, and user assets.
+                    foreach (string oldFile in managedBefore)
+                    {
+                        if (incomingSet.Contains(oldFile)) continue;
+                        string stale = Child(Target, oldFile);
+                        if (File.Exists(stale)) File.Delete(stale);
+                    }
+                }
+                else
+                {
+                    changed = true;
+                    Directory.Move(stage, Target);
+                }
+                File.WriteAllLines(Path.Combine(Target, ManagedListName), incoming, Encoding.UTF8);
                 string written = File.ReadAllText(Path.Combine(Target, "manifest.json"), Encoding.UTF8);
                 if (!Regex.IsMatch(written, "\\\"version\\\"\\s*:\\s*\\\"" + Regex.Escape(AppVersion) + "\\\""))
                     throw new InvalidDataException("설치 후 버전 확인에 실패했습니다.");
-                if (movedOld) try { Directory.Delete(old, true); } catch (Exception e) { Log("Old code clean-up note: " + e.Message); }
-                Log("SUCCESS: Clean code installation (" + AppVersion + ") -> " + Target);
+                if (!File.Exists(Path.Combine(Target, "search.js")) ||
+                    !File.Exists(Path.Combine(Target, "core.js")))
+                    throw new InvalidDataException("설치 후 필수 파일 확인에 실패했습니다.");
+                Log("SUCCESS: " + (existing ? "In-place update" : "New install") +
+                    " (" + (String.IsNullOrEmpty(before) ? "none" : before) + " -> " + AppVersion + ")" +
+                    " · browser profiles and archived data untouched · " + Target);
                 return Target;
             }
             catch (Exception e)
             {
                 Log("INSTALL FAILURE: " + e.ToString());
-                if (movedOld)
+                if (changed)
                 {
                     try
                     {
-                        if (movedNew && Directory.Exists(Target)) Directory.Delete(Target, true);
-                        if (!Directory.Exists(Target) && Directory.Exists(old)) Directory.Move(old, Target);
-                        Log("Rollback completed");
+                        if (existing && backupReady)
+                        {
+                            if (Directory.Exists(Target)) Directory.Delete(Target, true);
+                            Directory.Move(backup, Target);
+                            backupReady = false;
+                            Log("ROLLBACK: old app files restored");
+                        }
+                        else if (!existing && Directory.Exists(Target))
+                        {
+                            Directory.Delete(Target, true);
+                            Log("ROLLBACK: incomplete new install removed");
+                        }
                     }
                     catch (Exception rollbackError) { Log("ROLLBACK ERROR: " + rollbackError.ToString()); }
                 }
@@ -139,6 +247,8 @@ namespace SimanSetup
             finally
             {
                 try { if (Directory.Exists(stage)) Directory.Delete(stage, true); } catch { }
+                if (backupReady)
+                    try { if (Directory.Exists(backup)) Directory.Delete(backup, true); } catch { }
             }
         }
 
