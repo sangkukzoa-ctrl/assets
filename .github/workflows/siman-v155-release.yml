@@ -1,0 +1,131 @@
+name: Siman v1.5.5 Windows regression and beta release
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/siman-v155-release.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+jobs:
+  build-verify-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode and SHA-256 verify source and extension
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Path dist,source -Force | Out-Null
+          $root='siman/release/v155'
+          foreach($kind in @('SOURCE','WEBSTORE')){
+            $name="Siman_v1.5.5_$kind.zip"
+            $s=(Get-Content (Join-Path $root ($name+'.base64')) -Raw).Trim()
+            [IO.File]::WriteAllBytes((Join-Path 'dist' $name),[Convert]::FromBase64String($s))
+          }
+          $expected=@{
+            'Siman_v1.5.5_SOURCE.zip'='64414bc1cec6e8f621ddc81e6b841ff44ab60f428af637bbb8bdfbc169f97b7b'
+            'Siman_v1.5.5_WEBSTORE.zip'='092deaa8d22f041d3770a784532d0e17e80e2b0393cf5154d5d7a8e995c6237b'
+          }
+          foreach($f in $expected.Keys){
+            $h=(Get-FileHash (Join-Path 'dist' $f) -Algorithm SHA256).Hash.ToLower()
+            if($h -ne $expected[$f]){throw "SHA mismatch $f : $h"}
+          }
+          Expand-Archive -LiteralPath 'dist/Siman_v1.5.5_SOURCE.zip' -DestinationPath source
+          Write-Host 'PASS: original source and webstore ZIP hashes'
+      - name: Node collector, bridge, visited-DOM, 429 and archive regression
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($test in @('bridge.test.cjs','collectors.test.cjs','deepseek_dom.test.cjs','v154_regressions.test.cjs','v155_archive_integrity.test.cjs','v155_capture_recovery.test.cjs')){
+            node (Join-Path 'source/tests' $test)
+            if($LASTEXITCODE -ne 0){throw "Regression failed: $test"}
+          }
+          Get-ChildItem 'source/app' -Filter '*.js' | ForEach-Object {
+            node --check $_.FullName
+            if($LASTEXITCODE -ne 0){throw "JavaScript syntax failed: $($_.Name)"}
+          }
+          $m=Get-Content 'source/app/manifest.json' -Raw -Encoding UTF8 | ConvertFrom-Json
+          if($m.manifest_version -ne 3 -or $m.version -ne '1.5.5'){throw 'Manifest mismatch'}
+          $s=Get-Content 'source/app/content.js' -Raw -Encoding UTF8
+          if($s.Contains("throw Error('심안 저장용 의존성 로딩 실패')")){throw 'Old Chrome loading crash remains'}
+          if(!$s.Contains('VISIT_SKIP') -or !$s.Contains('VISIT_ERROR') -or !$s.Contains('captureBusy')){throw 'Visited capture diagnostics missing'}
+          Write-Host 'PASS: six regression suites, Chrome content initialization and manifest'
+      - name: Compile native Windows SimanSetup.exe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $payload=Join-Path (Resolve-Path source/installer).Path 'extension_payload.zip'
+          Copy-Item 'dist/Siman_v1.5.5_WEBSTORE.zip' $payload
+          $icon=Join-Path (Resolve-Path source/installer).Path 'SimanSetup.ico'
+          $data=(Get-Content 'siman/installer-v151r2/SimanSetup.ico.base64' -Raw).Trim()
+          [IO.File]::WriteAllBytes($icon,[Convert]::FromBase64String($data))
+          $csc=Join-Path $env:windir 'Microsoft.NET/Framework/v4.0.30319/csc.exe'
+          if(!(Test-Path $csc)){throw 'Windows compiler missing'}
+          & $csc /nologo /target:winexe /platform:anycpu /optimize+ /out:dist/SimanSetup.exe "/resource:${payload},siman.extension.payload" "/win32icon:${icon}" /reference:System.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll source/installer/SimanSetup.cs
+          if($LASTEXITCODE -ne 0){throw 'Windows installer compile failure'}
+      - name: Real Windows executable fresh-install and clean replacement
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $exe=(Resolve-Path 'dist/SimanSetup.exe').Path
+          $v=Start-Process -FilePath $exe -ArgumentList '--verify' -Wait -PassThru
+          if($v.ExitCode -ne 0){throw "Embedded payload verification exit $($v.ExitCode)"}
+          $r=Start-Process -FilePath $exe -ArgumentList '--install' -Wait -PassThru
+          if($r.ExitCode -ne 0){throw "Fresh install exit $($r.ExitCode)"}
+          $target=Join-Path $env:LOCALAPPDATA '2bornot/Siman/app'
+          $manifest=Get-Content (Join-Path $target 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+          if($manifest.version -ne '1.5.5'){throw 'Unexpected installed version'}
+          $count=@(Get-ChildItem $target -Recurse -File).Count
+          if($count -lt 15){throw 'Expected extension files are missing'}
+          'remove-me' | Set-Content (Join-Path $target 'obsolete-test.txt')
+          $r=Start-Process -FilePath $exe -ArgumentList '--install' -Wait -PassThru
+          if($r.ExitCode -ne 0){throw "Clean update exit $($r.ExitCode)"}
+          if(Test-Path (Join-Path $target 'obsolete-test.txt')){throw 'Old code file survived update'}
+          if((Get-Content (Join-Path $target 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version -ne '1.5.5'){throw 'Update version mismatch'}
+          if(!(Test-Path (Join-Path $env:LOCALAPPDATA '2bornot/Siman/setup.log'))){throw 'Setup log missing'}
+          Write-Host "PASS: Windows native GUI installer, fresh and clean code replacement, $count extension files"
+      - name: Prepare release ZIPs and blog attachment
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Copy-Item 'source/README_INSTALL_BETA.txt' dist/
+          Copy-Item 'source/RELEASE_NOTES_v1.5.5.md' dist/
+          Copy-Item 'source/BLOG_UPDATE_COPY.txt' dist/
+          Copy-Item 'source/BLOGGER_INSTRUCTIONS.txt' dist/
+          Compress-Archive -Path 'dist/SimanSetup.exe','dist/README_INSTALL_BETA.txt' -DestinationPath 'dist/Siman_EasySetup_v1.5.5.zip' -Force
+          Compress-Archive -Path 'dist/SimanSetup.exe','dist/README_INSTALL_BETA.txt','dist/RELEASE_NOTES_v1.5.5.md' -DestinationPath 'dist/Siman_v1.5.5_BLOG_ATTACHMENT.zip' -Force
+          foreach($name in @('Siman_EasySetup_v1.5.5.zip','Siman_v1.5.5_BLOG_ATTACHMENT.zip')){
+            $file=Join-Path 'dist' $name
+            $archive=[IO.Compression.ZipFile]::OpenRead((Resolve-Path $file).Path)
+            try{if($archive.Entries.Count -lt 2){throw "Bad archive $name"}}finally{$archive.Dispose()}
+          }
+          $list=Get-ChildItem dist -File | Where-Object {$_.Name -match '\.(zip|exe)$'} | Sort-Object Name | ForEach-Object {
+            $h=(Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$h  $($_.Name)"
+          }
+          $list | Set-Content 'dist/SHA256SUMS.txt' -Encoding UTF8
+          Write-Host $list
+      - name: Publish GitHub beta release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag='siman-v1.5.5'
+          $items=@('dist/SimanSetup.exe','dist/Siman_EasySetup_v1.5.5.zip','dist/Siman_v1.5.5_BLOG_ATTACHMENT.zip','dist/Siman_v1.5.5_SOURCE.zip','dist/Siman_v1.5.5_WEBSTORE.zip','dist/SHA256SUMS.txt','dist/BLOG_UPDATE_COPY.txt','dist/BLOGGER_INSTRUCTIONS.txt')
+          gh release view $tag *> $null
+          if($LASTEXITCODE -eq 0){
+            gh release upload $tag @items --clobber
+          }else{
+            gh release create $tag @items --title '심안 心眼 v1.5.5 Beta — Chrome 연결 복구 및 방문 수집 개선' --notes-file 'dist/RELEASE_NOTES_v1.5.5.md' --prerelease --latest=false
+          }
+          if($LASTEXITCODE -ne 0){throw 'GitHub release failed'}
+      - name: Sign artifact provenance if Sigstore is available
+        continue-on-error: true
+        uses: actions/attest@v4
+        with:
+          subject-path: 'dist/SimanSetup.exe'
