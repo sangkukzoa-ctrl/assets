@@ -91,3 +91,34 @@
 - 고정 Windows ZIP: https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip
 - 버전별 이력: https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.6
 - 개발자 지침: 다음 사용자 실사용 로그에서 **ChatLLM 301개 중 미완료 건수 감소·타임아웃 해소**를 우선 검증. 개선이 충분하지 않다면 다음 오류 위치를 기준으로 코드 수정. v1.5.6의 모의/CI 성공을 실제 로그인 계정 301건 전수 수집 성공이라고 표현하지 말 것.
+
+## 2026-11-11 03:22 KST — v1.5.7 원클릭 자동 덮어쓰기 업데이트 완성
+
+### 사용자 요청
+- 매 버전마다 JSON 백업, 확장프로그램 삭제·재설치·다시 등록·폴더 선택하는 방식이 번거롭다.
+- **설치 관리자 실행만 하면 기존 심안 코드가 자동으로 덮어써져야 한다.**
+- ChatLens와 동일하게 블로그의 GitHub `siman-beta` 고정 다운로드 주소 유지.
+
+### 수정 구현
+- `siman/development/installer/SimanSetup.cs`: `AppVersion=1.5.7`, `InstallerRevision=4`.
+  - WinForms `Shown` 시 `DoInstall(true)` 자동 호출. 버튼은 반복 설치/복구용으로 유지.
+  - `--install` 및 `--update` CLI 동일 설치 경로 수행.
+  - `%LOCALAPPDATA%\\2bornot\\Siman\\app` 설치 루트를 **폴더 자체를 지우지 않고 관리 대상 코드 파일만 제자리 덮어쓰기**, 설치 전 .siman-rollback- 임시 복사본 마련.
+  - `.siman-managed-files.txt`로 이전 설치기 관리 대상 코드 중 불필요한 파일만 삭제, 사용자 지정 파일은 보존.
+  - 설치 중 오류 발생 시 이전 코드 파일 복원 시도; browser profile, `chrome.storage.local`, 확장프로그램 ID를 수정·제거하지 않음.
+  - 새 설치에는 브라우저 최초 등록 1회 필요. 기존 설치 업데이트에서 재등록/JSON 내보내기 단계는 불필요. 실행 중 Chrome/Edge에는 확장 새로고침 또는 브라우저 재시작 필요할 수 있음.
+  - 기존 UI의 무조건 백업·재등록하라는 잘못된 안내 제거.
+- `siman/development/app/manifest.json`, `page.js`, `search.js` 버전 v1.5.7.
+- `siman/development/README_INSTALL_BETA.txt`, `BLOG_UPDATE_COPY.txt`, `BLOGGER_INSTRUCTIONS.txt`: 원클릭 업그레이드·고정 다운로드 주소 기준 개편.
+- `.github/workflows/siman-v157-release.yml`: Node 7종 회귀 + **실제 Windows EXE 신규 설치, v1.5.6 모의 구버전 덮어쓰기, 디렉터리 생성 시각 동일성, 관리 대상 구 코드 제거, 사용자 미관리 파일 보존, 반복 업데이트** 테스트. 롤백 경로 정적 검사. 빌드·검증 후 `siman-v1.5.7` 버전 기록과 `siman-beta` 자산 업데이트.
+- v1.5.6 빌드 워크플로우는 수동 전용으로 전환해 오래된 릴리스가 최신 베타를 덮어쓰지 않도록 함.
+- Github App이 기존 `siman-beta` 태그 강제 이동을 거부(403)하므로 고정 태그 이름을 유지하고 릴리스에 있는 파일과 notes만 갱신. 현재 빌드 소스 SHA는 beta notes에 기록; 버전별 릴리스 `siman-v1.5.7` 별도 보존. 업로드 충돌 시 재시도 및 Actions 동시 배포 직렬화 추가.
+
+### 완료 및 검증 링크
+- 최종 v1.5.7 Windows 모든 빌드·실제 업데이트 테스트·고정 Beta 배포 성공: https://github.com/sangkukzoa-ctrl/assets/actions/runs/42876693700
+- 익명 public URL에서 EXE·설치 ZIP·Source ZIP·Webstore ZIP·해시와 안내문 다운로드 및 SHA-256·압축 검증 성공: https://github.com/sangkukzoa-ctrl/assets/actions/runs/42876853630
+- 고정 배포: https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta
+- 고정 Windows ZIP: https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip
+- 개별 버전: https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.7
+- CI 최종 커밋: `47a365ef0bd54461869e288d17c0adc6808a0a8b`.
+- **정확한 한계:** Chrome/Edge 확장프로그램 자체를 자동으로 재로딩하는 기능은 구현되지 않았다. 현재는 EXE 실행 → 기존 설치 디렉터리에 자동 덮어쓰기까지 구현. 브라우저 새 코드 반영에 확장 새로고침/재시작이 필요할 수 있다. 기존 크롬 프로필의 실 데이터가 다른 환경에서 자동 보존됨을 검증한 것이 아니라, CI가 디렉터리 유지·파일 보존을 테스트했고 설치 코드가 Chrome 프로필 저장소에 손대지 않는 구조다.
