@@ -54,7 +54,8 @@ jobs:
           for name in SimanSetup.exe Siman-Windows.zip Siman_SOURCE.zip Siman_WEBSTORE.zip; do
             expected=$(awk -v f="$name" '$2==f {print $1}' SHA256SUMS-LATEST.txt | tr -d '\r')
             actual=$(sha256sum "$name" | cut -d ' ' -f1)
-            test -n "$expected" && test "$actual" = "$expected" || { echo "::error::SHA256 manifest mismatch: $name"; exit 1; }
+            echo "SHA256 check $name: expected=[$expected] actual=[$actual]"
+            test -n "$expected" && test "$actual" = "$expected" || { echo "::error::SHA256 manifest mismatch: $name"; cat SHA256SUMS-LATEST.txt; exit 1; }
             digest=$(jq -r --arg name "$name" '.assets[] | select(.name == $name) | .digest // empty' release.json)
             if [ -n "$digest" ]; then
               test "$digest" = "sha256:$actual" || { echo "::error::GitHub digest mismatch: $name"; exit 1; }
