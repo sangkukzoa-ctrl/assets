@@ -221,7 +221,7 @@ async function awaitSyncResult(p,startedAt){
    if(!live?.running){
     const error='진행 상태가 95초 이상 갱신되지 않고 수집기가 중지되었습니다.';
     await debug('DISCONNECT',error,'ERROR',p);
-    await SimanStore.updateEvent({provider:p,kind:'ERROR',text:error});return {ok:false,error};
+    await SimanStore.updateEvent({provider:p,kind:'ERROR',text:error});return {ok:false,error,disconnected:true};
    }
   }
   await sleep(750);
@@ -237,11 +237,21 @@ async function runBatch(){
  try{for(const p of BULK){
   if(batchStop)break;
   batchCurrent=p;batchLabel('일괄수집 중 · '+PROVIDERS[p]+' 준비 중...\n이전 완료: '+(batchCompleted.join(', ')||'없음'));
-  const r=await runSync(p);
-  if(!r.ok){failures.push(PROVIDERS[p]+': '+(r.error||'이미 실행 중'));continue}
-  const done=await awaitSyncResult(p,r.startedAt);
+  let done=null,startError='';
+  // One bounded recovery on an orphaned page; completed IDs stay in chrome.storage.local.
+  for(let attempt=0;attempt<2&&!batchStop;attempt++){
+   const r=await runSync(p);
+   if(!r.ok){startError=r.error||'이미 실행 중';break}
+   done=await awaitSyncResult(p,r.startedAt);
+   if(!done.disconnected||attempt!==0)break;
+   await debug('AUTO_RECOVER',PROVIDERS[p]+' 수집 페이지 연결 상실 · 기존 저장 기록 유지 · 자동 재연결 1회','WARN',p);
+   batchLabel(PROVIDERS[p]+' 수집기 연결 복구 중 · 이미 저장된 원문 유지');
+   await sleep(1800);
+  }
   if(batchStop)break;
-  if(done.ok)batchCompleted.push(PROVIDERS[p]);else failures.push(PROVIDERS[p]+': '+(done.summary?.error||done.error||(done.summary?.paused?'서버 제한 대기':'미완료')));
+  if(startError)failures.push(PROVIDERS[p]+': '+startError);
+  else if(done?.ok)batchCompleted.push(PROVIDERS[p]);
+  else failures.push(PROVIDERS[p]+': '+(done?.summary?.error||done?.error||(done?.summary?.paused?'서버 제한 대기':'미완료')));
  }
  const message=(batchStop?'사용자 중지':'일괄수집 단계 종료')+'\n완료: '+(batchCompleted.join(', ')||'없음')+'\n미완료: '+(failures.join(' / ')||'없음')+'\n자세한 내용은 「진단 로그 TXT 저장」에서 확인할 수 있습니다.';
  batchLabel(message);await debug('BULK_END',message,batchStop?'WARN':'INFO');
