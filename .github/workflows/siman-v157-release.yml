@@ -161,7 +161,12 @@ jobs:
           $items=@('dist/SimanSetup.exe','dist/Siman_EasySetup_v1.5.7.zip','dist/Siman_v1.5.7_BLOG_ATTACHMENT.zip','dist/Siman_v1.5.7_SOURCE.zip','dist/Siman_v1.5.7_WEBSTORE.zip','dist/SHA256SUMS.txt','dist/BLOG_UPDATE_COPY.txt','dist/BLOGGER_INSTRUCTIONS.txt')
           gh release view $tag *> $null
           if($LASTEXITCODE -eq 0){
-            gh release upload $tag @items --clobber
+            for($attempt=1;$attempt -le 3;$attempt++){
+              gh release upload $tag @items --clobber
+              if($LASTEXITCODE -eq 0){break}
+              if($attempt -eq 3){throw 'Version archive upload failed after retries'}
+              Start-Sleep -Seconds (2*$attempt)
+            }
           }else{
             gh release create $tag @items --title '심안 心眼 v1.5.7 Beta — 설치 관리자 자동 덮어쓰기 업데이트' --notes-file 'dist/RELEASE_NOTES_v1.5.7.md' --prerelease --latest=false
           }
@@ -217,10 +222,16 @@ jobs:
           $assets=@('dist/SimanSetup.exe','dist/Siman-Windows.zip','dist/Siman_SOURCE.zip','dist/Siman_WEBSTORE.zip','dist/SHA256SUMS-LATEST.txt','dist/BETA_RELEASE_NOTES.md')
           gh release view $tag --repo $repo *> $null
           if($LASTEXITCODE -eq 0){
-            gh release upload $tag @assets --clobber --repo $repo
-            if($LASTEXITCODE -ne 0){throw 'Stable Siman beta file upload failed'}
-            gh api --method PATCH "repos/$repo/git/refs/tags/$tag" -f sha="$sha" -F force=true | Out-Null
-            if($LASTEXITCODE -ne 0){throw 'Stable Siman tag SHA update failed'}
+            for($attempt=1;$attempt -le 3;$attempt++){
+              gh release upload $tag @assets --clobber --repo $repo
+              if($LASTEXITCODE -eq 0){break}
+              if($attempt -eq 3){throw 'Stable Siman beta upload failed after retries'}
+              Start-Sleep -Seconds (2*$attempt)
+            }
+            # GitHub App tokens may not force-move an existing tag (HTTP 403).
+            # The fixed release URL and downloadable assets are updated without
+            # rewriting Git refs; BETA_RELEASE_NOTES records the actual source SHA.
+            Write-Host "Keeping the permanent download tag, publishing verified source SHA $sha"
             gh release edit $tag --repo $repo --title '심안(心眼) / Siman — 최신 무료 공개 테스트판' --notes-file 'dist/BETA_RELEASE_NOTES.md' --prerelease
             if($LASTEXITCODE -ne 0){throw 'Stable Siman release notes update failed'}
           } else {
