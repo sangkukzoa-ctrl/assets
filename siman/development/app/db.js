@@ -1,0 +1,13 @@
+(function(G){'use strict';const DB='siman_unified_v1';let cache;
+function open(){if(!cache)cache=new Promise((resolve,reject)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>{r.result.createObjectStore('conversations',{keyPath:'key'});r.result.createObjectStore('meta',{keyPath:'key'})};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});return cache}
+async function one(k){const db=await open();return new Promise((res,rej)=>{let r=db.transaction('conversations').objectStore('conversations').get(k);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function all(){const db=await open();return new Promise((res,rej)=>{let r=db.transaction('conversations').objectStore('conversations').getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)})}
+async function putMany(items){if(!items.length)return 0;const db=await open();return new Promise((res,rej)=>{const tx=db.transaction('conversations','readwrite'),s=tx.objectStore('conversations');for(const v of items){if(!v?.key)continue;let r=s.get(v.key);r.onsuccess=()=>{let old=r.result;let o={...old,...v};if(old){if(!v.messages?.length)o.messages=old.messages||[];else if(old.messages?.length && (old.complete && !v.complete || old.messages.length>v.messages.length))o.messages=old.messages;
+  o.complete=!!(v.complete||old.complete&&o.messages===old.messages);
+  for(const k of ['url','title','projectId','projectName'])if(!v[k])o[k]=old[k]||'';
+  o.expected=Math.max(Number(v.expected||0),Number(old.expected||0));if(o.expected&&o.messages.length<o.expected)o.complete=false;
+ }s.put(o)}}tx.oncomplete=()=>res(items.length);tx.onerror=()=>rej(tx.error)})}
+async function erase(){const db=await open();return new Promise((res,rej)=>{let t=db.transaction('conversations','readwrite');t.objectStore('conversations').clear();t.oncomplete=res;t.onerror=()=>rej(t.error)})}
+async function migrateLegacy(){let d=await new Promise(resolve=>{const r=indexedDB.open('chatllm_archive_search_v1');r.onsuccess=()=>resolve(r.result);r.onerror=()=>resolve(null)});if(!d||!d.objectStoreNames.contains('conversations')){d?.close();return 0}let old=await new Promise(res=>{let r=d.transaction('conversations').objectStore('conversations').getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>res([])});d.close();const converted=old.map(x=>({...x,key:'chatllm:'+x.id,provider:'chatllm',url:G.SimanCore.sourceUrl('chatllm',x.id,x.url),messages:(x.messages||[]).map((m,i)=>({...m,index:m.index??i}))}));await putMany(converted);return converted.length}
+G.SimanDB={open,one,all,putMany,erase,migrateLegacy};
+})(globalThis);

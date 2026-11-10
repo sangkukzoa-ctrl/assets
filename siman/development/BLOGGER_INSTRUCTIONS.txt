@@ -1,0 +1,16 @@
+네이버 블로그 심안 v1.5.5 Beta 갱신 순서
+
+1. 기존 v1.5.4 Beta 게시글을 편집합니다. 새 글을 만들 필요는 없습니다.
+2. 본문 최상단에 BLOG_UPDATE_COPY.txt 내용을 붙여넣습니다.
+3. 구버전 블로그 첨부 ZIP을 Siman_v1.5.5_BLOG_ATTACHMENT.zip으로 교체합니다.
+4. 기존 GitHub 링크를 https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.5 로 변경합니다.
+5. 제목에서 버전이 표기된 부분을 v1.5.5 Beta로 변경합니다.
+6. 기존 설명의 '모든 AI 대화 전수 수집' 같은 표현이 있다면, 서비스별 수집 범위에 맞게 수정합니다.
+7. 사용자 백업 주의 문구를 함께 남기고 업데이트 공지에 날짜를 표시합니다.
+
+배포물:
+- Siman_v1.5.5_BLOG_ATTACHMENT.zip : 사용자에게 전달
+- SimanSetup.exe : 직링크를 원하는 사용자용
+- Siman_v1.5.5_SOURCE.zip : 공개 소스·회귀 테스트
+- Siman_v1.5.5_WEBSTORE.zip : 스토어 제출용(아직 제출 전)
+- SHA256SUMS.txt : 파일 해시 검증

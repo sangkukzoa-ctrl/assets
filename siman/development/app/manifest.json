@@ -1,0 +1,83 @@
+{
+  "manifest_version": 3,
+  "name": "심안 (心眼) — AI 대화 통합 검색",
+  "short_name": "심안 心眼",
+  "version": "1.5.5",
+  "description": "심안 v1.5.5 — Chrome 연결 자가복구, 방문 수집 진단, 데이터 보존 및 검색 개선",
+  "minimum_chrome_version": "130",
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting",
+    "unlimitedStorage"
+  ],
+  "host_permissions": [
+    "https://apps.abacus.ai/*",
+    "https://*.abacus.ai/*",
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://claude.ai/*",
+    "https://*.claude.ai/*",
+    "https://gemini.google.com/*",
+    "https://chat.deepseek.com/*",
+    "https://grok.com/*"
+  ],
+  "action": {
+    "default_title": "심안 — 전체 AI 채팅 검색",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png",
+      "48": "icons/48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "options_page": "search.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://apps.abacus.ai/*",
+        "https://*.abacus.ai/*",
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://claude.ai/*",
+        "https://*.claude.ai/*",
+        "https://gemini.google.com/*",
+        "https://chat.deepseek.com/*",
+        "https://grok.com/*"
+      ],
+      "js": [
+        "core.js",
+        "network.js",
+        "page.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://apps.abacus.ai/*",
+        "https://*.abacus.ai/*",
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://claude.ai/*",
+        "https://*.claude.ai/*",
+        "https://gemini.google.com/*",
+        "https://chat.deepseek.com/*",
+        "https://grok.com/*"
+      ],
+      "js": [
+        "core.js",
+        "store.js",
+        "content.js"
+      ],
+      "world": "ISOLATED",
+      "run_at": "document_start"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict'),path=require('path');
+const root=path.resolve(__dirname,'../app');const raw=new Map();
+const store={async get(keys){keys=keys==null?[...raw.keys()]:Array.isArray(keys)?keys:[keys];return Object.fromEntries(keys.filter(k=>raw.has(k)).map(k=>[k,raw.get(k)]))},async getKeys(){return [...raw.keys()]},async set(items){for(const [k,v] of Object.entries(items))raw.set(k,v)},async remove(keys){for(const k of Array.isArray(keys)?keys:[keys])raw.delete(k)}};
+const ctx={chrome:{storage:{local:store}},Date,Map,Set,URL,console};ctx.globalThis=ctx;vm.createContext(ctx);
+for(const n of ['core.js','store.js'])vm.runInContext(fs.readFileSync(path.join(root,n),'utf8'),ctx,{filename:n});
+(async()=>{
+  const S=ctx.SimanStore,C=ctx.SimanCore;
+  const prior=C.record('chatgpt','abc-111','과거 대화',[{role:'user',text:'마군이 등장했다'},{role:'assistant',text:'기존 원문 유지'}],{complete:true,expected:2,url:'https://chatgpt.com/c/abc-111'});
+  await S.save(prior);
+  const newDom=C.record('chatgpt','abc-111','과거 대화',[{role:'user',text:'일부 화면만'}],{complete:false,url:'https://chatgpt.com/c/abc-111'});
+  await S.save(newDom);
+  const old=await S.one('chatgpt:abc-111');
+  assert.equal(old.complete,true,'completed record was downgraded by visited partial DOM');
+  assert.equal(old.messages.length,2,'prior complete transcript was overwritten');
+  await S.save(C.record('deepseek','ds-111','DeepSeek',[{role:'user',text:'마군 질문'}],{complete:false,source:'visited-dom'}));
+  const results=C.find(await S.all(),'마군',{},100);
+  assert.equal(results.length,2,'local full-text search must cover both partial and complete records');
+  const catalog=await S.getCatalogs();
+  assert.equal(catalog.chatgpt['abc-111'].status,'complete');
+  assert.equal(catalog.deepseek['ds-111'].status,'partial');
+  console.log('PASS existing completed archive preserved, partial visited record searchable, catalog intact');
+})().catch(e=>{console.error(e);process.exitCode=1});

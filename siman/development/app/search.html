@@ -1,0 +1,29 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>심안 心眼 — 모든 AI 대화 검색</title><link rel="stylesheet" href="style.css"></head><body>
+<header><div class="brand"><span class="emblem">心眼</span><div><h1>심안 <small>SIMAN</small></h1><p>AI 대화 통합 원문 검색 · 모든 데이터는 브라우저에 저장됩니다.</p></div></div><span class="version">v1.5.4</span></header>
+<div class="shell"><aside>
+ <h2>전체 기록 수집</h2>
+ <p class="sub">일괄수집: ChatLLM → Claude → ChatGPT (순차 진행). 기존 완료 기록은 건너뜁니다.</p>
+ <button id="bulkStart" class="primaryAction">▶ 전체 일괄수집 시작</button>
+ <button id="bulkStop" class="secondaryAction" disabled>■ 전체 수집 중지</button>
+ <div id="batchProgress" class="batchStatus" role="status" aria-live="polite">대기 중 · 아래에서 수집 현황을 확인하세요.</div>
+ <p class="sub">Gemini · DeepSeek · Grok: 방문한 대화만 자동 저장하며, 현재 전체 과거 기록 일괄수집에는 포함되지 않습니다.</p>
+ <h2>검색 데이터 현황</h2><div id="stats">기록 확인 중…</div>
+ <div id="progress"></div>
+ <div class="diagActions"><button id="saveDebug" class="diagPrimary">진단 로그 TXT 저장</button><button id="copyDiagnostics">요약 진단 복사</button></div>
+ <div id="diagnostic" class="sub"></div>
+ <details id="advanced"><summary>서비스별 수집 · 연결 복구 · 백업 (고급)</summary>
+  <p class="sub">특정 서비스만 다시 수집하거나 원문 백업을 가져올 때 사용합니다.</p>
+  <div class="syncGroup"><button class="sync" data-p="chatllm">ChatLLM 수집·재개</button><button class="stopSync" data-p="chatllm">중지</button></div>
+  <div class="syncGroup"><button class="sync" data-p="claude">Claude 수집·재개</button><button class="stopSync" data-p="claude">중지</button></div>
+  <div class="syncGroup"><button class="sync" data-p="chatgpt">ChatGPT 수집·재개</button><button class="stopSync" data-p="chatgpt">중지</button></div>
+  <button id="repair">↻ 열린 탭 연결 재설정</button>
+  <p class="sub">Gemini · DeepSeek · Grok은 방문한 대화만 자동 저장합니다.</p>
+  <hr><h2>백업 및 가져오기</h2>
+  <label class="upload">ZIP / JSON 기록 가져오기<input type="file" id="importFile" accept=".zip,.json,.jsonl" multiple hidden></label>
+  <button id="export">전체 원문 백업 저장</button>
+  <button id="clear" class="danger">로컬 색인 초기화</button>
+ </details>
+</aside>
+<main><div class="searchbar"><input id="query" type="search" autofocus placeholder="검색어 입력… 예: 마군 / 백절불굴 / 3000원" spellcheck="false"><button id="search">검색</button></div><div class="filters"><select id="provider"><option value="">모든 AI</option><option value="chatllm">ChatLLM</option><option value="chatgpt">ChatGPT</option><option value="claude">Claude</option><option value="gemini">Gemini</option><option value="deepseek">DeepSeek</option><option value="grok">Grok</option></select><select id="role"><option value="all">모든 메시지</option><option value="user">내 메시지만</option><option value="assistant">AI 답변만</option></select><span id="hitCount">검색어를 입력하면 원문을 찾습니다.</span></div><div id="hits" class="hits"><div class="placeholder">심안(心眼)<p>파일 이름이 아닌, 모든 대화의 실제 내용을 검색합니다.</p></div></div></main>
+<section class="reader"><div class="readerTop"><h2 id="readerTitle">원문 뷰어</h2><span id="readerSource" class="sub">결과를 선택하세요.</span></div><div id="readerContent" class="readerContent"><div class="placeholder small">검색 결과를 선택하면 해당 메시지와 전후 맥락을 보여줍니다.</div></div><div class="readerActions"><button id="copyMessage" disabled>메시지 복사</button><button id="copyChat" disabled>대화 전체 복사</button><button id="openOriginal" disabled>원본 서비스에서 열기</button></div></section></div>
+<div id="toast" role="status" aria-live="polite"></div><script src="core.js"></script><script src="db.js"></script><script src="store.js"></script><script src="vendor/jszip.min.js"></script><script src="search.js"></script></body></html>
