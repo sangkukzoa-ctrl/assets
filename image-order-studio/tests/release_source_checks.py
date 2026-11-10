@@ -6,7 +6,7 @@ export=(p/'app/src/main/java/com/twobornot/imageorder/ImageExporter.java').read_
 ledger=(p/'app/src/main/java/com/twobornot/imageorder/SequenceLedger.java').read_text()
 manifest=(p/'app/src/main/AndroidManifest.xml').read_text()
 gradle=(p/'app/build.gradle').read_text()
-assert "versionCode 4" in gradle and "versionName '0.3.0'" in gradle
+assert "versionCode 5" in gradle and "versionName '0.4.0'" in gradle
 assert 'applicationId \'com.twobornot.imageorder\'' in gradle
 assert 'android.permission.INTERNET' not in manifest
 assert 'READ_MEDIA_IMAGES' not in manifest and 'READ_EXTERNAL_STORAGE' not in manifest
@@ -35,3 +35,28 @@ for required in ['compact?"jpg":"png"', 'writeJpeg(', 'writePng(', 'ORDER  %04d 
 assert '.sort(' not in ledger and 'Collections.swap(' in ledger
 assert not list(p.rglob('*.jks')) and not list(p.rglob('*.p12'))
 print('Release source and permission checks PASS')
+
+# 0.4.0: Native Samsung gallery first, plus cross-site MediaStore/SAF fallbacks.
+assert 'com.sec.android.gallery3d' in source
+assert 'gallery.setPackage(SAMSUNG_GALLERY)' in source
+assert 'Intent.ACTION_GET_CONTENT' in source
+assert 'trySystemPhotoPicker()' in source
+assert 'getPreferences(MODE_PRIVATE)' in source
+assert 'GalleryMediaExporter.publish(this,results)' in source
+assert 'OrderedOutbox.publish(this,results)' in source
+assert 'WRITE_OLD_GALLERY' in source
+assert 'android.permission.WRITE_EXTERNAL_STORAGE' in manifest and 'android:maxSdkVersion="28"' in manifest
+assert 'android.permission.MANAGE_DOCUMENTS' in manifest
+assert 'android.permission.BIND_QUICK_SETTINGS_TILE' in manifest
+provider=(p/'app/src/main/java/com/twobornot/imageorder/OrderedDocumentsProvider.java').read_text()
+outbox=(p/'app/src/main/java/com/twobornot/imageorder/OrderedOutbox.java').read_text()
+gallery=(p/'app/src/main/java/com/twobornot/imageorder/GalleryMediaExporter.java').read_text()
+tile=(p/'app/src/main/java/com/twobornot/imageorder/OrderTileService.java').read_text()
+assert 'queryRoots' in provider and 'queryChildDocuments' in provider and 'openDocument' in provider
+assert 'ParcelFileDescriptor.MODE_READ_ONLY' in provider
+assert 'cleanOld(root,12)' in outbox
+assert 'MediaStore.MediaColumns.RELATIVE_PATH' in gallery
+assert 'MediaStore.MediaColumns.IS_PENDING' in gallery
+assert 'Pictures/' not in gallery  # use official DIRECTORY_PICTURES instead
+assert 'startActivityAndCollapse(intent)' in tile
+print('v0.4.0 Android gallery / SAF / Quick Settings source checks PASS')

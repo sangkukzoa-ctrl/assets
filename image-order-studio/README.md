@@ -1,51 +1,36 @@
-# Image Order Studio / 이미지 순서 스튜디오 v0.3.0
+# Image Order Studio / 이미지 순서 스튜디오 v0.4.0
 
-Android 8.0+ · **2bornot** · Free / 무료 · Offline-first, no advertisements · Korean/English UI
+Developer **2bornot** · Android 8.0+ · KR/EN · offline, no ads, no network access.
 
-**Goal:** Give images an explicit, immutable *logical sequence* after they are imported. Android and third-party sites may still place attachments in a different order; visible order markers and single-image combining retain evidence of the user's intended sequence independently of filename, extension, original import order, and website UI.
+## 핵심 사용법 — 웹사이트의 이미지 첨부창이 앱 선택을 막아도 동작
 
-## 사용법 / Usage
+1. **Image Order Studio** 실행 → **＋ 삼성/기본 갤러리**. Galaxy에서는 실제 Samsung Gallery 이미지 선택 인텐트를 먼저 호출합니다. 다른 스마트폰은 시스템 갤러리로 대체됩니다. '사진 선택 설정'에서 선택 방식을 바꿀 수 있습니다.
+2. 이미지 목록에서 **사용할 순서대로 사진을 누릅니다.** 파란색 순번은 원본 이름이나 확장자와 무관합니다. 순서 편집으로 조정할 수 있습니다.
+3. **① 갤러리 앨범에 저장**: 휴대폰 사진 갤러리의 `Image Order Studio` 앨범에 번호가 각인된 이미지가 저장됩니다. 어느 사이트에서든 기존 사진 선택창을 이용해 이 앨범의 이미지를 골라 첨부합니다. 사이트의 첨부 목록이 재정렬되어도 각 이미지의 헤더에 순서가 남습니다.
+4. **② 한 장으로 갤러리 저장**: 최대 12장의 이미지를 번호가 표시된 1장의 이미지로 결합합니다. 이미지 한 장만 받거나 첨부 순서가 강제로 뒤섞이는 사이트에서 사용합니다.
 
-### 사이트의 첨부 버튼에서 시작 (권장)
+Android 표준 파일 선택기의 저장소 목록에 `Image Order Studio` 공급자도 추가됩니다. 최근 준비된 묶음은 각 폴더에서 열 수 있습니다.
 
-1. 지원되는 사이트나 앱에서 사진 첨부를 누릅니다. Android 선택창에 **Image Order Studio**가 나타나면 선택합니다. Android의 기본앱 선택 화면이 제공되는 경우 **항상**으로 설정할 수 있습니다.
-2. 앱에서 **갤러리에서 사진 선택**을 자동으로 열어 시스템 사진 선택기에서 사진을 가져옵니다. Android 15 / R Extensions 12 이상에서 Photo Picker가 순서 표시/반환을 지원하면 순번을 자동 반영합니다. 그 외 버전은 앱 안에서 원하는 순서대로 사진 타일을 누르십시오.
-3. **사이트에 첨부** 버튼을 누릅니다. 앱은 번호 표시된 이미지의 `content://` URI를 원래 호출자에게 `RESULT_OK`, `ClipData`, 읽기 권한과 함께 직접 반환합니다. 추가 공유 화면 없이 첨부 요청이 완료됩니다.
-4. 호출자가 **한 장만** 받으면 한 장을 선택하거나 (12장 이하) 순서대로 한 장으로 결합합니다. 여러 장을 요청한 사이트에는 정해진 순서의 여러 URI를 전달합니다.
+## 즉시 실행
 
-### 앱 직접 실행
+Android의 빠른 설정 패널을 아래로 두 번 끌어 내려 편집(+)을 열고 **Image Order Studio** 타일을 추가하면 어느 앱에서도 열 수 있습니다. 타일은 화면 위에 지속되는 오버레이가 아니며 특별한 접근성 권한을 사용하지 않습니다.
 
-1. **＋ 갤러리에서 사진 선택**을 누릅니다. 시스템 사진 선택기가 우선 표시되고, 미지원 기기는 갤러리/파일 선택 옵션을 표시합니다.
-2. 파란색 번호가 순서를 뜻합니다. 클릭해 추가/제거하고 **순서 편집**으로 수정합니다.
-3. 번호 표시 JPG/PNG 공유, 폴더 저장, 하나로 결합 등을 선택합니다.
+## 삼성 갤러리를 100% 그대로 보여주는 것과의 관계
 
-사이트마다 Android `ACTION_GET_CONTENT`, `ACTION_PICK`, 시스템 `ACTION_OPEN_DOCUMENT`, 또는 최신 Photo Picker 호출 경로를 사용합니다. 이 앱은 표준 이미지 `GET_CONTENT` 및 `PICK`를 처리합니다. `ACTION_OPEN_DOCUMENT`와 시스템 독점 사진 선택기에서는 타사 앱이 전체 화면을 대체할 수 없으므로 앱 직접 실행 / 공유로 이용할 수 있습니다. Android 13+의 Photo Picker 기본 개입도 기기별로 다릅니다.
+`ACTION_GET_CONTENT`/`ACTION_PICK`로 삼성 갤러리 패키지를 직접 우선 호출합니다. 삼성 갤러리의 선택 화면 자체는 One UI 버전과 내부 인텐트 처리에 따라 달라질 수 있습니다. '다른 기능·설정 → 삼성 갤러리 앱 직접 열기'는 실제 갤러리 앱 전체를 열며, 갤러리 안에서 사진을 공유하여 Image Order Studio로 가져오는 기능도 지원합니다.
 
-Image byte-order is encoded into each numbered output's visible header, not inferred from filenames. Receiver apps can still display attachments in their own ordering.
+## 외부 첨부창
+
+`ACTION_GET_CONTENT` / `ACTION_PICK`를 호출하는 웹사이트·앱에서 이 앱이 선택기에 나타나면 선택하고 원하는 순서를 지정하여 결과 이미지를 반환할 수 있습니다. 시스템 Photo Picker 자체와 모든 앱의 자체 첨부 처리에는 타사 앱이 강제로 개입할 수 없습니다. 위의 '갤러리 앨범에 저장'은 이 제한을 피해 사용자 사진 목록에 파일을 제공하는 범용 경로입니다.
+
+## Build
+
+- `gradle :app:assembleRelease` (Gradle 8.11.1, Java 17, Android SDK 36).
+- `Image Order Studio - Android development CI` enforces pure-Java sequence, 166-image naming, Android source and permissions invariants.
+- `Image Order Studio - signed stable public beta` signs with the EXISTING Image Order Studio stable private certificate (unchanged across v0.2.0→v0.3.0→v0.4.0) and verifies installation on Android emulator before publishing.
+- Fixed public release: https://github.com/sangkukzoa-ctrl/assets/releases/tag/image-order-beta
+- No private certificate or password should ever be committed, included in a ZIP, or published as a GitHub asset.
 
 ## Privacy
 
-No INTERNET permission, analytics SDKs, ads, account creation, external uploading, or broad gallery read permission. Image access is initiated via Android's document picker or other apps' explicit share actions. Images and ordering information are stored as local private copies; originals remain unchanged. Rendering creates temporary export files in app cache. You choose the external app or website and when to upload. See [PRIVACY_KO_EN.md](PRIVACY_KO_EN.md).
-
-## Limitations / 주의
-
-- The app **does not control** how unrelated website attachment lists are sorted. The visible header and single-image export are the universal fallbacks, not a bypass for external APIs.
-- All ranks must be applied inside this app, independently of picker-selected order.
-- Numbered JPEG is resized to limit resource use. PNG is lossless *after decoding and size sampling*, but large originals may be downsampled. Use original sharing to preserve original bytes.
-- Preview thumbnails are limited in size. HEIC/WebP and animation support depend on Android codecs; GIF rendering uses a static frame.
-- Combining 12+ images or too-tall pages is intentionally limited to prevent OOM errors. Select fewer or use individual numbered images.
-- The app cannot guarantee upload order when a site removes visible headers or aggressively crops, or when a site rejects attachments altogether.
-
-## Build & release
-
-Source tree is `image-order-studio/`. Dev CI `.github/workflows/image-order-ci.yml` builds and checks unsigned release and debug artifacts. Beta release CI `.github/workflows/image-order-beta-release.yml` builds, validates, **signs** and publicly releases an installable APK with Android's APK signing schemes v2/v3 (Android 8+), only when provided a private release key encrypted to a one-use runner certificate. Public release tag `image-order-beta` is stable; assets are versionless and only overwritten after validations. **Never publish `.p12` signing keys or passwords** in GitHub, Actions artifacts or source ZIP. The release key is to be retained privately for upgrades.
-
-## QA
-
-- 166-image ledger regression, restore after restart, duplicate/cross-extension names, swap/deselect and malformed input are covered by `tests/SequenceLedgerTest.java`.
-- CI verifies minimum Android API 26, applicationId `com.twobornot.imageorder`, no INTERNET permission, source metadata and signability.
-- Physical-device installation and target-site image attachment order (ChatGPT, review websites) should be tested from the public beta APK. They are separate from compilation and static signing checks.
-
-## License
-
-Copyright 2026 2bornot. This source snapshot is provided for inspection and personal test use. See RELEASE_NOTES_KO_EN.md.
+No INTERNET permission, app analytics or ads. Android 10+ MediaStore writes user-approved results to the visible device Gallery; Android 8/9 asks for legacy WRITE_EXTERNAL_STORAGE only when exporting to Gallery. No general READ_MEDIA_IMAGES permission is requested. The DocumentsProvider is read-only and serves only user-prepared outputs. Original images remain unchanged.

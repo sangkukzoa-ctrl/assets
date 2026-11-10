@@ -23,7 +23,9 @@ import java.util.concurrent.*;
  * Rendered numbered images are the cross-site fallback when receivers re-sort attachments.
  */
 public class MainActivity extends Activity {
-    private static final int IMPORT_IMAGES=100, CHOOSE_FOLDER=200;
+    private static final int IMPORT_IMAGES=100, CHOOSE_FOLDER=200, WRITE_OLD_GALLERY=300;
+    private static final String SAMSUNG_GALLERY="com.sec.android.gallery3d";
+    private static final String PHOTO_PREF="preferred_photo_source";
     private static final int NAVY=0xff182C46, BLUE=0xff2563EB, MUTED=0xff60748C;
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final ExecutorService thumbWorker=Executors.newFixedThreadPool(2);
@@ -46,6 +48,7 @@ public class MainActivity extends Activity {
     private boolean working=false;
     private boolean selectedOnly=false;
     private boolean selectedFirst=false;
+    private boolean pendingGalleryCombine=false;
     private final ArrayList<GalleryStore.Item> visibleItems = new ArrayList<>();
 
     private boolean ko() {return Locale.getDefault().getLanguage().equals("ko");}
@@ -85,20 +88,11 @@ public class MainActivity extends Activity {
             t("선택한 순서가 곧 정답입니다", "Your selection order is authoritative"),12,0xffcbd8ee,false);
         header.addView(subtitle);
         LinearLayout toolbar=row(); toolbar.setPadding(dp(8),dp(10),dp(8),dp(5));root.addView(toolbar);
-        addButton(toolbar,t("＋ 갤러리에서 사진 선택","＋ Choose photos in gallery"),()->openPicker(),BLUE);
-        addButton(toolbar,t("순서 편집","Edit order"),()->editSequence(),NAVY);
-        if(!externalMode) {
-            LinearLayout toolbar2=row();toolbar2.setPadding(dp(8),0,dp(8),dp(8));root.addView(toolbar2);
-            addButton(toolbar2,t("선택한 것만","Selected only"),()->{
-                selectedOnly=!selectedOnly;rebuildVisible();updateCounters();
-            },NAVY);
-            addButton(toolbar2,t("선택 먼저","Selected first"),()->{
-                selectedFirst=!selectedFirst;rebuildVisible();updateCounters();
-            },NAVY);
-            LinearLayout toolbar3=row(); toolbar3.setPadding(dp(8),0,dp(8),dp(6));root.addView(toolbar3);
-            addButton(toolbar3,t("선택 초기화","Clear selection"),()->confirmClearSequence(),0xff6f8095);
-            addButton(toolbar3,t("보관함 비우기","Clear library"),()->confirmClearLibrary(),0xff6f8095);
-        }
+        addButton(toolbar,t("＋ 삼성/기본 갤러리","＋ Gallery / albums"),()->openPicker(),BLUE);
+        addButton(toolbar,t("사진 선택 설정","Photo source"),()->choosePhotoSource(),NAVY);
+        LinearLayout toolbarOrder=row();toolbarOrder.setPadding(dp(8),0,dp(8),dp(5));root.addView(toolbarOrder);
+        addButton(toolbarOrder,t("순서 편집","Edit order"),()->editSequence(),NAVY);
+        if(!externalMode)addButton(toolbarOrder,t("다른 기능 · 설정","More tools / settings"),()->showOtherTools(),0xff6f8095);
         status=text("",13,NAVY,true);status.setPadding(dp(14),dp(8),dp(14),dp(5));root.addView(status);
         TextView instructions=text(externalMode?
             t("사진의 파란 숫자가 업로드 순서입니다. 원하는 순서대로 누르고 '사이트에 첨부'를 누르세요.",
@@ -143,17 +137,17 @@ public class MainActivity extends Activity {
             addButton(secondary,t("처음부터 선택","Restart order"),()->confirmClearSequence(),NAVY);
             addButton(secondary,t("취소하고 돌아가기","Cancel and return"),()->cancelExternal(),0xff6f8095);
         } else {
-            TextView actions=text(t("외부 업로드용 내보내기","EXPORT FOR OTHER APPS / WEBSITES"),11,MUTED,true);
+            TextView actions=text(t("모든 사이트에서 사용하기 · 갤러리에 저장","USE FROM ANY WEBSITE · SAVE TO GALLERY"),11,MUTED,true);
             actions.setPadding(dp(13),dp(9),0,dp(4));root.addView(actions);
-            LinearLayout bottom1=row();bottom1.setPadding(dp(8),0,dp(8),dp(5));root.addView(bottom1);
-            addButton(bottom1,t("JPG 최적화 공유","Share compact JPG"),()->shareNumbered(true),BLUE);
-            addButton(bottom1,t("PNG 원본화질 공유","Share numbered PNG"),()->shareNumbered(false),NAVY);
-            LinearLayout bottomSave=row();bottomSave.setPadding(dp(8),0,dp(8),dp(4));root.addView(bottomSave);
-            addButton(bottomSave,t("폴더에 저장","Save to folder"),()->pickFolder(),NAVY);
-            addButton(bottomSave,t("순서 목록 복사","Copy sequence"),()->copyManifest(),0xff6f8095);
-            LinearLayout bottom2=row();bottom2.setPadding(dp(8),0,dp(8),dp(11));root.addView(bottom2);
-            addButton(bottom2,t("한 장으로 결합","Combine to one"),()->shareCombined(),NAVY);
-            addButton(bottom2,t("원본 공유","Share originals"),()->shareOriginals(),0xff6f8095);
+            LinearLayout albumActions=row();albumActions.setPadding(dp(8),0,dp(8),dp(5));root.addView(albumActions);
+            addButton(albumActions,t("① 갤러리 앨범에 저장","① Save to Gallery album"),()->publishGallery(false),BLUE);
+            addButton(albumActions,t("② 한 장으로 갤러리 저장","② Single image to Gallery"),()->publishGallery(true),NAVY);
+            LinearLayout bottomActions=row();bottomActions.setPadding(dp(8),0,dp(8),dp(5));root.addView(bottomActions);
+            addButton(bottomActions,t("공유하기","Share images"),()->shareNumbered(true),NAVY);
+            addButton(bottomActions,t("다른 기능 · 설정","More options"),()->showOtherTools(),0xff6f8095);
+            TextView hint=text(t("어느 사이트에서든: 이 앱에서 순서 지정 → 갤러리 앨범에 저장 → 원래 앱의 기본 첨부창에서 'Image Order Studio' 앨범 선택",
+                "For any website: set order here → Save to Gallery → select from the Image Order Studio album in that site's normal picker"),11,MUTED,false);
+            hint.setPadding(dp(13),0,dp(13),dp(8));root.addView(hint);
         }
     }
     private LinearLayout row() {
@@ -237,38 +231,88 @@ public class MainActivity extends Activity {
             +t("장"," images") + (selectedOnly?t("  •  선택만 표시","  •  Filtered"):"")
             + (selectedFirst?t("  •  선택순 정렬","  •  Ordered first"):""));
     }
+    /** Prefers the actual Samsung Gallery component (Galaxy devices), not Android's Photo Picker album sheet. */
     private void openPicker() {
         if(working)return;
-        // Android 15 / R Extensions 12: the OS itself displays and preserves tap order.
-        int extension=Build.VERSION.SDK_INT>=30?
-            SdkExtensions.getExtensionVersion(Build.VERSION_CODES.R):0;
-        boolean ordered=PickerDecision.supportsOrderedPicker(Build.VERSION.SDK_INT,extension);
-        boolean supported=PickerDecision.supportsPhotoPicker(Build.VERSION.SDK_INT,extension);
-        if(supported) {
-            try {
-                Intent photo=new Intent(MediaStore.ACTION_PICK_IMAGES);
-                photo.setType("image/*");
-                int limit=MediaStore.getPickImagesMaxLimit();
-                if(limit>1)photo.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX,Math.min(limit,100));
-                if(ordered)photo.putExtra(MediaStore.EXTRA_PICK_IMAGES_IN_ORDER,true);
-                nativePickerOrdered=ordered;
-                startActivityForResult(photo,IMPORT_IMAGES);
-                return;
-            } catch(Exception notAvailable) { nativePickerOrdered=false; }
-        }
-        // Older devices: the gallery app can be chosen in this multi-select chooser.
-        // Exclude this app so we do not recursively open ourselves as an image provider.
+        String source=getPreferences(MODE_PRIVATE).getString(PHOTO_PREF,"samsung");
+        if("samsung".equals(source)&&trySamsungPicker())return;
+        if("system".equals(source)&&trySystemPhotoPicker())return;
+        if("generic".equals(source)&&tryOtherGalleryPicker())return;
+        if(!"system".equals(source)&&tryOtherGalleryPicker())return;
+        if(trySystemPhotoPicker())return;
+        toastDialog(t("사용 가능한 사진 선택기를 찾지 못했습니다.","No compatible gallery picker found."));
+    }
+    private boolean trySamsungPicker() {
+        // Package-targeted ACTION_GET_CONTENT bypasses the unrequested AOSP Photo Picker UI.
+        // Samsung Gallery returns the user's chosen images via ordinary content:// URIs.
+        Intent gallery=new Intent(Intent.ACTION_GET_CONTENT);
+        gallery.setType("image/*");gallery.setPackage(SAMSUNG_GALLERY);
+        gallery.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);
+        if(tryPhotoIntent(gallery))return true;
+        Intent pick=new Intent(Intent.ACTION_PICK,MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        pick.setType("image/*");pick.setPackage(SAMSUNG_GALLERY);
+        pick.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);
+        return tryPhotoIntent(pick);
+    }
+    private boolean tryPhotoIntent(Intent intent) {
         try {
-            Intent photos=new Intent(Intent.ACTION_GET_CONTENT);
-            photos.setType("image/*");photos.addCategory(Intent.CATEGORY_OPENABLE);
-            photos.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);
-            Intent chooser=Intent.createChooser(photos,t("갤러리 / 사진 선택","Gallery / choose photos"));
+            if(intent.resolveActivity(getPackageManager())==null)return false;
+            nativePickerOrdered=false;
+            startActivityForResult(intent,IMPORT_IMAGES);
+            return true;
+        }catch(Exception ignored){return false;}
+    }
+    private boolean trySystemPhotoPicker() {
+        try {
+            int extension=Build.VERSION.SDK_INT>=30?SdkExtensions.getExtensionVersion(Build.VERSION_CODES.R):0;
+            boolean ordered=PickerDecision.supportsOrderedPicker(Build.VERSION.SDK_INT,extension);
+            if(!PickerDecision.supportsPhotoPicker(Build.VERSION.SDK_INT,extension))return false;
+            Intent photo=new Intent(MediaStore.ACTION_PICK_IMAGES);
+            photo.setType("image/*");
+            int limit=MediaStore.getPickImagesMaxLimit();
+            if(limit>1)photo.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX,Math.min(limit,100));
+            if(ordered)photo.putExtra(MediaStore.EXTRA_PICK_IMAGES_IN_ORDER,true);
+            if(photo.resolveActivity(getPackageManager())==null)return false;
+            nativePickerOrdered=ordered;
+            startActivityForResult(photo,IMPORT_IMAGES);
+            return true;
+        }catch(Exception ignored){nativePickerOrdered=false;return false;}
+    }
+    private boolean tryOtherGalleryPicker() {
+        try {
+            Intent images=new Intent(Intent.ACTION_GET_CONTENT);
+            images.setType("image/*");images.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);
+            images.addCategory(Intent.CATEGORY_OPENABLE);
+            Intent chooser=Intent.createChooser(images,t("앨범/갤러리에서 선택","Select from Gallery / albums"));
             chooser.putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS,new android.content.ComponentName[]{
-                new android.content.ComponentName(this,MainActivity.class)
-            });
+                new android.content.ComponentName(this,MainActivity.class)});
             nativePickerOrdered=false;
             startActivityForResult(chooser,IMPORT_IMAGES);
-        } catch(Exception e){toastDialog(t("사진 선택기를 열 수 없습니다: ","Cannot open photo picker: ")+e.getMessage());}
+            return true;
+        }catch(Exception ignored){return false;}
+    }
+    private void choosePhotoSource() {
+        final String[] methods={t("삼성 갤러리 우선 (권장)","Samsung Gallery first (recommended)"),
+            t("안드로이드 시스템 사진 선택기","Android system photo picker"),
+            t("다른 갤러리 / 이미지 선택 앱","Other gallery / image picker")};
+        final String[] ids={"samsung","system","generic"};
+        String saved=getPreferences(MODE_PRIVATE).getString(PHOTO_PREF,"samsung");
+        int current=0;for(int i=0;i<ids.length;i++)if(ids[i].equals(saved))current=i;
+        new AlertDialog.Builder(this).setTitle(t("사진을 어디에서 선택할까요?","Choose image source"))
+            .setSingleChoiceItems(methods,current,(d,which)->{
+                getPreferences(MODE_PRIVATE).edit().putString(PHOTO_PREF,ids[which]).apply();
+                d.dismiss();openPicker();
+            }).setNegativeButton(t("닫기","Close"),null).show();
+    }
+    private void openFullSamsungGallery() {
+        try {
+            Intent gallery=getPackageManager().getLaunchIntentForPackage(SAMSUNG_GALLERY);
+            if(gallery==null)throw new android.content.ActivityNotFoundException("Samsung Gallery not installed");
+            toastDialog(t("삼성 갤러리에서 사진을 선택한 뒤 '공유' → Image Order Studio를 선택하세요.",
+                "Select images in Samsung Gallery, then Share → Image Order Studio."));
+            startActivity(gallery);
+        }catch(Exception e){toastDialog(t("삼성 갤러리를 찾지 못했습니다. '갤러리에서 선택'을 이용하세요.",
+            "Samsung Gallery unavailable. Use Gallery / albums instead."));}
     }
     private void handleIncoming(Intent i) {
         if(i==null) return;
@@ -422,6 +466,72 @@ public class MainActivity extends Activity {
             List<File> files=exporter.renderNumbered(store,ids,compact);
             ui.post(()->shareFiles(files,compact?"image/jpeg":"image/png"));
         });
+    }
+    @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] grants) {
+        super.onRequestPermissionsResult(request,permissions,grants);
+        if(request==WRITE_OLD_GALLERY) {
+            if(grants.length>0 && grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED)
+                publishGallery(pendingGalleryCombine);
+            else toastDialog(t("이 Android 버전에서는 갤러리 저장 권한이 필요합니다. 앱 내부 공유 기능은 계속 이용할 수 있습니다.",
+                "This Android version requires Gallery write permission. You can still share images from inside the app."));
+        }
+    }
+    private void publishGallery(boolean combined) {
+        if(!hasSelection()||working)return;
+        if(Build.VERSION.SDK_INT<29 && checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                !=android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            pendingGalleryCombine=combined;
+            requestPermissions(new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE},WRITE_OLD_GALLERY);
+            return;
+        }
+        List<String> ids=store.sequence.snapshot();
+        if(combined&&ids.size()>12){toastDialog(t("한 장 결합은 최대 12장입니다. '갤러리 앨범에 저장'을 이용하세요.",
+            "Single-image combining supports 12 images. Use Save to Gallery album."));return;}
+        run(t("갤러리 앨범에 순서대로 저장 중…","Publishing numbered images into Gallery…"),()->{
+            List<File> results=combined?Collections.singletonList(exporter.renderCombined(store,ids,true)):
+                exporter.renderNumbered(store,ids,true);
+            // Keep independent copies in the SAF source for system Files pickers.
+            OrderedOutbox.publish(this,results);
+            List<Uri> added=GalleryMediaExporter.publish(this,results);
+            ui.post(()->new AlertDialog.Builder(this)
+                .setTitle(t("갤러리에서 바로 선택할 수 있습니다","Ready in your Gallery"))
+                .setMessage(t("사진 "+added.size()+"장을 'Image Order Studio' 앨범에 저장했습니다.\n\n원래 사이트의 이미지 첨부 화면으로 돌아가 일반 갤러리에서 이 앨범을 선택하세요. 이미지에는 순서가 직접 표시되어 있습니다.",
+                    "Saved "+added.size()+" images in the Image Order Studio album.\n\nReturn to the website and select this album from its regular image picker. Visible image labels preserve your order."))
+                .setPositiveButton(t("확인","OK"),(d,w)->{})
+                .show());
+        });
+    }
+    private void showOtherTools() {
+        String[] items={
+            t("JPG 번호 이미지 공유","Share numbered JPG"),
+            t("PNG 번호 이미지 공유","Share numbered PNG"),
+            t("저장 폴더 선택","Save into selected folder"),
+            t("이미지 순서 목록 복사","Copy selection sequence"),
+            t("원본 이미지 공유","Share original bytes"),
+            t("삼성 갤러리 앱 직접 열기 (공유로 가져오기)","Open Samsung Gallery (import via Share)"),
+            t("선택한 이미지만 보기","Show selected only"),
+            t("선택순 먼저 보기","Sort selected first"),
+            t("선택 순서 초기화","Clear selection order"),
+            t("보관함 비우기","Clear private library"),
+            t("어디서든 빠른 실행 설정","Quick Settings shortcut instructions")
+        };
+        new AlertDialog.Builder(this).setTitle(t("다른 기능 · 설정","More tools and settings"))
+            .setItems(items,(d,i)->{
+                switch(i){
+                    case 0:shareNumbered(true);break;
+                    case 1:shareNumbered(false);break;
+                    case 2:pickFolder();break;
+                    case 3:copyManifest();break;
+                    case 4:shareOriginals();break;
+                    case 5:openFullSamsungGallery();break;
+                    case 6:selectedOnly=!selectedOnly;rebuildVisible();updateCounters();break;
+                    case 7:selectedFirst=!selectedFirst;rebuildVisible();updateCounters();break;
+                    case 8:confirmClearSequence();break;
+                    case 9:confirmClearLibrary();break;
+                    case 10:toastDialog(t("상단 빠른 설정 패널을 두 번 내리고 편집(＋)에서 'Image Order Studio' 타일을 추가하세요. 어떤 앱에서도 빠르게 실행할 수 있습니다.",
+                        "Expand Quick Settings, tap Edit (+), add the Image Order Studio tile. Open it from any app."));break;
+                }
+            }).setNegativeButton(t("닫기","Close"),null).show();
     }
     private void copyManifest() {
         if(!hasSelection())return;
