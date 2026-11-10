@@ -1,0 +1,72 @@
+name: Image Order Studio - public beta APK and signature check
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/image-order-public-download-check.yml'
+  schedule:
+    - cron: '45 19 * * *'  # 04:45 Asia/Seoul
+permissions:
+  contents: read
+concurrency:
+  group: image-order-studio-public-download-check
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Read public release metadata (no authentication)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --silent --show-error \
+            https://api.github.com/repos/sangkukzoa-ctrl/assets/releases/tags/image-order-beta -o release.json
+          jq -e '.tag_name == "image-order-beta" and .draft == false and .prerelease == true' release.json
+          for f in ImageOrderStudio.apk ImageOrderStudio-Source.zip SHA256SUMS-LATEST.txt BETA_RELEASE_NOTES.md; do
+            jq -e --arg n "$f" '.assets | any(.[]; .name == $n and .state == "uploaded" and .size > 100)' release.json
+          done
+      - name: Download public files and verify SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://github.com/sangkukzoa-ctrl/assets/releases/download/image-order-beta'
+          for f in ImageOrderStudio.apk ImageOrderStudio-Source.zip SHA256SUMS-LATEST.txt BETA_RELEASE_NOTES.md; do
+            curl --fail --location --retry 3 --silent --show-error --max-time 120 "$base/$f" -o "$f"
+          done
+          sha256sum -c SHA256SUMS-LATEST.txt
+          unzip -t ImageOrderStudio-Source.zip | tail -1
+          for f in ImageOrderStudio.apk ImageOrderStudio-Source.zip; do
+            expected="$(jq -r --arg n "$f" '.assets[] | select(.name == $n) | .digest' release.json)"
+            actual="sha256:$(sha256sum "$f" | cut -d' ' -f1)"
+            test "$expected" = "$actual" || { echo "Digest mismatch $f"; exit 1; }
+          done
+      - name: Verify public installable APK signature and package metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" 'build-tools;35.0.0'
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs --min-sdk-version 26 ImageOrderStudio.apk | tee signature.txt
+          grep -F 'Verified using v2 scheme (APK Signature Scheme v2): true' signature.txt
+          grep -F 'Verified using v3 scheme (APK Signature Scheme v3): true' signature.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='3' versionName='0.2.0'"
+          echo 'Public APK, source, checksum, package ID and Android signatures verified.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Install and launch actual public APK on an Android emulator (on workflow update only)
+        if: ${{ github.event_name == 'push' }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          emulator-options: '-no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect'
+          script: |
+            adb install -r ImageOrderStudio.apk
+            adb shell am start -n com.twobornot.imageorder/.MainActivity
+            sleep 5
+            adb shell dumpsys activity activities | grep -F 'com.twobornot.imageorder'
