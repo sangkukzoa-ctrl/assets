@@ -40,10 +40,12 @@ jobs:
           java -cp build/testclasses SequenceLedgerTest
           javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/PickerDecision.java tests/PickerDecisionTest.java
           java -cp build/testclasses com.twobornot.imageorder.PickerDecisionTest
+          javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/MediaNaming.java tests/MediaNamingTest.java
+          java -cp build/testclasses com.twobornot.imageorder.MediaNamingTest
           gradle --no-daemon :app:assembleRelease --stacktrace
           test -s app/build/outputs/apk/release/app-release-unsigned.apk
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | tee /tmp/imageorder-aapt.txt
-          grep -F "package: name='com.twobornot.imageorder' versionCode='4' versionName='0.3.0'" /tmp/imageorder-aapt.txt
+          grep -F "package: name='com.twobornot.imageorder' versionCode='5' versionName='0.4.0'" /tmp/imageorder-aapt.txt
           grep -F "sdkVersion:'26'" /tmp/imageorder-aapt.txt
       - name: Create one-use transfer certificate (no private key uploaded)
         shell: bash
@@ -105,7 +107,7 @@ jobs:
           grep -F 'Verified using v2 scheme (APK Signature Scheme v2): true' signature-report.txt
           grep -F 'Verified using v3 scheme (APK Signature Scheme v3): true' signature-report.txt
           "$BUILD_TOOLS/zipalign" -c -p 4 ImageOrderStudio.apk
-          "$BUILD_TOOLS/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='4' versionName='0.3.0'"
+          "$BUILD_TOOLS/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='5' versionName='0.4.0'"
           test "$(stat -c %s ImageOrderStudio.apk)" -gt 200000
       - name: Install signed APK and validate picker registration on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
@@ -122,6 +124,8 @@ jobs:
             adb shell dumpsys activity activities | grep -F 'com.twobornot.imageorder'
             adb shell dumpsys package com.twobornot.imageorder | grep -F 'android.intent.action.GET_CONTENT'
             adb shell dumpsys package com.twobornot.imageorder | grep -F 'android.intent.action.PICK'
+            adb shell dumpsys package com.twobornot.imageorder | grep -F 'com.twobornot.imageorder.documents'
+            adb shell dumpsys package com.twobornot.imageorder | grep -F 'android.service.quicksettings.action.QS_TILE'
             adb logcat -d -s AndroidRuntime:E | tee /tmp/imageorder-crashes.txt
             ! grep -q 'FATAL EXCEPTION.*com.twobornot.imageorder' /tmp/imageorder-crashes.txt
       - name: Package public sources, hashes, release notes

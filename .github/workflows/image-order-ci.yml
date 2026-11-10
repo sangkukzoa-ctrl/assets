@@ -35,6 +35,8 @@ jobs:
           java -cp build/testclasses SequenceLedgerTest
           javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/PickerDecision.java tests/PickerDecisionTest.java
           java -cp build/testclasses com.twobornot.imageorder.PickerDecisionTest
+          javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/MediaNaming.java tests/MediaNamingTest.java
+          java -cp build/testclasses com.twobornot.imageorder.MediaNamingTest
       - name: Compile unsigned Android release APK
         run: gradle --no-daemon :app:assembleRelease :app:assembleDebug --stacktrace
       - name: Validate APK metadata and debug signature
@@ -43,11 +45,11 @@ jobs:
           test -s app/build/outputs/apk/release/app-release-unsigned.apk
           test -s app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs --min-sdk-version 26 app/build/outputs/apk/debug/app-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep -E "package: name='com.twobornot.imageorder' versionCode='4' versionName='0.3.0'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep -E "package: name='com.twobornot.imageorder' versionCode='5' versionName='0.4.0'"
           sha256sum app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: ImageOrderStudio-v0.3.0-ci-only
+          name: ImageOrderStudio-v0.4.0-ci-only
           path: |
             image-order-studio/app/build/outputs/apk/debug/app-debug.apk
             image-order-studio/app/build/outputs/apk/release/app-release-unsigned.apk
