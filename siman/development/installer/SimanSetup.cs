@@ -364,11 +364,13 @@ namespace SimanSetup
         readonly Button explorerBtn;
         readonly Button installBtn;
         bool ready;
+        readonly bool wasInstalledAtStart;
         int y = 0;
 
         public SetupForm()
         {
-            Text = "심안(心眼) 설치 관리자";
+            wasInstalledAtStart = !String.IsNullOrEmpty(Program.InstalledVersion());
+            Text = "심안(心眼) 자동 설치 · 업데이트";
             AutoScaleMode = AutoScaleMode.Dpi;
             ClientSize = new Size(760, 660);
             MinimumSize = new Size(740, 665);
@@ -391,22 +393,22 @@ namespace SimanSetup
             y = 0;
 
             Panel p1 = Card(body, 134);
-            Title(p1, "01   기존 설치본 정리", 16);
-            Desc(p1, "기존 심안을 사용했다면 먼저 심안에서 ‘전체 원문 백업 저장’을 누르세요.\n브라우저에서 확장프로그램을 삭제하면 로컬 검색 기록이 지워질 수 있습니다.", 47, 53);
-            Button old = Btn(p1, "기존 확장프로그램 관리 화면", 92, 292, false);
+            Title(p1, "01   기존 설치본 자동 감지", 16);
+            Desc(p1, "설치 관리자를 실행하면 기존 설치 위치에 자동으로 덮어씁니다.\n브라우저 확장프로그램 삭제·재등록이나 원문 백업은 필요 없습니다.", 47, 53);
+            Button old = Btn(p1, "기존 확장 관리 (필요할 때만)", 92, 292, false);
             old.Click += delegate { ChooseAndOpenManager(); };
 
             Panel p2 = Card(body, 150);
-            Title(p2, "02   새 버전 파일 설치", 16);
-            Desc(p2, "기존 코드 파일을 재사용하지 않고 깨끗하게 교체합니다.\n설치에는 관리자 권한이나 CMD 실행이 필요하지 않습니다.", 47, 49);
-            installBtn = Btn(p2, "설치 파일 준비하기", 100, 190, true);
-            installBtn.Click += delegate { DoInstall(); };
-            status = new Label { Text = Directory.Exists(Program.Target) ? "설치 폴더가 있습니다. 새 파일로 교체할 수 있습니다." : "설치 준비 전", ForeColor = secondary, Location = new Point(222, 109), AutoSize = false, Size = new Size(468, 28) };
+            Title(p2, "02   자동 설치 · 덮어쓰기", 16);
+            Desc(p2, "기존 앱 폴더를 유지하면서 코드 파일만 최신 버전으로 교체합니다.\n실패하면 이전 코드로 복원하며, 브라우저에 저장된 기록은 건드리지 않습니다.", 47, 49);
+            installBtn = Btn(p2, "다시 설치 / 복구", 100, 190, true);
+            installBtn.Click += delegate { DoInstall(false); };
+            status = new Label { Text = wasInstalledAtStart ? "기존 v" + Program.InstalledVersion() + " 감지 · 자동 업데이트 준비" : "최초 설치 자동 시작", ForeColor = secondary, Location = new Point(222, 109), AutoSize = false, Size = new Size(468, 28) };
             p2.Controls.Add(status);
 
             Panel p3 = Card(body, 173);
-            Title(p3, "03   브라우저에 등록", 16);
-            Desc(p3, "버튼을 누르면 등록 화면을 열고 설치 폴더 주소를 자동 복사합니다.\n개발자 모드 → 압축해제된 확장프로그램을 로드 → Ctrl+V → 폴더 선택", 45, 53);
+            Title(p3, "03   신규 설치일 때만 브라우저 등록", 16);
+            Desc(p3, "이미 등록된 Chrome·Edge 확장프로그램은 그대로 사용하세요.\n최초 설치일 때만 개발자 모드 → 압축해제된 확장프로그램 로드.", 45, 53);
             chromeBtn = Btn(p3, "Chrome 등록하기", 99, 164, true);
             edgeBtn = Btn(p3, "Edge 등록하기", 99, 160, false); edgeBtn.Left = 184;
             chromeBtn.Click += delegate { Register("chrome", "chrome://extensions"); };
@@ -416,10 +418,11 @@ namespace SimanSetup
             pathText = new Label { Text = Program.Target, ForeColor = secondary, Location = new Point(16, 146), Size = new Size(684, 22), AutoEllipsis = true, Font = new Font("Consolas", 8F) };
             p3.Controls.Add(pathText);
 
-            Label foot = new Label { Text = "브라우저 보안 정책상 최초 등록은 사용자가 승인해야 합니다. 정식 웹스토어 게시 후에는 클릭 설치·자동 업데이트가 가능합니다.", Location = new Point(11, y + 5), AutoSize = false, Size = new Size(696, 40), ForeColor = secondary, Font = new Font("Malgun Gothic", 8.5F) };
+            Label foot = new Label { Text = "파일 자동 덮어쓰기 후 기존 확장프로그램을 삭제하거나 재등록하지 마세요. 실행 중인 브라우저에는 확장 새로고침/재시작이 필요할 수 있습니다.", Location = new Point(11, y + 5), AutoSize = false, Size = new Size(696, 40), ForeColor = secondary, Font = new Font("Malgun Gothic", 8.5F) };
             body.Controls.Add(foot);
             ready = Directory.Exists(Program.Target) && File.Exists(Path.Combine(Program.Target, "manifest.json"));
             UpdateButtons();
+            Shown += delegate { BeginInvoke(new Action(delegate { DoInstall(true); })); };
         }
 
         Panel Card(Panel body, int height)
@@ -444,23 +447,43 @@ namespace SimanSetup
         {
             chromeBtn.Enabled = ready; edgeBtn.Enabled = ready; copyBtn.Enabled = ready; explorerBtn.Enabled = ready;
         }
-        void DoInstall()
+        // Double-clicking SimanSetup.exe performs the update automatically.
+        // The manual button remains only for retry/repair after a failed installation.
+        void DoInstall(bool automatic)
         {
             installBtn.Enabled = false;
             Cursor = Cursors.WaitCursor;
+            status.Text = wasInstalledAtStart ? "기존 심안 덮어쓰는 중..." : "최초 설치 진행 중...";
+            Application.DoEvents();
             try
             {
-                string path = Program.InstallCore(); ready = true;
+                string path = Program.InstallCore();
+                ready = true;
                 status.ForeColor = Color.FromArgb(25, 123, 74);
-                status.Text = "설치 파일 준비 완료 ✓  (v" + Program.AppVersion + ")";
+                status.Text = (wasInstalledAtStart ? "자동 업데이트 완료" : "최초 설치 완료") +
+                    " ✓  (v" + Program.AppVersion + ")";
                 pathText.Text = path;
-                MessageBox.Show(this, "확장프로그램 파일 설치가 완료됐습니다.\n\n이제 아래 ‘Chrome 등록하기’ 또는 ‘Edge 등록하기’를 누르세요.", "심안 - 설치 파일 준비 완료", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                if (!wasInstalledAtStart)
+                {
+                    MessageBox.Show(this,
+                        "심안 파일 설치가 완료됐습니다.\n\n아래의 Chrome 또는 Edge 등록 버튼으로 최초 한 번만 연결하세요.\n이후 새 설치 관리자는 이 경로를 자동으로 덮어씁니다.",
+                        "심안 - 최초 설치 완료", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else if (!automatic)
+                {
+                    MessageBox.Show(this,
+                        "기존 심안을 같은 위치에 덮어썼습니다.\n브라우저에 저장된 원문과 검색 색인은 유지됩니다.\n\n기존 확장프로그램을 삭제하거나 다시 등록하지 마세요.\n실행 중인 브라우저에서는 기존 심안 카드 새로고침 또는 브라우저 재시작으로 새 코드를 적용하세요.",
+                        "심안 - 자동 업데이트 완료", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
             }
             catch (Exception e)
             {
                 status.ForeColor = Color.FromArgb(177, 53, 65);
-                status.Text = "설치 파일 준비 실패";
-                MessageBox.Show(this, "설치에 실패했습니다. 기존 파일 복원을 시도했습니다.\n\n" + e.Message + "\n\n진단 로그: " + Program.LogPath, "심안 - 설치 실패", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                status.Text = "업데이트 실패 · 이전 파일 복구 시도";
+                MessageBox.Show(this,
+                    "자동 설치에 실패해 기존 버전 복원을 시도했습니다.\n\n" +
+                    e.Message + "\n\n진단 로그: " + Program.LogPath,
+                    "심안 - 설치 실패", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally { Cursor = Cursors.Default; installBtn.Enabled = true; UpdateButtons(); }
         }
@@ -476,7 +499,7 @@ namespace SimanSetup
         }
         void ChooseAndOpenManager()
         {
-            DialogResult answer = MessageBox.Show(this, "기존 확장프로그램을 삭제하기 전 반드시 심안에서 ‘전체 원문 백업 저장’을 실행하세요.\n\nChrome에서 관리 화면을 열까요? (아니오: Edge)", "기존 확장 관리", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
+            DialogResult answer = MessageBox.Show(this, "기존 심안을 삭제하거나 다시 등록하지 마세요.\n버전 반영이 필요할 때 기존 심안 카드의 새로고침을 사용하세요.\n\nChrome에서 관리 화면을 열까요? (아니오: Edge)", "기존 확장 관리", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
             if (answer == DialogResult.Cancel) return;
             if (answer == DialogResult.Yes) { if (!Program.OpenBrowser("chrome", "chrome://extensions")) MessageBox.Show(this, "Chrome 확장 관리 화면으로 자동 이동하지 못했습니다. Chrome 주소창에 Ctrl+V 후 Enter를 누르세요."); }
             else if (!Program.OpenBrowser("msedge", "edge://extensions")) MessageBox.Show(this, "Edge 확장 관리 화면으로 자동 이동하지 못했습니다. Edge 주소창에 Ctrl+V 후 Enter를 누르세요.");
@@ -487,7 +510,7 @@ namespace SimanSetup
             if (!CopyPath()) return;
             bool launched = Program.OpenBrowser(browser, address);
             if (!launched) { MessageBox.Show(this, "브라우저는 실행됐지만 확장프로그램 관리 페이지로 자동 이동하지 못했습니다.\n\n브라우저 주소창에 Ctrl+V → Enter를 눌러 관리 화면을 연 다음, 설치 관리자에서 ‘폴더 주소 복사’를 다시 눌러 주세요.", "심안 - 브라우저 등록", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
-            MessageBox.Show(this, "1. 방금 열린 브라우저에서 '개발자 모드'를 켭니다.\n\n2. '압축해제된 확장 프로그램을 로드'를 누릅니다.\n\n3. 폴더 선택 창의 주소 입력 칸에 Ctrl+V → Enter를 누릅니다.\n\n4. '폴더 선택'을 누릅니다.\n\n설치 경로는 클립보드에 이미 복사했습니다. 드래그 앤 드롭은 필요하지 않습니다.\n\n기존 심안을 삭제했다면 심안에서 'ZIP / JSON 기록 가져오기'로 백업을 복원하세요.", "심안 - 브라우저 등록 방법", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, "1. 방금 열린 브라우저에서 '개발자 모드'를 켭니다.\n\n2. '압축해제된 확장 프로그램을 로드'를 누릅니다.\n\n3. 폴더 선택 창의 주소 입력 칸에 Ctrl+V → Enter를 누릅니다.\n\n4. '폴더 선택'을 누릅니다.\n\n설치 경로는 클립보드에 이미 복사했습니다. 드래그 앤 드롭은 필요하지 않습니다.\n\n이미 등록되어 있다면 재등록할 필요가 없습니다. 관리 화면에서 기존 심안만 새로고침하세요.", "심안 - 브라우저 등록 방법", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }
 }
