@@ -29,7 +29,7 @@ No INTERNET permission, analytics SDKs, ads, account creation, external uploadin
 
 ## Build & release
 
-Source tree is `image-order-studio/`. Dev CI `.github/workflows/image-order-ci.yml` builds and checks unsigned release and debug artifacts. Beta release CI `.github/workflows/image-order-beta-release.yml` builds, validates, **signs** and publicly releases an installable APK with Android's APK signing scheme v1/v2/v3, only when provided a private release key encrypted to a one-use runner certificate. Public release tag `image-order-beta` is stable; assets are versionless and only overwritten after validations. **Never publish `.p12` signing keys or passwords** in GitHub, Actions artifacts or source ZIP. The release key is to be retained privately for upgrades.
+Source tree is `image-order-studio/`. Dev CI `.github/workflows/image-order-ci.yml` builds and checks unsigned release and debug artifacts. Beta release CI `.github/workflows/image-order-beta-release.yml` builds, validates, **signs** and publicly releases an installable APK with Android's APK signing schemes v2/v3 (Android 8+), only when provided a private release key encrypted to a one-use runner certificate. Public release tag `image-order-beta` is stable; assets are versionless and only overwritten after validations. **Never publish `.p12` signing keys or passwords** in GitHub, Actions artifacts or source ZIP. The release key is to be retained privately for upgrades.
 
 ## QA
 
