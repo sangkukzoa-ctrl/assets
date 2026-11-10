@@ -52,7 +52,7 @@ jobs:
             echo "Downloaded $name"
           done
           for name in SimanSetup.exe Siman-Windows.zip Siman_SOURCE.zip Siman_WEBSTORE.zip; do
-            expected=$(awk -v f="$name" '$2==f {print $1}' SHA256SUMS-LATEST.txt | tr -d '\r')
+            expected=$(tr -d '\r' < SHA256SUMS-LATEST.txt | awk -v f="$name" '$2==f {print $1}')
             actual=$(sha256sum "$name" | cut -d ' ' -f1)
             echo "SHA256 check $name: expected=[$expected] actual=[$actual]"
             test -n "$expected" && test "$actual" = "$expected" || { echo "::error::SHA256 manifest mismatch: $name"; cat SHA256SUMS-LATEST.txt; exit 1; }
