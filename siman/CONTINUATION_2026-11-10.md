@@ -56,3 +56,16 @@
 검색 화면: `▶ 전체 일괄수집 시작`, `진단 로그 TXT 저장`, `서비스별 수집 · 연결 복구 · 백업 (고급)`, `↻ 열린 탭 연결 재설정`, `전체 원문 백업 저장`, `ZIP / JSON 기록 가져오기`, `메시지 복사`, `대화 전체 복사`, `원본 서비스에서 열기`.
 
 **최근 릴리스나 Actions가 성공했다는 사실만으로 실제 사용자의 모든 계정에서 기능이 정상 동작했다고 판단하지 않는다.**
+
+
+## 2026-11-10 추가 확립: ChatLens 방식의 영구 Beta 배포
+
+- 블로그에는 **버전별 `siman-v1.5.5` 릴리스가 아닌** 아래 고정 주소만 노출:
+  - 공개 릴리스: https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta
+  - 설치 ZIP: https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip
+  - 단독 설치 관리자: https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/SimanSetup.exe
+- 자동 배포 파이프라인: `.github/workflows/siman-v155-release.yml`, 입력 `siman/release/v155/**` 변경 또는 워크플로 변경 시 자동 실행. 기존 Node 검증→Windows 빌드→실제 설치·재설치→버전 기록→**고정 배포 자산 갱신**. 개발자가 향후 v1.5.6 등을 만들 때는 소스/확장 패키지와 버전별 워크플로 변수도 함께 갱신할 것. 블로그 URL은 바꾸지 않는다.
+- 별도 공개 다운로드 검사: `.github/workflows/siman-public-download-check.yml`, 매일 04:35 KST, 성공한 빌드 이후 또는 수동 실행. 인증 없이 공개 ZIP과 EXE를 직접 다운로드하고 SHA-256, ZIP 무결성, 필수 파일을 검사.
+- 최신 배포 결과: GitHub Actions `42772522126` (Windows 빌드·고정 릴리스 성공); 공개 다운로드 검사 `42772943715` (성공).
+- 고정 URL은 자동으로 최신 빌드를 **제공**하지만, 기존 사용자 PC에 설치된 Chrome/Edge의 개발자모드 확장프로그램을 원격으로 자동 갱신하는 방식은 아니다. 사용자가 새 설치 관리자로 업데이트한 후 확장프로그램 새로고침이 필요하다. 추가 자동 업데이트는 독립된 개발 목표로 다룬다.
+- 이전 실패 공개 검사 2회는 Windows CRLF의 `SHA256SUMS-LATEST.txt`를 Linux `awk`로 처리할 때 파일명 끝의 `\\r`가 비교에 들어간 검사 도구 측 문제였으며, `tr -d '\\r'` 선행 정규화 후 통과했다. 실제 파일 SHA 자체는 일치했다.
