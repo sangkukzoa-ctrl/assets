@@ -1,0 +1,157 @@
+name: Image Order Studio - signed stable public beta
+on:
+  push:
+    branches: ['image-order-studio/release']
+    paths:
+      - 'image-order-studio/**'
+      - '.github/workflows/image-order-beta-release.yml'
+  workflow_dispatch:
+concurrency:
+  group: image-order-studio-signed-public-beta
+  cancel-in-progress: false
+permissions:
+  contents: write
+jobs:
+  android-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      BETA_TAG: image-order-beta
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Install Android SDK API 36 + signing tools
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-36' 'build-tools;35.0.0'
+      - name: Verify source, pure-Java regression and Android build
+        shell: bash
+        working-directory: image-order-studio
+        run: |
+          set -euo pipefail
+          python3 tests/release_source_checks.py
+          mkdir -p build/testclasses
+          javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/SequenceLedger.java tests/SequenceLedgerTest.java
+          java -cp build/testclasses SequenceLedgerTest
+          gradle --no-daemon :app:assembleRelease --stacktrace
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | tee /tmp/imageorder-aapt.txt
+          grep -F "package: name='com.twobornot.imageorder' versionCode='3' versionName='0.2.0'" /tmp/imageorder-aapt.txt
+          grep -F "sdkVersion:'26'" /tmp/imageorder-aapt.txt
+      - name: Create one-use transfer certificate (no private key uploaded)
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl req -x509 -newkey rsa:3072 -nodes -days 1 -sha256 \
+            -subj "/CN=ImageOrderStudio-Release-${GITHUB_RUN_ID}" \
+            -keyout "$RUNNER_TEMP/transfer.key" \
+            -out "$RUNNER_TEMP/transfer.crt" >/dev/null 2>&1
+          cp "$RUNNER_TEMP/transfer.crt" signing-request-public.crt
+      - uses: actions/upload-artifact@v4
+        name: Share public-only one-use certificate
+        with:
+          name: ImageOrderStudio-ReleaseKey-Request
+          path: signing-request-public.crt
+          retention-days: 1
+          if-no-files-found: error
+      - name: Receive developer-owned release key encrypted for this runner only
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ENTRY="_imageorder_key_inbox/key-${GITHUB_RUN_ID}.txt"
+          for attempt in $(seq 1 180); do
+            if gh api "repos/$GITHUB_REPOSITORY/contents/$ENTRY?ref=image-order-key-inbox" >/dev/null 2>&1; then
+              gh api "repos/$GITHUB_REPOSITORY/contents/$ENTRY?ref=image-order-key-inbox" --jq '.content' | \
+                base64 -d | base64 -d > "$RUNNER_TEMP/key-transfer.p7m"
+              openssl cms -decrypt -inform DER -in "$RUNNER_TEMP/key-transfer.p7m" \
+                -recip "$RUNNER_TEMP/transfer.crt" -inkey "$RUNNER_TEMP/transfer.key" \
+                -out "$RUNNER_TEMP/key-transfer.tar.gz"
+              tar xzf "$RUNNER_TEMP/key-transfer.tar.gz" -C "$RUNNER_TEMP"
+              test -s "$RUNNER_TEMP/imageorder-release.p12"
+              test -s "$RUNNER_TEMP/release-key-password.txt"
+              chmod 600 "$RUNNER_TEMP/imageorder-release.p12" "$RUNNER_TEMP/release-key-password.txt"
+              exit 0
+            fi
+            echo "Awaiting encrypted signing identity (attempt $attempt / 180)"
+            sleep 5
+          done
+          echo '::error::No encrypted signing identity supplied. Existing beta remains untouched.'
+          exit 1
+      - name: Align, sign and verify Android release APK (v1, v2, v3)
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/35.0.0"
+          "$BUILD_TOOLS/zipalign" -p -f 4 image-order-studio/app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/aligned-unsigned.apk"
+          PASS="$(cat "$RUNNER_TEMP/release-key-password.txt")"
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks "$RUNNER_TEMP/imageorder-release.p12" \
+            --ks-key-alias imageorder \
+            --ks-pass "pass:$PASS" --key-pass "pass:$PASS" \
+            --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
+            --min-sdk-version 26 \
+            --out ImageOrderStudio.apk "$RUNNER_TEMP/aligned-unsigned.apk"
+          unset PASS
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs --min-sdk-version 26 ImageOrderStudio.apk | tee signature-report.txt
+          grep -F 'Verified using v1 scheme (JAR signing): true' signature-report.txt
+          grep -F 'Verified using v2 scheme (APK Signature Scheme v2): true' signature-report.txt
+          grep -F 'Verified using v3 scheme (APK Signature Scheme v3): true' signature-report.txt
+          "$BUILD_TOOLS/zipalign" -c -p 4 ImageOrderStudio.apk
+          "$BUILD_TOOLS/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='3' versionName='0.2.0'"
+          test "$(stat -c %s ImageOrderStudio.apk)" -gt 200000
+      - name: Package public sources, hashes, release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip -q -r ImageOrderStudio-Source.zip image-order-studio \
+            .github/workflows/image-order-ci.yml \
+            .github/workflows/image-order-beta-release.yml \
+            -x '*/build/*' '*/.gradle/*' '*/.git/*' '*~' '*.p12' '*.jks' '*.keystore' '*.key' '*password*'
+          python3 - <<'PY'
+          from zipfile import ZipFile
+          p='ImageOrderStudio-Source.zip'
+          with ZipFile(p) as z:
+              assert z.testzip() is None
+              assert 'image-order-studio/app/src/main/java/com/twobornot/imageorder/MainActivity.java' in z.namelist()
+              assert not any(s.lower().endswith(('.p12','.jks','.keystore')) for s in z.namelist())
+          PY
+          cp image-order-studio/RELEASE_NOTES_KO_EN.md BETA_RELEASE_NOTES.md
+          sha256sum ImageOrderStudio.apk ImageOrderStudio-Source.zip BETA_RELEASE_NOTES.md > SHA256SUMS-LATEST.txt
+          grep -F 'Verified using v3 scheme' signature-report.txt >> BETA_RELEASE_NOTES.md
+          sha256sum BETA_RELEASE_NOTES.md > /tmp/image-order-release-notes-hash.txt
+          # Keep the SHA256SUMS file authoritative after adding verification line.
+          sha256sum ImageOrderStudio.apk ImageOrderStudio-Source.zip BETA_RELEASE_NOTES.md > SHA256SUMS-LATEST.txt
+      - name: Publish only after successful compilation and signature verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$BETA_TAG" >/dev/null 2>&1; then
+            gh release upload "$BETA_TAG" ImageOrderStudio.apk ImageOrderStudio-Source.zip SHA256SUMS-LATEST.txt BETA_RELEASE_NOTES.md --clobber
+            gh release edit "$BETA_TAG" --title 'Image Order Studio — 무료 공개 베타 (2bornot)' --prerelease --notes-file BETA_RELEASE_NOTES.md
+          else
+            gh release create "$BETA_TAG" ImageOrderStudio.apk ImageOrderStudio-Source.zip SHA256SUMS-LATEST.txt BETA_RELEASE_NOTES.md \
+              --target "$GITHUB_SHA" --title 'Image Order Studio — 무료 공개 베타 (2bornot)' \
+              --prerelease --notes-file BETA_RELEASE_NOTES.md
+          fi
+          gh release view "$BETA_TAG" --json tagName,isPrerelease,assets --jq '{tag:.tagName,prerelease:.isPrerelease,assets:[.assets[].name]}'
+      - name: Delete consumed encrypted inbox file
+        if: success()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          ENTRY="_imageorder_key_inbox/key-${GITHUB_RUN_ID}.txt"
+          SHA="$(gh api "repos/$GITHUB_REPOSITORY/contents/$ENTRY?ref=image-order-key-inbox" --jq .sha)"
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/contents/$ENTRY" \
+            -f "message=Remove consumed encrypted Image Order Studio signing payload" \
+            -f "sha=$SHA" -f "branch=image-order-key-inbox" >/dev/null

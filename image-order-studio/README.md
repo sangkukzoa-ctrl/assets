@@ -1,64 +1,42 @@
-# Image Order Studio · Android 0.1.1 (beta source)
+# Image Order Studio / 이미지 순서 스튜디오 v0.2.0
 
-Developer: **2bornot** · Android 8.0+ · Korean and English UI
+Android 8.0+ · **2bornot** · Free / 무료 · Offline-first, no advertisements · Korean/English UI
 
-**Problem:** Image pickers, apps and websites may reorder attachment arrays independently of how a person selected them. The sequence is explicitly created inside this app by tapping imported images in the desired order. Filesystem order, file titles and content-type extensions never determine the logical sequence.
+**Goal:** Give images an explicit, immutable *logical sequence* after they are imported. Android and third-party sites may still place attachments in a different order; visible order markers and single-image combining retain evidence of the user's intended sequence independently of filename, extension, original import order, and website UI.
 
-## What is implemented
+## Usage / 사용법
 
-1. Import multiple local images using Android Storage Access Framework; also receive images from other apps' share sheets. The incoming order is **not** treated as selection order.
-2. Tap thumbnails in the app to assign the authoritative selection rank 1, 2, 3…; tap again to deselect. A badge shows the rank. Move selected entries earlier/later and deselect using **Edit order**.
-3. Persist library copies, UUIDs, original filenames and ranks in app-private storage via atomic metadata writes, including across restarts.
-4. **Share numbered:** generates PNGs with a *visible* `ORDER 0001 / 0005` banner and numbered filenames; share in correct order via Android's `ACTION_SEND_MULTIPLE` and `ClipData`.
-5. **Save to folder:** select a SAF folder, then write numbered PNGs there for use with website file input controls. The rendered sequence banner survives site-side sorting.
-6. **Combine to one:** create a single tall PNG with ordered numbered sections when total dimensions are safe; avoids multi-file reordering entirely. An oversized set fails clearly rather than silently omitting images.
-7. **Share originals:** shares the unmodified app-private copies in ordered `EXTRA_STREAM`, useful when another app honors the list. This is *not* a universal ordering guarantee.
-8. No INTERNET permission, advertising SDKs, logins, broad media library access, analytics or background uploading.
+1. Import images or share them into this app from the system gallery. **Imported photos have no rank yet**, since the external picker may return an arbitrary order.
+2. Tap the images one by one in your required order. Blue badges show 1,2,3… A second tap removes a photo from the selection.
+3. Use **Selected first** to see the selected photos at the top in your definitive order, or **Selected only** to review just chosen images. **Edit order** swaps individual positions without changing the underlying files. Long-press deletes an imported *copy*, without deleting the original image.
+4. **Share compact JPG** creates images containing a prominent `ORDER 0001 / 0005` header and uses 90%-quality JPEG for upload compatibility. **Share numbered PNG** uses lossless PNG for screenshots and text. File names are also number-prefixed, but filenames alone are not the guarantee.
+5. **Save to folder** saves ordered JPGs for use with websites' regular file selectors. **Combine to one** creates one tall PNG (<=12 pictures and within 14,000 px height). **Copy sequence** copies the ordered image name list to clipboard for pasting into a text prompt or report. **Share originals** preserves image bytes but DOES NOT guarantee third-party ordering.
 
-## Security / integrity design
+For example, if image files A.png,B.jpg,C.webp are imported, and the user taps B,C,A, every visible rank and numbered export is in order B=1, C=2, A=3 even if a receiving site sorts attachments A,B,C.
 
-- No renaming of the originals on the user's device. App works on copies.
-- A private UUID is the identity of each image; filenames and MIME types do not define sequence.
-- External image bytes are copied via ContentResolver and are never uploaded by the app itself.
-- Exported numbered PNGs lose the original EXIF metadata. The original sharing mode preserves bytes.
-- Larger imports such as 166 images are handled one image at a time for export rather than constructing a single gigantic canvas.
+## Privacy
 
-## Known beta limitations
+No INTERNET permission, analytics SDKs, ads, account creation, external uploading, or broad gallery read permission. Image access is initiated via Android's document picker or other apps' explicit share actions. Images and ordering information are stored as local private copies; originals remain unchanged. Rendering creates temporary export files in app cache. You choose the external app or website and when to upload. See [PRIVACY_KO_EN.md](PRIVACY_KO_EN.md).
 
-- The order must be assigned **inside Image Order Studio**, after importing photos. The system file picker's selection order is never assumed to be reliable.
-- Third-party sites can reorder the *position* of attachments; the `ORDER n / total` banner preserves the intended logical order, not the actual HTML attachment position. A **single combined image** is the strongest one-file option for smaller batches.
-- The combined mode limits 12 images and 14,000 pixels in height, due to Android memory and upload constraints.
-- Sequence badges are burned into **exported PNGs**, never into the originals. Numbered outputs may be downsampled when source dimensions exceed memory-safe limits.
-- Supported render formats depend on the Android platform image decoders. An unsupported image causes a visible export error; the entire batch cannot be silently truncated.
-- Static image EXIF orientation is applied on Android 8+ during export. Thumbnails may still appear unrotated; GIF animations export the first frame.
-- There is not yet a built-in web browser / automatic web-login uploader. Exported files or Android Sharesheet are used.
-- Debug builds are signed by Android's standard *debug* signing identity; release distribution requires a durable developer-owned release signing key. No release has been published by this source package.
+## Limitations / 주의
 
-## Build (GitHub Actions)
+- The app **does not control** how unrelated website attachment lists are sorted. The visible header and single-image export are the universal fallbacks, not a bypass for external APIs.
+- All ranks must be applied inside this app, independently of picker-selected order.
+- Numbered JPEG is resized to limit resource use. PNG is lossless *after decoding and size sampling*, but large originals may be downsampled. Use original sharing to preserve original bytes.
+- Preview thumbnails are limited in size. HEIC/WebP and animation support depend on Android codecs; GIF rendering uses a static frame.
+- Combining 12+ images or too-tall pages is intentionally limited to prevent OOM errors. Select fewer or use individual numbered images.
+- The app cannot guarantee upload order when a site removes visible headers or aggressively crops, or when a site rejects attachments altogether.
 
-The workflow `.github/workflows/image-order-ci.yml` expects the project files under `image-order-studio/` on a separate branch named `image-order-studio/dev` in `sangkukzoa-ctrl/assets`. The repository default branch, previous apps, signing credentials, and existing release tags are untouched.
+## Build & release
 
-The workflow runs the pure Java ledger regression test, installs SDK 36, builds `assembleDebug` and `assembleRelease`, and publishes the APKs as private Actions artifacts for testing. It **does not** publish a GitHub Release; beta publication should follow functional QA and signing.
+Source tree is `image-order-studio/`. Dev CI `.github/workflows/image-order-ci.yml` builds and checks unsigned release and debug artifacts. Beta release CI `.github/workflows/image-order-beta-release.yml` builds, validates, **signs** and publicly releases an installable APK with Android's APK signing scheme v1/v2/v3, only when provided a private release key encrypted to a one-use runner certificate. Public release tag `image-order-beta` is stable; assets are versionless and only overwritten after validations. **Never publish `.p12` signing keys or passwords** in GitHub, Actions artifacts or source ZIP. The release key is to be retained privately for upgrades.
 
-To build from an independent repository root, move `image-order-studio/*` to root and change the workflow working directory/paths accordingly.
+## QA
 
-## QA acceptance matrix
+- 166-image ledger regression, restore after restart, duplicate/cross-extension names, swap/deselect and malformed input are covered by `tests/SequenceLedgerTest.java`.
+- CI verifies minimum Android API 26, applicationId `com.twobornot.imageorder`, no INTERNET permission, source metadata and signability.
+- Physical-device installation and target-site image attachment order (ChatGPT, review websites) should be tested from the public beta APK. They are separate from compilation and static signing checks.
 
-- Tap B→A→D→C→E after importing A,B,C,D,E => exactly B,A,D,C,E in the ledger and in export labels.
-- Re-import images named `1.jpg`, `1.png`, `1.webp` => names never determine sequence.
-- Restart the app => imported copies and numbered ranks remain.
-- Import 166 photos => assign ranks and use numbered export; never silently cap the count.
-- Send from another gallery app => images appear unranked; reselect within the app.
-- Save numbered files to a folder => each file contains both an order-prefixed basename and a visible sequence banner.
-- Try a 13-image or extremely tall combined export => clear error; no incomplete output accepted.
-- Cancel SAF folder/picker => no changes to the sequence.
-- Reorder or deselect one image => subsequent ranks update contiguously and persist.
-- Upload exported files to several unrelated sites, verify whether they reorder positions, and whether the sequence banner allows the intended order to be unambiguously reconstructed.
+## License
 
-## Developer-build commands
-
-```sh
-javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/SequenceLedger.java tests/SequenceLedgerTest.java
-java -cp build/testclasses SequenceLedgerTest
-gradle --no-daemon :app:assembleDebug :app:assembleRelease
-```
+Copyright 2026 2bornot. This source snapshot is provided for inspection and personal test use. See RELEASE_NOTES_KO_EN.md.

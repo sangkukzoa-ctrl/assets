@@ -1,4 +1,4 @@
-name: Image Order Studio - Android beta CI
+name: Image Order Studio - Android development CI
 on:
   push:
     branches: ['image-order-studio/dev']
@@ -11,7 +11,7 @@ permissions:
 jobs:
   android:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: image-order-studio
@@ -24,26 +24,30 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
-      - name: Install Android API 36
+      - name: Install Android SDK API 36
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-36' 'build-tools;35.0.0'
-      - name: Test order invariants
+      - name: Check source and order invariants
         run: |
+          python3 tests/release_source_checks.py
           mkdir -p build/testclasses
           javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/SequenceLedger.java tests/SequenceLedgerTest.java
           java -cp build/testclasses SequenceLedgerTest
-      - name: Compile Android APK
-        run: gradle --no-daemon :app:assembleDebug :app:assembleRelease --stacktrace
-      - name: Verify build files
+      - name: Compile unsigned Android release APK
+        run: gradle --no-daemon :app:assembleRelease :app:assembleDebug --stacktrace
+      - name: Validate APK metadata and debug signature
         run: |
-          test -s app/build/outputs/apk/debug/app-debug.apk
+          set -euo pipefail
           test -s app/build/outputs/apk/release/app-release-unsigned.apk
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs --min-sdk-version 26 app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep -E "package: name='com.twobornot.imageorder' versionCode='3' versionName='0.2.0'"
           sha256sum app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: ImageOrderStudio-v0.1.1-debug-and-unsigned-release
+          name: ImageOrderStudio-v0.2.0-ci-only
           path: |
             image-order-studio/app/build/outputs/apk/debug/app-debug.apk
             image-order-studio/app/build/outputs/apk/release/app-release-unsigned.apk
-          retention-days: 30
+          retention-days: 14
           if-no-files-found: error

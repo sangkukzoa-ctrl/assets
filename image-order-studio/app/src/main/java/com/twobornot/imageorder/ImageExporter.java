@@ -22,13 +22,13 @@ final class ImageExporter {
         if(!dir.mkdirs()) throw new IOException("Could not create export batch");
         return dir;
     }
-    List<File> renderNumbered(GalleryStore store,List<String> ids) throws Exception {
+    List<File> renderNumbered(GalleryStore store,List<String> ids,boolean compact) throws Exception {
         if(ids.isEmpty()) throw new IllegalArgumentException("No selected images");
         File folder=newExportDirectory(); ArrayList<File> files=new ArrayList<>();
         for(int i=0;i<ids.size();i++) {
             GalleryStore.Item item=store.find(ids.get(i));
             if(item==null) throw new IOException("Missing image at position "+(i+1));
-            Bitmap source=decode(store.source(item),MAX_DIM,16_000_000);
+            Bitmap source=decode(store.source(item),compact?2560:MAX_DIM,compact?8_000_000:16_000_000);
             if(source==null) throw new IOException("Unsupported image format: "+item.name);
             try {
                 int width=Math.max(700,source.getWidth());
@@ -38,8 +38,10 @@ final class ImageExporter {
                     Canvas c=new Canvas(image); c.drawColor(Color.WHITE);
                     drawHeader(c,width,header,i+1,ids.size(),item.name);
                     c.drawBitmap(source,(width-source.getWidth())/2f,header,null);
-                    File output=new File(folder,String.format(Locale.ROOT,"%04d_of_%04d_%s.png",i+1,ids.size(),safeName(item.name)));
-                    writePng(image,output); files.add(output);
+                    File output=new File(folder,String.format(Locale.ROOT,"%04d_of_%04d_%s.%s",
+                        i+1,ids.size(),safeName(item.name),compact?"jpg":"png"));
+                    if(compact)writeJpeg(image,output);else writePng(image,output);
+                    files.add(output);
                 } finally { image.recycle(); }
             } finally { source.recycle(); }
         }
@@ -101,7 +103,7 @@ final class ImageExporter {
         while(t.measureText(safe)>width-55 && safe.length()>3) safe=safe.substring(0,safe.length()-2);
         c.drawText(safe,29,Math.min(height-22,127),t);
     }
-    private static Bitmap decode(File file,int maxDim,int maxPixels) throws Exception {
+    static Bitmap decode(File file,int maxDim,int maxPixels) throws Exception {
         BitmapFactory.Options bound=new BitmapFactory.Options();bound.inJustDecodeBounds=true;
         BitmapFactory.decodeFile(file.getAbsolutePath(),bound);
         if(bound.outWidth<=0 || bound.outHeight<=0) return null;
@@ -150,11 +152,16 @@ final class ImageExporter {
             if(!b.compress(Bitmap.CompressFormat.PNG,100,fos)) throw new IOException("PNG encoder failed");
         }
     }
+    private static void writeJpeg(Bitmap b,File out) throws IOException {
+        try(FileOutputStream fos=new FileOutputStream(out)) {
+            if(!b.compress(Bitmap.CompressFormat.JPEG,90,fos)) throw new IOException("JPG encoder failed");
+        }
+    }
     void saveToTree(Uri tree,List<File> files) throws Exception {
         ContentResolver cr=ctx.getContentResolver();
         Uri parent=DocumentsContract.buildDocumentUriUsingTree(tree,DocumentsContract.getTreeDocumentId(tree));
         for(File source:files) {
-            Uri destination=DocumentsContract.createDocument(cr,parent,"image/png",source.getName());
+            Uri destination=DocumentsContract.createDocument(cr,parent,source.getName().endsWith(".jpg")?"image/jpeg":"image/png",source.getName());
             if(destination==null) throw new IOException("Document provider could not create "+source.getName());
             try(InputStream in=new FileInputStream(source);OutputStream out=cr.openOutputStream(destination,"w")) {
                 if(out==null) throw new IOException("Cannot write to selected folder");

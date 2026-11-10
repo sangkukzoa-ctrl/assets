@@ -84,6 +84,14 @@ final class GalleryStore {
             default:return ".img";
         }
     }
+    synchronized void remove(Item item) {
+        if(item==null)return;
+        sequence.deselect(item.id);
+        if(items.remove(item)) {
+            source(item).delete();
+            save();
+        }
+    }
     synchronized void clear() {
         for(Item i:items) source(i).delete();
         items.clear(); sequence.clear(); save();
