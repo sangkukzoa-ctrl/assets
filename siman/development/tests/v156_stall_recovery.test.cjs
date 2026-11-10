@@ -56,6 +56,7 @@ function makeHost(){
   vm.createContext(h);vm.runInContext(read('core.js'),h);vm.runInContext(read('page.js'),h);
   assert.equal(h.__SimanRunnerV155.start().ok,true);
   for(let i=0;i<30&&stats().bodyReads===0;i++)await delay(5);
+  if(stats().bodyReads!==1)console.log('Fixture diagnostics',JSON.stringify({stats:stats(),events:events.slice(0,15),handles:handles.length,runner:h.__SimanRunnerV155.ping()}));
   assert.equal(stats().bodyReads,1,'main collector must reach a stalled JSON body');
   assert(handles.length>0,'collector body timeout must remain armed');
   handles[0]();
