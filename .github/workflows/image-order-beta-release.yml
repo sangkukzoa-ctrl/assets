@@ -109,6 +109,14 @@ jobs:
           "$BUILD_TOOLS/zipalign" -c -p 4 ImageOrderStudio.apk
           "$BUILD_TOOLS/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='5' versionName='0.4.0'"
           test "$(stat -c %s ImageOrderStudio.apk)" -gt 200000
+      - name: Enable Android Emulator KVM acceleration on GitHub runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+          ls -l /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
       - name: Install signed APK and validate picker registration on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -116,6 +124,7 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_5
+          emulator-boot-timeout: 480
           emulator-options: '-no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect'
           script: |
             adb install -r ImageOrderStudio.apk
