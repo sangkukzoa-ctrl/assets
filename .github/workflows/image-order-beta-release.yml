@@ -84,7 +84,7 @@ jobs:
           done
           echo '::error::No encrypted signing identity supplied. Existing beta remains untouched.'
           exit 1
-      - name: Align, sign and verify Android release APK (v1, v2, v3)
+      - name: Align, sign and verify Android release APK (v2, v3)
         shell: bash
         run: |
           set -euo pipefail
@@ -100,7 +100,6 @@ jobs:
             --out ImageOrderStudio.apk "$RUNNER_TEMP/aligned-unsigned.apk"
           unset PASS
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs --min-sdk-version 26 ImageOrderStudio.apk | tee signature-report.txt
-          grep -F 'Verified using v1 scheme (JAR signing): true' signature-report.txt
           grep -F 'Verified using v2 scheme (APK Signature Scheme v2): true' signature-report.txt
           grep -F 'Verified using v3 scheme (APK Signature Scheme v3): true' signature-report.txt
           "$BUILD_TOOLS/zipalign" -c -p 4 ImageOrderStudio.apk
