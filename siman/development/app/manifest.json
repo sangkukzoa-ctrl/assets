@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "심안 (心眼) — AI 대화 통합 검색",
   "short_name": "심안 心眼",
-  "version": "1.5.5",
-  "description": "심안 v1.5.5 — Chrome 연결 자가복구, 방문 수집 진단, 데이터 보존 및 검색 개선",
+  "version": "1.5.6",
+  "description": "심안 v1.5.6 — Chrome 연결 자가복구, 방문 수집 진단, 데이터 보존 및 검색 개선",
   "minimum_chrome_version": "130",
   "permissions": [
     "storage",
