@@ -4,7 +4,9 @@
 **최신 공개 테스트판:** v1.5.5 Beta (2026-11-10)  
 **환경:** Windows 설치 관리자 `SimanSetup.exe` + Chrome/Edge Manifest V3 확장프로그램
 
-**[v1.5.5 Beta 다운로드 및 릴리스 정보](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.5)**
+**[최신 Beta 고정 다운로드](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta)** · [고정 설치 ZIP](https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip) · [v1.5.5 개별 버전 기록](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.5)
+
+GitHub Actions가 소스 변경을 감지하면 Windows 회귀 테스트·실제 EXE 설치 검사·ZIP/SHA-256 검증을 진행한 다음, 성공 시 **`siman-beta`의 동일한 URL에 최신 파일을 자동 배포**합니다. 블로그는 이 고정 주소만 안내하면 되며, 업데이트된 파일을 직접 설치할 때에는 기존 확장프로그램을 삭제하지 않습니다.
 
 ## 개요
 
@@ -43,4 +45,4 @@ GitHub Actions의 Windows 회귀 테스트, `SimanSetup.exe` 빌드, 설치·재
 
 **Chrome 웹스토어 공식 게시 및 Windows Authenticode 코드 서명은 아직 완료되지 않았습니다.** GitHub 빌드 출처 증명은 Windows 코드 서명과 다릅니다.
 
-[개인정보 처리 안내](PRIVACY.md) · [개발 이어받기·작업 절차](CONTINUATION_2026-11-10.md)
+[개인정보 처리 안내](PRIVACY.md) · [개발 이어받기·작업 절차](CONTINUATION_2026-11-10.md) · [공개 다운로드 검증](https://github.com/sangkukzoa-ctrl/assets/actions/workflows/siman-public-download-check.yml)
