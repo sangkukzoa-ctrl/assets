@@ -1,12 +1,12 @@
 # 심안(心眼) / Siman — AI 대화 원문 통합 검색
 
 **개발자:** 2bornot  
-**최신 공개 테스트판:** v1.5.5 Beta (2026-11-10)  
+**최신 공개 테스트판:** v1.5.6 Beta (2026-11-10)  
 **환경:** Windows 설치 관리자 `SimanSetup.exe` + Chrome/Edge Manifest V3 확장프로그램
 
-**[최신 Beta 고정 다운로드](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta)** · [고정 설치 ZIP](https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip) · [v1.5.5 개별 버전 기록](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.5)
+**[최신 Beta 고정 다운로드](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta)** · [고정 설치 ZIP](https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip) · [v1.5.6 개별 버전 기록](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.6)
 
-GitHub Actions가 소스 변경을 감지하면 Windows 회귀 테스트·실제 EXE 설치 검사·ZIP/SHA-256 검증을 진행한 다음, 성공 시 **`siman-beta`의 동일한 URL에 최신 파일을 자동 배포**합니다. 블로그는 이 고정 주소만 안내하면 되며, 업데이트된 파일을 직접 설치할 때에는 기존 확장프로그램을 삭제하지 않습니다.
+GitHub Actions가 [`siman/development/`](development/)의 소스 변경을 감지하면 Windows 회귀 테스트·실제 EXE 설치 검사·ZIP/SHA-256 검증을 진행한 다음, 성공 시 **`siman-beta`의 동일한 URL에 최신 파일을 자동 배포**합니다. 블로그는 이 고정 주소만 안내하면 되며, 업데이트된 파일을 직접 설치할 때에는 기존 확장프로그램을 삭제하지 않습니다.
 
 ## 개요
 
@@ -30,6 +30,14 @@ GitHub Actions가 소스 변경을 감지하면 Windows 회귀 테스트·실제
 최초 설치는 `Siman_v1.5.5_BLOG_ATTACHMENT.zip` 압축 해제 → `SimanSetup.exe` 실행 → **설치 파일 준비하기** → **Chrome 등록하기** 또는 **Edge 등록하기** → 브라우저 확장프로그램 관리 화면에서 **개발자 모드** → **압축해제된 확장 프로그램을 로드** → 복사된 설치 폴더 경로 붙여넣기(Ctrl+V, Enter) → 폴더 선택입니다.
 
 업데이트 전에는 검색 화면의 **서비스별 수집 · 연결 복구 · 백업 (고급)** 메뉴에서 **전체 원문 백업 저장**으로 JSON을 백업하세요. 기존 확장프로그램을 삭제하지 않고 새 `SimanSetup.exe`로 파일을 교체한 뒤, `chrome://extensions` 또는 `edge://extensions`에서 기존 심안을 **새로고침**하고 열려 있던 AI 탭도 새로고침합니다.
+
+## v1.5.6 변경 사항
+
+- ChatLLM의 HTTP 200 이후 응답 본문 읽기가 무한 대기로 이어지지 않도록 JSON body 수신 타임아웃 유지
+- 수집 중 서비스 페이지 연결이 끊기면 기록을 보존하고 최대 한 번 자동 재연결
+- ChatLLM 상세 API 재조회·직접 원문 조회·HTML 내보내기 단계별 진단 추가
+- 7번째 회귀 테스트: HTTP 200 후 JSON 본문이 끝나지 않는 모의 장애 및 수집기 연결 복구 검사
+- v1.5.5의 Chrome 초기화·방문 저장 복구 및 v1.5.4의 ChatGPT HTTP 429 보호 유지
 
 ## v1.5.5 변경 사항
 
