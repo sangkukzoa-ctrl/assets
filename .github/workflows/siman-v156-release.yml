@@ -46,7 +46,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          foreach($test in @('bridge.test.cjs','collectors.test.cjs','deepseek_dom.test.cjs','v154_regressions.test.cjs','v156_archive_integrity.test.cjs','v155_capture_recovery.test.cjs','v156_stall_recovery.test.cjs')){
+          foreach($test in @('bridge.test.cjs','collectors.test.cjs','deepseek_dom.test.cjs','v154_regressions.test.cjs','v155_archive_integrity.test.cjs','v155_capture_recovery.test.cjs','v156_stall_recovery.test.cjs')){
             node (Join-Path 'source/tests' $test)
             if($LASTEXITCODE -ne 0){throw "Regression failed: $test"}
           }
@@ -59,7 +59,7 @@ jobs:
           $s=Get-Content 'source/app/content.js' -Raw -Encoding UTF8
           if($s.Contains("throw Error('심안 저장용 의존성 로딩 실패')")){throw 'Old Chrome loading crash remains'}
           if(!$s.Contains('VISIT_SKIP') -or !$s.Contains('VISIT_ERROR') -or !$s.Contains('captureBusy')){throw 'Visited capture diagnostics missing'}
-          Write-Host 'PASS: six regression suites, Chrome content initialization and manifest'
+          Write-Host 'PASS: seven regression suites, Chrome content initialization and manifest'
       - name: Compile native Windows SimanSetup.exe
         shell: pwsh
         run: |
@@ -128,7 +128,7 @@ jobs:
           if($LASTEXITCODE -eq 0){
             gh release upload $tag @items --clobber
           }else{
-            gh release create $tag @items --title '심안 心眼 v1.5.6 Beta — Chrome 연결 복구 및 방문 수집 개선' --notes-file 'dist/RELEASE_NOTES_v1.5.6.md' --prerelease --latest=false
+            gh release create $tag @items --title '심안 心眼 v1.5.6 Beta — ChatLLM 원문 응답 중단 복구' --notes-file 'dist/RELEASE_NOTES_v1.5.6.md' --prerelease --latest=false
           }
           if($LASTEXITCODE -ne 0){throw 'GitHub release failed'}
       - name: Prepare fixed-name Siman beta download artifacts
