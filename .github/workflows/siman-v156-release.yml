@@ -1,10 +1,5 @@
 name: Siman v1.5.6 Windows regression and beta release
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/siman-v156-release.yml'
-      - 'siman/development/**'
   workflow_dispatch:
 permissions:
   contents: write
