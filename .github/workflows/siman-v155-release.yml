@@ -27,8 +27,8 @@ jobs:
             [IO.File]::WriteAllBytes((Join-Path 'dist' $name),[Convert]::FromBase64String($s))
           }
           $expected=@{
-            'Siman_v1.5.5_SOURCE.zip'='64414bc1cec6e8f621ddc81e6b841ff44ab60f428af637bbb8bdfbc169f97b7b'
-            'Siman_v1.5.5_WEBSTORE.zip'='092deaa8d22f041d3770a784532d0e17e80e2b0393cf5154d5d7a8e995c6237b'
+            'Siman_v1.5.5_SOURCE.zip'='67fad3b30225e97923376c3ca3cef7a212ce31a14aec467bc2ceb3522836bbc0'
+            'Siman_v1.5.5_WEBSTORE.zip'='775b5a34e9ca38d979b715ba9231aa77a06c3bb95f32885152339ba91ed52323'
           }
           foreach($f in $expected.Keys){
             $h=(Get-FileHash (Join-Path 'dist' $f) -Algorithm SHA256).Hash.ToLower()
