@@ -1,0 +1,3 @@
+Image Order Studio 0.2.0 public beta candidate
+Developer 2bornot
+Build: stable release signing with v1/v2/v3 APK verification
