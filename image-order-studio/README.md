@@ -1,18 +1,27 @@
-# Image Order Studio / 이미지 순서 스튜디오 v0.2.0
+# Image Order Studio / 이미지 순서 스튜디오 v0.3.0
 
 Android 8.0+ · **2bornot** · Free / 무료 · Offline-first, no advertisements · Korean/English UI
 
 **Goal:** Give images an explicit, immutable *logical sequence* after they are imported. Android and third-party sites may still place attachments in a different order; visible order markers and single-image combining retain evidence of the user's intended sequence independently of filename, extension, original import order, and website UI.
 
-## Usage / 사용법
+## 사용법 / Usage
 
-1. Import images or share them into this app from the system gallery. **Imported photos have no rank yet**, since the external picker may return an arbitrary order.
-2. Tap the images one by one in your required order. Blue badges show 1,2,3… A second tap removes a photo from the selection.
-3. Use **Selected first** to see the selected photos at the top in your definitive order, or **Selected only** to review just chosen images. **Edit order** swaps individual positions without changing the underlying files. Long-press deletes an imported *copy*, without deleting the original image.
-4. **Share compact JPG** creates images containing a prominent `ORDER 0001 / 0005` header and uses 90%-quality JPEG for upload compatibility. **Share numbered PNG** uses lossless PNG for screenshots and text. File names are also number-prefixed, but filenames alone are not the guarantee.
-5. **Save to folder** saves ordered JPGs for use with websites' regular file selectors. **Combine to one** creates one tall PNG (<=12 pictures and within 14,000 px height). **Copy sequence** copies the ordered image name list to clipboard for pasting into a text prompt or report. **Share originals** preserves image bytes but DOES NOT guarantee third-party ordering.
+### 사이트의 첨부 버튼에서 시작 (권장)
 
-For example, if image files A.png,B.jpg,C.webp are imported, and the user taps B,C,A, every visible rank and numbered export is in order B=1, C=2, A=3 even if a receiving site sorts attachments A,B,C.
+1. 지원되는 사이트나 앱에서 사진 첨부를 누릅니다. Android 선택창에 **Image Order Studio**가 나타나면 선택합니다. Android의 기본앱 선택 화면이 제공되는 경우 **항상**으로 설정할 수 있습니다.
+2. 앱에서 **갤러리에서 사진 선택**을 자동으로 열어 시스템 사진 선택기에서 사진을 가져옵니다. Android 15 / R Extensions 12 이상에서 Photo Picker가 순서 표시/반환을 지원하면 순번을 자동 반영합니다. 그 외 버전은 앱 안에서 원하는 순서대로 사진 타일을 누르십시오.
+3. **사이트에 첨부** 버튼을 누릅니다. 앱은 번호 표시된 이미지의 `content://` URI를 원래 호출자에게 `RESULT_OK`, `ClipData`, 읽기 권한과 함께 직접 반환합니다. 추가 공유 화면 없이 첨부 요청이 완료됩니다.
+4. 호출자가 **한 장만** 받으면 한 장을 선택하거나 (12장 이하) 순서대로 한 장으로 결합합니다. 여러 장을 요청한 사이트에는 정해진 순서의 여러 URI를 전달합니다.
+
+### 앱 직접 실행
+
+1. **＋ 갤러리에서 사진 선택**을 누릅니다. 시스템 사진 선택기가 우선 표시되고, 미지원 기기는 갤러리/파일 선택 옵션을 표시합니다.
+2. 파란색 번호가 순서를 뜻합니다. 클릭해 추가/제거하고 **순서 편집**으로 수정합니다.
+3. 번호 표시 JPG/PNG 공유, 폴더 저장, 하나로 결합 등을 선택합니다.
+
+사이트마다 Android `ACTION_GET_CONTENT`, `ACTION_PICK`, 시스템 `ACTION_OPEN_DOCUMENT`, 또는 최신 Photo Picker 호출 경로를 사용합니다. 이 앱은 표준 이미지 `GET_CONTENT` 및 `PICK`를 처리합니다. `ACTION_OPEN_DOCUMENT`와 시스템 독점 사진 선택기에서는 타사 앱이 전체 화면을 대체할 수 없으므로 앱 직접 실행 / 공유로 이용할 수 있습니다. Android 13+의 Photo Picker 기본 개입도 기기별로 다릅니다.
+
+Image byte-order is encoded into each numbered output's visible header, not inferred from filenames. Receiver apps can still display attachments in their own ordering.
 
 ## Privacy
 

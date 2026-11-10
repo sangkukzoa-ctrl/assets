@@ -27,10 +27,19 @@ final class GalleryStore {
     final ArrayList<Item> items = new ArrayList<>();
     final SequenceLedger sequence = new SequenceLedger();
     private final File library, metadata;
-    GalleryStore(Context ctx) {
+    GalleryStore(Context ctx) { this(ctx,false); }
+    GalleryStore(Context ctx,boolean externalSession) {
         this.ctx=ctx;
-        library=new File(ctx.getFilesDir(),"library");
-        metadata=new File(ctx.getFilesDir(),"gallery.json");
+        File home;
+        if(externalSession) {
+            File sessions=new File(ctx.getFilesDir(),"picker-sessions");
+            if(!sessions.exists() && !sessions.mkdirs())throw new IllegalStateException("Picker storage unavailable");
+            cleanExpiredSessions(sessions);
+            home=new File(sessions,"session-"+UUID.randomUUID().toString());
+            if(!home.mkdirs())throw new IllegalStateException("Picker session unavailable");
+        } else home=ctx.getFilesDir();
+        library=new File(home,"library");
+        metadata=new File(home,"gallery.json");
         if (!library.exists() && !library.mkdirs()) throw new IllegalStateException("Cannot initialize library");
         load();
     }
@@ -39,7 +48,7 @@ final class GalleryStore {
         return null;
     }
     File source(Item item) { return new File(library,item.path); }
-    synchronized void add(Uri uri) throws Exception {
+    synchronized Item add(Uri uri) throws Exception {
         ContentResolver cr=ctx.getContentResolver();
         String mime=cr.getType(uri);
         if(mime==null) mime="image/*";
@@ -55,8 +64,22 @@ final class GalleryStore {
             while((n=in.read(buf))!=-1) { out.write(buf,0,n); total+=n; }
             if(total==0) throw new IOException("Empty image: "+name);
         } catch(Exception ex) { target.delete(); throw ex; }
-        items.add(new Item(id,name,mime,path));
+        Item item=new Item(id,name,mime,path);
+        items.add(item);
         save();
+        return item;
+    }
+    private static void cleanExpiredSessions(File sessions) {
+        File[] list=sessions.listFiles();if(list==null)return;
+        long cutoff=System.currentTimeMillis()-7L*24*60*60*1000;
+        for(File session:list)if(session.isDirectory() && session.getName().startsWith("session-")
+            && session.lastModified()<cutoff)deleteTree(session);
+    }
+    private static void deleteTree(File f) {
+        if(f.isDirectory()) {
+            File[] files=f.listFiles();if(files!=null)for(File c:files)deleteTree(c);
+        }
+        f.delete();
     }
     static String readName(ContentResolver cr,Uri uri) {
         try(Cursor c=cr.query(uri,new String[]{OpenableColumns.DISPLAY_NAME},null,null,null)) {

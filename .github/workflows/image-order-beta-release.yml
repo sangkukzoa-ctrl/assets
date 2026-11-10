@@ -38,10 +38,12 @@ jobs:
           mkdir -p build/testclasses
           javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/SequenceLedger.java tests/SequenceLedgerTest.java
           java -cp build/testclasses SequenceLedgerTest
+          javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/PickerDecision.java tests/PickerDecisionTest.java
+          java -cp build/testclasses com.twobornot.imageorder.PickerDecisionTest
           gradle --no-daemon :app:assembleRelease --stacktrace
           test -s app/build/outputs/apk/release/app-release-unsigned.apk
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | tee /tmp/imageorder-aapt.txt
-          grep -F "package: name='com.twobornot.imageorder' versionCode='3' versionName='0.2.0'" /tmp/imageorder-aapt.txt
+          grep -F "package: name='com.twobornot.imageorder' versionCode='4' versionName='0.3.0'" /tmp/imageorder-aapt.txt
           grep -F "sdkVersion:'26'" /tmp/imageorder-aapt.txt
       - name: Create one-use transfer certificate (no private key uploaded)
         shell: bash
@@ -103,8 +105,25 @@ jobs:
           grep -F 'Verified using v2 scheme (APK Signature Scheme v2): true' signature-report.txt
           grep -F 'Verified using v3 scheme (APK Signature Scheme v3): true' signature-report.txt
           "$BUILD_TOOLS/zipalign" -c -p 4 ImageOrderStudio.apk
-          "$BUILD_TOOLS/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='3' versionName='0.2.0'"
+          "$BUILD_TOOLS/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='4' versionName='0.3.0'"
           test "$(stat -c %s ImageOrderStudio.apk)" -gt 200000
+      - name: Install signed APK and validate picker registration on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          emulator-options: '-no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect'
+          script: |
+            adb install -r ImageOrderStudio.apk
+            adb shell am start -n com.twobornot.imageorder/.MainActivity
+            sleep 4
+            adb shell dumpsys activity activities | grep -F 'com.twobornot.imageorder'
+            adb shell dumpsys package com.twobornot.imageorder | grep -F 'android.intent.action.GET_CONTENT'
+            adb shell dumpsys package com.twobornot.imageorder | grep -F 'android.intent.action.PICK'
+            adb logcat -d -s AndroidRuntime:E | tee /tmp/imageorder-crashes.txt
+            ! grep -q 'FATAL EXCEPTION.*com.twobornot.imageorder' /tmp/imageorder-crashes.txt
       - name: Package public sources, hashes, release notes
         shell: bash
         run: |
