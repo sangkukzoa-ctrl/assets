@@ -1,10 +1,10 @@
 # 심안(心眼) / Siman — AI 대화 원문 통합 검색
 
 **개발자:** 2bornot  
-**최신 공개 테스트판:** v1.5.6 Beta (2026-11-10)  
+**최신 공개 테스트판:** v1.5.7 Beta (2026-11-11)  
 **환경:** Windows 설치 관리자 `SimanSetup.exe` + Chrome/Edge Manifest V3 확장프로그램
 
-**[최신 Beta 고정 다운로드](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta)** · [고정 설치 ZIP](https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip) · [v1.5.6 개별 버전 기록](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.6)
+**[최신 Beta 고정 다운로드](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta)** · [고정 설치 ZIP](https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip) · [v1.5.7 개별 버전 기록](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.7)
 
 GitHub Actions가 [`siman/development/`](development/)의 소스 변경을 감지하면 Windows 회귀 테스트·실제 EXE 설치 검사·ZIP/SHA-256 검증을 진행한 다음, 성공 시 **`siman-beta`의 동일한 URL에 최신 파일을 자동 배포**합니다. 블로그는 이 고정 주소만 안내하면 되며, 업데이트된 파일을 직접 설치할 때에는 기존 확장프로그램을 삭제하지 않습니다.
 
@@ -27,9 +27,19 @@ GitHub Actions가 [`siman/development/`](development/)의 소스 변경을 감�
 
 ## 설치와 업데이트
 
-최초 설치는 `Siman_v1.5.5_BLOG_ATTACHMENT.zip` 압축 해제 → `SimanSetup.exe` 실행 → **설치 파일 준비하기** → **Chrome 등록하기** 또는 **Edge 등록하기** → 브라우저 확장프로그램 관리 화면에서 **개발자 모드** → **압축해제된 확장 프로그램을 로드** → 복사된 설치 폴더 경로 붙여넣기(Ctrl+V, Enter) → 폴더 선택입니다.
+**신규 설치:** 최신 `SimanSetup.exe`를 실행하면 필요한 확장프로그램 파일이 자동 설치됩니다. 이후 한 번만 Chrome 또는 Edge 확장프로그램 관리 화면에서 개발자 모드 → 압축해제된 확장프로그램 로드 → 설치 폴더 선택으로 등록합니다.
 
-업데이트 전에는 검색 화면의 **서비스별 수집 · 연결 복구 · 백업 (고급)** 메뉴에서 **전체 원문 백업 저장**으로 JSON을 백업하세요. 기존 확장프로그램을 삭제하지 않고 새 `SimanSetup.exe`로 파일을 교체한 뒤, `chrome://extensions` 또는 `edge://extensions`에서 기존 심안을 **새로고침**하고 열려 있던 AI 탭도 새로고침합니다.
+**기존 사용자:** 고정 GitHub 다운로드의 최신 `SimanSetup.exe`를 실행하면 **기존 설치 위치에 자동으로 덮어쓰기 업데이트**됩니다. 파일 관리나 확장프로그램 삭제/재등록, JSON 원문 백업/복원은 필요하지 않습니다. 브라우저 검색 색인·대화 원문은 확장프로그램 저장소에 그대로 남습니다. 실행 중인 브라우저가 이전 코드를 유지하는 경우에는 기존 심안 확장을 새로고침하거나 브라우저를 재시작하면 됩니다.
+
+설치 실패 시 이전 설치 코드 롤백을 시도하며 로그는 `%LOCALAPPDATA%\\2bornot\\Siman\\setup.log`에 기록됩니다.
+
+## v1.5.7 변경 사항
+
+- 설치 관리자 실행 즉시 설치/업데이트 수행; 기존 사용자의 수동 설치 파일 준비 단계 제거
+- 설치 폴더 경로를 그대로 유지하는 관리 대상 코드만의 **제자리 덮어쓰기**
+- 기존 Chrome/Edge 확장프로그램 ID·`chrome.storage.local` 원문 및 색인 보존, 자동 임시 백업과 실패 시 코드 복원
+- 사용자 지정 파일 보존 및 지난 버전의 관리 대상에서 제거된 불필요 코드 파일 정리
+- 실제 Windows EXE에서 v1.5.6 모의 설치본 → v1.5.7 업그레이드, 폴더 동일성·원문 영역 무변경·반복 업데이트 회귀 검증
 
 ## v1.5.6 변경 사항
 
