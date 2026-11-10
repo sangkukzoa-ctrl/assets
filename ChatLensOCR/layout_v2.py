@@ -527,9 +527,17 @@ def generic(img,language,precise):
     original="\n".join(v["text"] for v in rows)
     from generic_subtitle_fidelity_v0412 import restore_white_subtitle
     reread=restore_white_subtitle(img,original,language)
+    # RapidOCR can return nothing for tiny white subtitles on photographic
+    # backgrounds. Prior two-line rescue intentionally skips empty input.
+    # A separate strictly pixel-agreed fallback handles this last case.
+    from generic_blank_caption_v0413 import recover_empty_caption
+    if not reread.strip():
+        reread=recover_empty_caption(img,reread,language)
     metadata=[{"confidence":v["score"]} for v in rows]
     if reread!=original:
-        metadata.append({"type":"pixel_verified_white_subtitle",
+        kind=("pixel_agreed_blank_caption" if not original.strip()
+              else "pixel_verified_white_subtitle")
+        metadata.append({"type":kind,
                          "box":(0,round(img.height*.67),img.width,img.height)})
     return "범용",reread,[],metadata,items
 
