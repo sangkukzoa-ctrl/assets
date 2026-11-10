@@ -6,6 +6,9 @@ on:
       - '.github/workflows/siman-v157-release.yml'
       - 'siman/development/**'
   workflow_dispatch:
+concurrency:
+  group: siman-v157-release
+  cancel-in-progress: false
 permissions:
   contents: write
   id-token: write
