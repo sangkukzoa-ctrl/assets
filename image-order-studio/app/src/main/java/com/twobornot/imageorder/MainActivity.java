@@ -1,0 +1,316 @@
+package com.twobornot.imageorder;
+
+import android.app.*;
+import android.os.*;
+import android.content.*;
+import android.graphics.*;
+import android.graphics.drawable.*;
+import android.net.Uri;
+import android.provider.DocumentsContract;
+import android.view.*;
+import android.widget.*;
+import android.util.LruCache;
+import androidx.core.content.FileProvider;
+import java.io.File;
+import java.util.*;
+import java.util.concurrent.*;
+
+/**
+ * Sequence is set by taps IN THIS APP, never by a provider's returned ClipData ordering.
+ * Rendered numbered images are the cross-site fallback when receivers re-sort attachments.
+ */
+public class MainActivity extends Activity {
+    private static final int IMPORT_IMAGES=100, CHOOSE_FOLDER=200;
+    private static final int NAVY=0xff182C46, BLUE=0xff2563EB, MUTED=0xff60748C;
+    private final ExecutorService worker=Executors.newSingleThreadExecutor();
+    private final ExecutorService thumbWorker=Executors.newFixedThreadPool(2);
+    private final Handler ui=new Handler(Looper.getMainLooper());
+    private GalleryStore store;
+    private ImageExporter exporter;
+    private GridView grid;
+    private BaseAdapter adapter;
+    private TextView status, subtitle;
+    private final LruCache<String,Bitmap> thumbs=new LruCache<String,Bitmap>(12*1024*1024) {
+        @Override protected int sizeOf(String id,Bitmap b){ return b.getByteCount(); }
+    };
+    private final Set<String> loading=Collections.synchronizedSet(new HashSet<>());
+    private final Set<String> failedThumbs=Collections.synchronizedSet(new HashSet<>());
+    private boolean working=false;
+
+    private boolean ko() {return Locale.getDefault().getLanguage().equals("ko");}
+    private String t(String ko,String en) {return ko()?ko:en;}
+    private int dp(float n) {return (int)(getResources().getDisplayMetrics().density*n+0.5f);}
+
+    @Override public void onCreate(Bundle state) {
+        super.onCreate(state);
+        getWindow().setStatusBarColor(NAVY);getWindow().setNavigationBarColor(0xffeef2f8);
+        store=new GalleryStore(this);exporter=new ImageExporter(this);
+        setup();updateCounters();
+        handleIncoming(getIntent());
+    }
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);setIntent(intent);handleIncoming(intent);
+    }
+    private void setup() {
+        LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(0xfff3f6fa);setContentView(root);
+        LinearLayout header=new LinearLayout(this);header.setPadding(dp(18),dp(18),dp(18),dp(13));
+        header.setOrientation(LinearLayout.VERTICAL);header.setBackgroundColor(NAVY);root.addView(header);
+        TextView title=text("Image Order Studio",23,0xffffffff,true);header.addView(title);
+        subtitle=text(t("선택한 순서가 곧 정답입니다", "Your selection order is authoritative"),12,0xffcbd8ee,false);
+        header.addView(subtitle);
+        LinearLayout toolbar=row(); toolbar.setPadding(dp(8),dp(10),dp(8),dp(5));root.addView(toolbar);
+        addButton(toolbar,t("＋ 이미지 가져오기","＋ Import images"),()->openPicker(),BLUE);
+        addButton(toolbar,t("순서 편집","Edit order"),()->editSequence(),NAVY);
+        LinearLayout toolbar2=row();toolbar2.setPadding(dp(8),0,dp(8),dp(8));root.addView(toolbar2);
+        addButton(toolbar2,t("선택 초기화","Clear selection"),()->confirmClearSequence(),0xff6f8095);
+        addButton(toolbar2,t("보관함 비우기","Clear library"),()->confirmClearLibrary(),0xff6f8095);
+        status=text("",13,NAVY,true);status.setPadding(dp(14),dp(8),dp(14),dp(5));root.addView(status);
+        TextView instructions=text(t("이미지 타일을 원하는 순서대로 탭하세요. 각 이미지에 순번이 표시됩니다.",
+            "Tap image tiles in your intended order. Each image displays its rank."),12,MUTED,false);
+        instructions.setPadding(dp(14),0,dp(14),dp(12));root.addView(instructions);
+        grid=new GridView(this);grid.setNumColumns(GridView.AUTO_FIT);grid.setColumnWidth(dp(109));
+        grid.setHorizontalSpacing(dp(6));grid.setVerticalSpacing(dp(6));grid.setPadding(dp(9),dp(8),dp(9),dp(10));
+        grid.setClipToPadding(false);grid.setStretchMode(GridView.STRETCH_COLUMN_WIDTH);
+        grid.setBackgroundColor(0xfff3f6fa);root.addView(grid,new LinearLayout.LayoutParams(-1,0,1));
+        adapter=new BaseAdapter() {
+            @Override public int getCount(){return store.items.size();}
+            @Override public Object getItem(int p){return store.items.get(p);}
+            @Override public long getItemId(int p){return p;}
+            @Override public View getView(int p,View convert,android.view.ViewGroup parent){return tile(store.items.get(p));}
+        };
+        grid.setAdapter(adapter);
+        grid.setOnItemClickListener((parent,view,position,id)->{
+            if(working) return;
+            GalleryStore.Item item=store.items.get(position);
+            if(store.sequence.rank(item.id)>0) store.sequence.deselect(item.id);
+            else store.sequence.select(item.id);
+            store.save();adapter.notifyDataSetChanged();updateCounters();
+        });
+        TextView actions=text(t("외부 업로드용 내보내기","EXPORT FOR OTHER APPS / WEBSITES"),11,MUTED,true);
+        actions.setPadding(dp(13),dp(9),0,dp(4));root.addView(actions);
+        LinearLayout bottom1=row();bottom1.setPadding(dp(8),0,dp(8),dp(5));root.addView(bottom1);
+        addButton(bottom1,t("번호 삽입 공유","Share numbered"),()->shareNumbered(),BLUE);
+        addButton(bottom1,t("폴더에 저장","Save to folder"),()->pickFolder(),NAVY);
+        LinearLayout bottom2=row();bottom2.setPadding(dp(8),0,dp(8),dp(11));root.addView(bottom2);
+        addButton(bottom2,t("한 장으로 결합","Combine to one"),()->shareCombined(),NAVY);
+        addButton(bottom2,t("원본 공유","Share originals"),()->shareOriginals(),0xff6f8095);
+    }
+    private LinearLayout row() {
+        LinearLayout r=new LinearLayout(this);r.setOrientation(LinearLayout.HORIZONTAL);return r;
+    }
+    private void addButton(LinearLayout parent,String label,Runnable f,int color) {
+        TextView b=text(label,13,0xffffffff,true);b.setGravity(Gravity.CENTER);
+        GradientDrawable bg=new GradientDrawable();bg.setColor(color);bg.setCornerRadius(dp(10));b.setBackground(bg);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(44),1);lp.setMargins(dp(3),dp(2),dp(3),dp(2));parent.addView(b,lp);
+        b.setOnClickListener(v->f.run());
+    }
+    private TextView text(String s,int sp,int color,boolean bold) {
+        TextView tv=new TextView(this);tv.setText(s);tv.setTextSize(sp);tv.setTextColor(color);
+        if(bold)tv.setTypeface(null,1);return tv;
+    }
+    private View tile(GalleryStore.Item item) {
+        FrameLayout card=new FrameLayout(this);card.setBackgroundColor(0xffffffff);
+        int rank=store.sequence.rank(item.id);
+        GradientDrawable shape=new GradientDrawable();shape.setColor(0xffffffff);shape.setCornerRadius(dp(6));
+        shape.setStroke(dp(rank>0?3:1),rank>0?BLUE:0xffd5dce5);card.setBackground(shape);
+        ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        image.setBackgroundColor(0xffe4ebf3);card.addView(image,new FrameLayout.LayoutParams(-1,-1));
+        Bitmap cached=thumbs.get(item.id);
+        if(cached!=null && !cached.isRecycled()) image.setImageBitmap(cached);
+        else loadThumbnail(item);
+        TextView name=text(item.name,10,0xffffffff,false);name.setSingleLine(true);name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        name.setPadding(dp(5),dp(4),dp(5),dp(4));name.setBackgroundColor(0xb6000000);
+        FrameLayout.LayoutParams labelLp=new FrameLayout.LayoutParams(-1,dp(29),Gravity.BOTTOM);card.addView(name,labelLp);
+        if(rank>0) {
+            TextView rankView=text(String.valueOf(rank),17,0xffffffff,true);rankView.setGravity(Gravity.CENTER);
+            GradientDrawable badge=new GradientDrawable();badge.setColor(BLUE);badge.setCornerRadius(dp(24));rankView.setBackground(badge);
+            FrameLayout.LayoutParams rlp=new FrameLayout.LayoutParams(dp(39),dp(39),Gravity.TOP|Gravity.END);
+            rlp.setMargins(0,dp(4),dp(4),0);card.addView(rankView,rlp);
+        }
+        card.setLayoutParams(new AbsListView.LayoutParams(-1,dp(113)));
+        return card;
+    }
+    private void loadThumbnail(GalleryStore.Item item) {
+        if(failedThumbs.contains(item.id) || !loading.add(item.id)) return;
+        thumbWorker.execute(()->{
+            Bitmap bmp=null;
+            try {
+                File src=store.source(item);BitmapFactory.Options o=new BitmapFactory.Options();o.inJustDecodeBounds=true;
+                BitmapFactory.decodeFile(src.getPath(),o);
+                if(o.outWidth>0 && o.outHeight>0) {
+                    int sample=1;while(Math.max(o.outWidth/sample,o.outHeight/sample)>256)sample*=2;
+                    BitmapFactory.Options dec=new BitmapFactory.Options();dec.inSampleSize=sample;
+                    bmp=BitmapFactory.decodeFile(src.getPath(),dec);
+                }
+            } catch(Exception ignored) {}
+            final Bitmap result=bmp;
+            ui.post(()->{
+                loading.remove(item.id);
+                if(result!=null) thumbs.put(item.id,result);
+                else failedThumbs.add(item.id);
+                if(adapter!=null) adapter.notifyDataSetChanged();
+            });
+        });
+    }
+    private void updateCounters(){
+        if(status!=null) status.setText(t("불러온 이미지 ","Imported ")+store.items.size()+
+            t("장  •  선택한 이미지 "," images  •  Selected ")+store.sequence.size()+t("장"," images"));
+    }
+    private void openPicker() {
+        Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.setType("image/*");i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);
+        startActivityForResult(i,IMPORT_IMAGES);
+    }
+    private void handleIncoming(Intent i) {
+        if(i==null) return;
+        String action=i.getAction();if(!Intent.ACTION_SEND.equals(action)&&!Intent.ACTION_SEND_MULTIPLE.equals(action))return;
+        ArrayList<Uri> uris=new ArrayList<>();
+        if(Intent.ACTION_SEND.equals(action)) {
+            Uri u=i.getParcelableExtra(Intent.EXTRA_STREAM);if(u!=null)uris.add(u);
+        } else {
+            ArrayList<Uri> list=i.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+            if(list!=null)uris.addAll(list);
+        }
+        // Do not trust order in an incoming share intent; import as unranked gallery entries.
+        importAll(uris); i.setAction(Intent.ACTION_MAIN);
+    }
+    @Override protected void onActivityResult(int request,int result,Intent data) {
+        super.onActivityResult(request,result,data);
+        if(result!=RESULT_OK||data==null)return;
+        if(request==IMPORT_IMAGES) {
+            ArrayList<Uri> uris=new ArrayList<>();
+            if(data.getClipData()!=null) {
+                for(int j=0;j<data.getClipData().getItemCount();j++) uris.add(data.getClipData().getItemAt(j).getUri());
+            } else if(data.getData()!=null) uris.add(data.getData());
+            importAll(uris);
+        } else if(request==CHOOSE_FOLDER) {
+            Uri tree=data.getData();if(tree!=null) saveToFolder(tree);
+        }
+    }
+    private void importAll(List<Uri> uris) {
+        if(uris.isEmpty()||working)return;
+        run(t("이미지 가져오는 중…","Importing images…"),()->{
+            int ok=0;ArrayList<String> errors=new ArrayList<>();
+            for(Uri uri:uris) {
+                try{store.add(uri);ok++;}catch(Exception e){errors.add(e.getMessage());}
+            }
+            final int count=ok;
+            ui.post(()->{
+                adapter.notifyDataSetChanged();updateCounters();
+                String s=t("가져온 이미지 ","Imported ")+count+t("장"," images");
+                if(!errors.isEmpty())s+=t(" / 실패 "," / Failed ")+errors.size()+"\n"+errors.get(0);
+                toastDialog(s);
+            });
+        });
+    }
+    private void editSequence() {
+        List<String> ids=store.sequence.snapshot();
+        if(ids.isEmpty()){toastDialog(t("이미지를 먼저 선택하세요.","Select images first."));return;}
+        String[] labels=new String[ids.size()];
+        for(int i=0;i<ids.size();i++){
+            GalleryStore.Item item=store.find(ids.get(i));
+            labels[i]=String.format(Locale.ROOT,"%04d  %s",i+1,item==null?"?":item.name);
+        }
+        new AlertDialog.Builder(this).setTitle(t("선택 순서 편집","Edit sequence"))
+            .setItems(labels,(d,position)->{
+                new AlertDialog.Builder(this).setTitle(labels[position]).setItems(new String[]{
+                    t("한 칸 앞으로","Move earlier"),t("한 칸 뒤로","Move later"),t("선택 해제","Remove")},(d2,choice)->{
+                    if(choice==0)store.sequence.swap(position,position-1);
+                    if(choice==1)store.sequence.swap(position,position+1);
+                    if(choice==2)store.sequence.deselect(ids.get(position));
+                    store.save();adapter.notifyDataSetChanged();updateCounters();editSequence();
+                }).show();
+            }).setNegativeButton(t("닫기","Close"),null).show();
+    }
+    private void confirmClearSequence() {
+        new AlertDialog.Builder(this).setTitle(t("선택 순서 초기화","Clear selection?"))
+          .setMessage(t("이미지는 보관함에 남습니다.","Imported images stay in your library."))
+          .setPositiveButton(t("초기화","Clear"),(d,w)->{
+              store.sequence.clear();store.save();adapter.notifyDataSetChanged();updateCounters();
+          }).setNegativeButton(t("취소","Cancel"),null).show();
+    }
+    private void confirmClearLibrary() {
+        new AlertDialog.Builder(this).setTitle(t("보관함 비우기","Clear library?"))
+          .setMessage(t("앱 내부 복사본과 선택 순서를 삭제합니다. 휴대전화의 원본은 삭제하지 않습니다.",
+            "Delete app copies and order. Originals on your device are untouched."))
+          .setPositiveButton(t("모두 삭제","Delete all"),(d,w)->{
+              if(working)return;store.clear();thumbs.evictAll();failedThumbs.clear();adapter.notifyDataSetChanged();updateCounters();
+          }).setNegativeButton(t("취소","Cancel"),null).show();
+    }
+    private void pickFolder() {
+        if(!hasSelection())return;
+        Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        startActivityForResult(intent,CHOOSE_FOLDER);
+    }
+    private void saveToFolder(Uri tree) {
+        List<String> ids=store.sequence.snapshot();
+        run(t("번호 이미지 저장 중…","Saving numbered images…"),()->{
+            List<File> files=exporter.renderNumbered(store,ids);
+            exporter.saveToTree(tree,files);
+            ui.post(()->toastDialog(t("순서가 기록된 ","Saved ")+files.size()+t("개 이미지를 저장했습니다."," numbered images.")));
+        });
+    }
+    private void shareNumbered() {
+        if(!hasSelection())return;
+        List<String> ids=store.sequence.snapshot();
+        run(t("순번 이미지 생성 중…","Rendering numbered images…"),()->{
+            List<File> files=exporter.renderNumbered(store,ids);
+            ui.post(()->shareFiles(files,"image/png"));
+        });
+    }
+    private void shareCombined() {
+        if(!hasSelection())return;
+        List<String> ids=store.sequence.snapshot();
+        run(t("단일 이미지 생성 중…","Building a single image…"),()->{
+            File f=exporter.renderCombined(store,ids);
+            ui.post(()->shareFiles(Collections.singletonList(f),"image/png"));
+        });
+    }
+    private void shareOriginals() {
+        if(!hasSelection())return;
+        ArrayList<File> files=new ArrayList<>();
+        for(String id:store.sequence.snapshot()) {
+            GalleryStore.Item item=store.find(id);if(item!=null)files.add(store.source(item));
+        }
+        shareFiles(files,"image/*");
+    }
+    private void shareFiles(List<File> files,String mime) {
+        if(files.isEmpty())return;
+        ArrayList<Uri> uris=new ArrayList<>();
+        for(File f:files)uris.add(FileProvider.getUriForFile(this,getPackageName()+".provider",f));
+        Intent i=new Intent(uris.size()==1?Intent.ACTION_SEND:Intent.ACTION_SEND_MULTIPLE);
+        i.setType(mime);
+        if(uris.size()==1)i.putExtra(Intent.EXTRA_STREAM,uris.get(0));
+        else i.putParcelableArrayListExtra(Intent.EXTRA_STREAM,uris);
+        android.content.ClipData cd=android.content.ClipData.newRawUri("ordered-image",uris.get(0));
+        for(int j=1;j<uris.size();j++)cd.addItem(new android.content.ClipData.Item(uris.get(j)));
+        i.setClipData(cd);
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try{startActivity(Intent.createChooser(i,t("이미지 업로드 / 공유","Upload / share images")));}
+        catch(Exception ex){toastDialog(ex.toString());}
+    }
+    private boolean hasSelection() {
+        if(store.sequence.size()>0)return true;
+        toastDialog(t("이미지를 순서대로 선택하세요.","Select images in order first."));return false;
+    }
+    private interface Job { void execute() throws Exception; }
+    private void run(String title,Job job) {
+        if(working)return;working=true;
+        ProgressDialog dialog=new ProgressDialog(this);dialog.setMessage(title);dialog.setCancelable(false);dialog.show();
+        worker.execute(()->{
+            String error=null;try{job.execute();}catch(Exception e){error=e.getMessage();if(error==null)error=e.toString();}
+            final String failure=error;
+            ui.post(()->{
+                working=false;if(!isFinishing())dialog.dismiss();
+                if(failure!=null)toastDialog(t("작업 실패: ","Operation failed: ")+failure);
+            });
+        });
+    }
+    private void toastDialog(String message) {
+        if(!isFinishing())new AlertDialog.Builder(this).setMessage(message).setPositiveButton("OK",null).show();
+    }
+    @Override protected void onDestroy(){super.onDestroy();worker.shutdown();thumbWorker.shutdown();}
+}

@@ -1,0 +1,49 @@
+name: Image Order Studio - Android beta CI
+on:
+  push:
+    branches: ['image-order-studio/dev']
+    paths:
+      - 'image-order-studio/**'
+      - '.github/workflows/image-order-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: image-order-studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Install Android API 36
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-36' 'build-tools;35.0.0'
+      - name: Test order invariants
+        run: |
+          mkdir -p build/testclasses
+          javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/SequenceLedger.java tests/SequenceLedgerTest.java
+          java -cp build/testclasses SequenceLedgerTest
+      - name: Compile Android APK
+        run: gradle --no-daemon :app:assembleDebug :app:assembleRelease --stacktrace
+      - name: Verify build files
+        run: |
+          test -s app/build/outputs/apk/debug/app-debug.apk
+          test -s app/build/outputs/apk/release/app-release-unsigned.apk
+          sha256sum app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ImageOrderStudio-v0.1.0-debug-and-unsigned-release
+          path: |
+            image-order-studio/app/build/outputs/apk/debug/app-debug.apk
+            image-order-studio/app/build/outputs/apk/release/app-release-unsigned.apk
+          retention-days: 30
+          if-no-files-found: error
