@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/siman-v155-release.yml'
+      - 'siman/release/v155/**'
   workflow_dispatch:
 permissions:
   contents: write
@@ -125,6 +126,76 @@ jobs:
             gh release create $tag @items --title '심안 心眼 v1.5.5 Beta — Chrome 연결 복구 및 방문 수집 개선' --notes-file 'dist/RELEASE_NOTES_v1.5.5.md' --prerelease --latest=false
           }
           if($LASTEXITCODE -ne 0){throw 'GitHub release failed'}
+      - name: Prepare fixed-name Siman beta download artifacts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Copy-Item 'dist/Siman_v1.5.5_BLOG_ATTACHMENT.zip' 'dist/Siman-Windows.zip' -Force
+          Copy-Item 'dist/Siman_v1.5.5_SOURCE.zip' 'dist/Siman_SOURCE.zip' -Force
+          Copy-Item 'dist/Siman_v1.5.5_WEBSTORE.zip' 'dist/Siman_WEBSTORE.zip' -Force
+          $files=@('SimanSetup.exe','Siman-Windows.zip','Siman_SOURCE.zip','Siman_WEBSTORE.zip')
+          $sums=@($files | ForEach-Object {
+            $hash=(Get-FileHash (Join-Path 'dist' $_) -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $_"
+          })
+          $sums | Set-Content 'dist/SHA256SUMS-LATEST.txt' -Encoding ascii
+          $zip=[IO.Compression.ZipFile]::OpenRead((Resolve-Path 'dist/Siman-Windows.zip').Path)
+          try {
+            if(!(@($zip.Entries.Name) -contains 'SimanSetup.exe')){throw 'Stable ZIP missing SimanSetup.exe'}
+          } finally {$zip.Dispose()}
+          $sha=(git rev-parse HEAD).Trim()
+          @"
+          # 심안(心眼) / Siman — 고정 다운로드 (무료 Beta)
+          
+          최신 검증 빌드: v1.5.5 Beta
+          개발자: 2bornot
+          
+          블로그 고정 다운로드:
+          https://github.com/$env:GITHUB_REPOSITORY/releases/tag/siman-beta
+          
+          고정 ZIP:
+          https://github.com/$env:GITHUB_REPOSITORY/releases/download/siman-beta/Siman-Windows.zip
+          
+          소스 SHA: $sha
+          
+          Windows 실 EXE 설치·재설치, Node 회귀 검사 및 ZIP SHA-256 검증을 통과한 빌드입니다.
+          기존 브라우저 확장프로그램을 삭제하지 말고 새 설치 관리자로 업데이트한 뒤 확장프로그램과 AI 서비스 탭을 새로고침하세요. 업데이트 전에는 JSON 원문 백업을 권장합니다.
+          ChatGPT·Claude·ChatLLM의 과거 원문 일괄수집, Gemini·DeepSeek·Grok의 방문 화면 저장을 지원합니다.
+          Chrome 웹스토어 게시·Windows Authenticode 서명은 아직 미완료이며 공개 테스트판입니다.
+          "@ | Set-Content 'dist/BETA_RELEASE_NOTES.md' -Encoding utf8
+          Write-Host 'PASS: stable Siman Windows/Source/Webstore ZIPs and checksums'
+
+      - name: Publish permanent siman-beta page (the blog link never changes)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $repo=$env:GITHUB_REPOSITORY
+          $tag='siman-beta'
+          $sha=(git rev-parse HEAD).Trim()
+          $assets=@('dist/SimanSetup.exe','dist/Siman-Windows.zip','dist/Siman_SOURCE.zip','dist/Siman_WEBSTORE.zip','dist/SHA256SUMS-LATEST.txt','dist/BETA_RELEASE_NOTES.md')
+          gh release view $tag --repo $repo *> $null
+          if($LASTEXITCODE -eq 0){
+            gh release upload $tag @assets --clobber --repo $repo
+            if($LASTEXITCODE -ne 0){throw 'Stable Siman beta file upload failed'}
+            gh api --method PATCH "repos/$repo/git/refs/tags/$tag" -f sha="$sha" -F force=true | Out-Null
+            if($LASTEXITCODE -ne 0){throw 'Stable Siman tag SHA update failed'}
+            gh release edit $tag --repo $repo --title '심안(心眼) / Siman — 최신 무료 공개 테스트판' --notes-file 'dist/BETA_RELEASE_NOTES.md' --prerelease
+            if($LASTEXITCODE -ne 0){throw 'Stable Siman release notes update failed'}
+          } else {
+            gh release create $tag @assets --repo $repo --target $sha --title '심안(心眼) / Siman — 최신 무료 공개 테스트판' --notes-file 'dist/BETA_RELEASE_NOTES.md' --prerelease --latest=false
+            if($LASTEXITCODE -ne 0){throw 'Stable Siman beta release creation failed'}
+          }
+          $release=gh release view $tag --repo $repo --json url,assets,isPrerelease | ConvertFrom-Json
+          if(!$release.isPrerelease){throw 'Stable release should be Beta prerelease'}
+          foreach($file in @('SimanSetup.exe','Siman-Windows.zip','Siman_SOURCE.zip','Siman_WEBSTORE.zip','SHA256SUMS-LATEST.txt','BETA_RELEASE_NOTES.md')){
+            if(!(@($release.assets.name) -contains $file)){throw "Stable release missing $file"}
+          }
+          '## Permanent Siman beta download' >> $env:GITHUB_STEP_SUMMARY
+          "https://github.com/$repo/releases/tag/siman-beta" >> $env:GITHUB_STEP_SUMMARY
+          "https://github.com/$repo/releases/download/siman-beta/Siman-Windows.zip" >> $env:GITHUB_STEP_SUMMARY
+
       - name: Sign artifact provenance if Sigstore is available
         continue-on-error: true
         uses: actions/attest@v4
