@@ -1,4 +1,4 @@
-심안(心眼) v1.5.5 Beta — Windows / Chrome / Edge
+심안(心眼) v1.5.6 Beta — Windows / Chrome / Edge
 개발자: 2bornot
 
 [사용자 설치]
@@ -27,5 +27,5 @@ DeepSeek / Gemini / Grok: 웹에서 방문한 대화에 보이는 메시지 저�
 방문 저장 서비스에 0건이 표시될 때는 먼저 해당 서비스의 실제 대화 탭을 열어주세요.
 
 [배포 / 보안]
-공개 테스트판(Beta), 무료 배포, 공식 GitHub: https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.5
+공개 테스트판(Beta), 무료 배포, 공식 GitHub: https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta
 Windows 서명 및 Chrome Web Store 정식 게시 전으로 브라우저 개발자 모드가 필요합니다.
