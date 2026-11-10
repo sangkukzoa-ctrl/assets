@@ -69,3 +69,25 @@
 - 최신 배포 결과: GitHub Actions `42772522126` (Windows 빌드·고정 릴리스 성공); 공개 다운로드 검사 `42772943715` (성공).
 - 고정 URL은 자동으로 최신 빌드를 **제공**하지만, 기존 사용자 PC에 설치된 Chrome/Edge의 개발자모드 확장프로그램을 원격으로 자동 갱신하는 방식은 아니다. 사용자가 새 설치 관리자로 업데이트한 후 확장프로그램 새로고침이 필요하다. 추가 자동 업데이트는 독립된 개발 목표로 다룬다.
 - 이전 실패 공개 검사 2회는 Windows CRLF의 `SHA256SUMS-LATEST.txt`를 Linux `awk`로 처리할 때 파일명 끝의 `\\r`가 비교에 들어간 검사 도구 측 문제였으며, `tr -d '\\r'` 선행 정규화 후 통과했다. 실제 파일 SHA 자체는 일치했다.
+
+
+## 2026-11-10 23:41 KST 이후: v1.5.6 오류 수정 및 실제 배포
+
+- 사용자가 업로드한 실사용 진단: `Siman_v1.5.5_Debug_20261110_234114.txt` (민감한 전체 원문은 GitHub에 올리지 않음).
+- **ChatLLM**: 301 발견 · 41 완료 · 260 미수집. `/api/getDeploymentConversation` 200 이후 진행 기록이 끊겨 watchdog 95초 중단.
+- **ChatGPT**: 643 발견 · 198 완료 · 444 pending · 1 retry. 첫 HTTP 429에 중단해 재개를 대기하는 기존 로직 정상.
+- **Claude**: 103/103 완료. **Gemini/DeepSeek/Grok**: 당시 열린 탭 없음, 0건.
+- GitHub 원본 압축 ZIP에서 개발 소스를 `siman/development/`으로 복원. 이제 개발용 원본 소스를 직접 수정하며 빌드는 GitHub Actions가 수행한다.
+- 코드 변경:
+  1. `app/network.js`: 관찰된 요청 replay의 AbortController 타이머를 `response.json()` 완료까지 유지.
+  2. `app/page.js`: 직접 API 응답의 JSON body를 읽는 동안에도 60초 AbortController 동작, 오류 로그 및 ChatLLM 단계별 진행 신호 강화.
+  3. `app/search.js`: 95초 이상 진행되지 않고 수집 페이지가 사라진 상황에서 보관 데이터 보존 + 최대 1회 재연결.
+  4. `tests/v156_stall_recovery.test.cjs`: HTTP 200 이후 본문이 무기한 대기하는 응답을 재현하여 타임아웃을 검사, 연결 재시도·429 보호 회귀 검사.
+  5. `app/manifest.json`, `installer/SimanSetup.cs`, 검색 UI, 설치 안내를 v1.5.6으로 수정. 확장프로그램 ID/로컬 저장소 키는 변경하지 않음.
+- 배포 워크플로: `.github/workflows/siman-v156-release.yml` — `siman/development/**` 변경 시 자동 실행, 7개 Node 테스트 및 Windows GUI 실 설치·재설치 후 `siman-v1.5.6` 개별 릴리스 + `siman-beta` 동일 URL 갱신.
+- 성공한 Windows 빌드: https://github.com/sangkukzoa-ctrl/assets/actions/runs/42838603463
+- 다운로드된 공개 EXE·ZIP·소스/확장 ZIP 무결성 검사 성공: https://github.com/sangkukzoa-ctrl/assets/actions/runs/42838805988
+- **영구 배포 링크(블로그 수정 불필요)**: https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta
+- 고정 Windows ZIP: https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip
+- 버전별 이력: https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.6
+- 개발자 지침: 다음 사용자 실사용 로그에서 **ChatLLM 301개 중 미완료 건수 감소·타임아웃 해소**를 우선 검증. 개선이 충분하지 않다면 다음 오류 위치를 기준으로 코드 수정. v1.5.6의 모의/CI 성공을 실제 로그인 계정 301건 전수 수집 성공이라고 표현하지 말 것.
