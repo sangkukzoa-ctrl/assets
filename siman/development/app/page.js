@@ -16,13 +16,19 @@ let lastProgress={stage:'연결 검증',done:0,total:0},lastProgressAt=Date.now(
 function progress(stage,done,total,extra={}){lastProgress={stage,done,total,...extra};lastProgressAt=Date.now();emit('PROGRESS',lastProgress)}
 function parseDelay(value){if(value==null||value==='')return 0;const raw=String(value).trim(),number=Number(raw);if(Number.isFinite(number)&&number>=0)return Math.round(number*1000);const unit=raw.match(/^(\d+(?:\.\d+)?)\s*(ms|s|sec|m|min|h)$/i);if(unit){let scale=/^ms$/i.test(unit[2])?1:/^h$/i.test(unit[2])?3600000:/^m(in)?$/i.test(unit[2])?60000:1000;return Math.round(Number(unit[1])*scale)}const ts=Date.parse(raw);return Number.isFinite(ts)?Math.max(0,ts-Date.now()):0}
 async function request(path){const url=new URL(path,origin);if(url.origin!==origin)throw Error('교차 출처 요청 차단');const headers={Accept:'application/json'};if(auth&&provider==='chatgpt')headers.Authorization='Bearer '+auth;
- let response;const controller=new AbortController();activeController=controller;const timer=setTimeout(()=>controller.abort(),60000);
- try{response=await fetch(url.href,{credentials:'include',method:'GET',headers,cache:'no-store',redirect:'error',signal:controller.signal})}
- catch(e){trace('NETWORK_ERROR',safePath(path)+' / '+String(e.message).slice(0,140),'ERROR');if(cancelled)e.cancelled=true;throw e}
+ const controller=new AbortController();activeController=controller;
+ // Covers BOTH the HTTP headers and the full JSON response body. Previously the
+ // timer was cleared before response.json(), allowing an indefinite 200-response stall.
+ const timer=setTimeout(()=>controller.abort(),60000);
+ try{
+  const response=await fetch(url.href,{credentials:'include',method:'GET',headers,cache:'no-store',redirect:'error',signal:controller.signal});
+  if(!response.ok||++traceCount<=8||traceCount%20===0)trace('HTTP',safePath(path)+' status='+response.status,'HTTP');
+  if(!response.ok){const err=Error('HTTP '+response.status+' '+url.pathname);err.status=response.status;err.path=url.pathname;err.retryAfterMs=Math.max(parseDelay(response.headers.get('Retry-After')),parseDelay(response.headers.get('x-oai-history-initial-retry-after')));throw err}
+  const type=response.headers.get('content-type')||'';if(type.includes('text/html'))throw Error('인증 페이지 또는 HTML 응답: '+url.pathname);
+  return await response.json();
+ }catch(e){if(e.status==null)trace('NETWORK_ERROR',safePath(path)+' / '+String(e.message).slice(0,140),'ERROR');if(cancelled)e.cancelled=true;throw e}
  finally{clearTimeout(timer);if(activeController===controller)activeController=null}
- if(!response.ok||++traceCount<=8||traceCount%20===0)trace('HTTP',safePath(path)+' status='+response.status,'HTTP');
- if(!response.ok){const err=Error('HTTP '+response.status+' '+url.pathname);err.status=response.status;err.path=url.pathname;err.retryAfterMs=Math.max(parseDelay(response.headers.get('Retry-After')),parseDelay(response.headers.get('x-oai-history-initial-retry-after')));throw err}
- const type=response.headers.get('content-type')||'';if(type.includes('text/html'))throw Error('인증 페이지 또는 HTML 응답: '+url.pathname);return response.json()}
+}
 async function cancellableWait(ms,stage,counts={}){const until=Date.now()+ms;while(Date.now()<until){if(cancelled)throw Object.assign(Error('수집 중지됨'),{cancelled:true});progress(stage,counts.done||0,counts.total||0,{...counts,retryAt:until});await sleep(Math.min(5000,Math.max(1,until-Date.now())))}}
 // Respect server rate limiting: on the FIRST 429, stop detailed requests instead
 // of automatically hammering the same endpoint repeatedly every ~2 minutes.
@@ -193,12 +199,12 @@ async function scanChatLLM(){
  const cached=await completeIds('chatllm',rows.map(x=>x.id));await markMany('chatllm',[...cached],'complete');
  let read=0,verified=0,partial=0,skipped=0,failed=0,processed=0,pausedError=null,consecutiveEmpty=0;
  const totals=()=>({read,skipped,failed,done:processed,total:rows.length});
- for(const x of rows){if(cancelled)break;const id=x.id;if(cached.has(id)){skipped++;processed++;continue}
+ for(const x of rows){if(cancelled)break;const id=x.id;if(cached.has(id)){skipped++;processed++;if(processed%10===0)progress('ChatLLM 기존 완료 기록 확인',processed,rows.length,totals());continue}progress('ChatLLM 원문 조회 중',processed,rows.length,{...totals(),details:'현재 대화 '+(processed+1)+' / '+rows.length+' · 상세 응답 확인'});
   try{
    let c=null,raw=net.observedDetail(id);if(raw)c=C.chatllm({...raw,result:{...(raw.result||raw.data||raw),deploymentConversationId:id}},id);
-   if(!c?.messages.length){for(const t of net.templates('detail')){try{const j=await net.replay(t,{id});c=C.chatllm({...j,result:{...(j.result||j.data||j),deploymentConversationId:id}},id);if(c?.messages.length)break}catch(e){if(e.status===429)throw e;issues.push('원문 재조회: '+e.message)}}}
-   if(!c?.messages.length){try{raw=await serviceRequest('/api/getDeploymentConversation?deploymentConversationId='+encodeURIComponent(id)+'&filterIntermediateConversationEvents=false',totals());c=C.chatllm({...raw,result:{...(raw.result||raw.data||raw),deploymentConversationId:id}},id)}catch(e){if(e.ratePaused||e.cancelled)throw e;issues.push('원문 조회: '+e.message)}}
-   if(!c?.messages.length){try{const m=await exportChatLLM(id);if(m.length)c=C.record('chatllm',id,x.title||'ChatLLM 대화',m,{url:x.url,projectName:x.projectName,expected:m.length,complete:true,source:'html-export'})}catch(e){if(e.ratePaused||e.cancelled)throw e;issues.push('HTML 원문: '+e.message)}}
+   if(!c?.messages.length){for(const t of net.templates('detail')){progress('ChatLLM 관찰된 상세 요청 재사용',processed,rows.length,totals());try{const j=await net.replay(t,{id});c=C.chatllm({...j,result:{...(j.result||j.data||j),deploymentConversationId:id}},id);if(c?.messages.length)break}catch(e){if(e.status===429)throw e;issues.push('원문 재조회: '+e.message)}}}
+   if(!c?.messages.length){progress('ChatLLM 직접 원문 조회',processed,rows.length,totals());try{raw=await serviceRequest('/api/getDeploymentConversation?deploymentConversationId='+encodeURIComponent(id)+'&filterIntermediateConversationEvents=false',totals());c=C.chatllm({...raw,result:{...(raw.result||raw.data||raw),deploymentConversationId:id}},id)}catch(e){if(e.ratePaused||e.cancelled)throw e;issues.push('원문 조회: '+e.message)}}
+   if(!c?.messages.length){progress('ChatLLM HTML 내보내기 조회',processed,rows.length,totals());try{const m=await exportChatLLM(id);if(m.length)c=C.record('chatllm',id,x.title||'ChatLLM 대화',m,{url:x.url,projectName:x.projectName,expected:m.length,complete:true,source:'html-export'})}catch(e){if(e.ratePaused||e.cancelled)throw e;issues.push('HTML 원문: '+e.message)}}
    if(c?.messages.length){c.title=x.title||c.title;c.projectName=x.projectName||c.projectName;c.url=C.sourceUrl('chatllm',id,x.url||c.url);if(await saveRecord(c)){read++;if(c.complete)verified++;else partial++;consecutiveEmpty=0}else{failed++;await mark('chatllm',id,'failed','원문 저장 실패')}}
    else{failed++;consecutiveEmpty++;await mark('chatllm',id,'failed','ChatLLM 조회 응답에 메시지 없음')}
   }catch(e){if(e.ratePaused||e.status===429){pausedError=e;await mark('chatllm',id,'retry','서버 요청 제한');break}if(e.cancelled){cancelled=true;break}failed++;consecutiveEmpty++;await mark('chatllm',id,'failed',e.message);emit('WARN',{text:'ChatLLM 원문 실패 ('+id+'): '+e.message})}
