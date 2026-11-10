@@ -18,7 +18,7 @@ function makeHost(){
  h.window=h;h.globalThis=h;
  h.postMessage=d=>{
   if(d.kind==='BRIDGE'){
-   queueMicrotask(()=>listeners.forEach(fn=>fn({source:h.window,origin,data:{tag:d.tag,kind:'BRIDGE_REPLY',seqId:d.seqId,ok:true,storageReady:true,completeIds:[]}})));
+   queueMicrotask(()=>listeners.forEach(fn=>fn({source:h.window,origin:h.location.origin,data:{tag:d.tag,kind:'BRIDGE_REPLY',seqId:d.seqId,ok:true,storageReady:true,completeIds:[]}})));
   }else events.push(d);
  };
  h.fetch=async(url,opts={})=>{
@@ -52,6 +52,7 @@ function makeHost(){
  // The direct same-origin request path must retain its timeout across JSON parse too.
  {
   const {h,handles,events,stats}=makeHost();
+  h.location={href:'https://chatgpt.com/',origin:'https://chatgpt.com',pathname:'/'};
   vm.createContext(h);vm.runInContext(read('core.js'),h);vm.runInContext(read('page.js'),h);
   assert.equal(h.__SimanRunnerV155.start().ok,true);
   for(let i=0;i<30&&stats().bodyReads===0;i++)await delay(5);
