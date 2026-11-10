@@ -54,19 +54,6 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs --min-sdk-version 26 ImageOrderStudio.apk | tee signature.txt
           grep -F 'Verified using v2 scheme (APK Signature Scheme v2): true' signature.txt
           grep -F 'Verified using v3 scheme (APK Signature Scheme v3): true' signature.txt
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='3' versionName='0.2.0'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='4' versionName='0.3.0'"
           echo 'Public APK, source, checksum, package ID and Android signatures verified.' >> "$GITHUB_STEP_SUMMARY"
-      - name: Install and launch actual public APK on an Android emulator (on workflow update only)
-        if: ${{ github.event_name == 'push' }}
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          target: google_apis
-          arch: x86_64
-          profile: pixel_5
-          emulator-options: '-no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect'
-          script: |
-            adb install -r ImageOrderStudio.apk
-            adb shell am start -n com.twobornot.imageorder/.MainActivity
-            sleep 5
-            adb shell dumpsys activity activities | grep -F 'com.twobornot.imageorder'
+          echo 'Signed APK install and picker intent registration are verified before publication in the release workflow.' >> "$GITHUB_STEP_SUMMARY"
