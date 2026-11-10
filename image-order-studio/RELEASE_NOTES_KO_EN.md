@@ -1,4 +1,4 @@
-# Image Order Studio v0.1.0 / 이미지 순서 스튜디오 v0.1.0
+# Image Order Studio v0.1.1 / 이미지 순서 스튜디오 v0.1.1
 
 ## 한국어
 - 제작: 2bornot

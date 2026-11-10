@@ -1,4 +1,4 @@
-# Image Order Studio · Android 0.1.0 (beta source)
+# Image Order Studio · Android 0.1.1 (beta source)
 
 Developer: **2bornot** · Android 8.0+ · Korean and English UI
 
@@ -30,7 +30,7 @@ Developer: **2bornot** · Android 8.0+ · Korean and English UI
 - The combined mode limits 12 images and 14,000 pixels in height, due to Android memory and upload constraints.
 - Sequence badges are burned into **exported PNGs**, never into the originals. Numbered outputs may be downsampled when source dimensions exceed memory-safe limits.
 - Supported render formats depend on the Android platform image decoders. An unsupported image causes a visible export error; the entire batch cannot be silently truncated.
-- Android 8–9 image EXIF rotation may not be preserved in numbered renders; Android 9+ uses ImageDecoder when available. Thumbnail orientation may not match EXIF orientation. GIF animations export the first frame.
+- Static image EXIF orientation is applied on Android 8+ during export. Thumbnails may still appear unrotated; GIF animations export the first frame.
 - There is not yet a built-in web browser / automatic web-login uploader. Exported files or Android Sharesheet are used.
 - Debug builds are signed by Android's standard *debug* signing identity; release distribution requires a durable developer-owned release signing key. No release has been published by this source package.
 

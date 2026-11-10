@@ -119,6 +119,12 @@ public class MainActivity extends Activity {
         Bitmap cached=thumbs.get(item.id);
         if(cached!=null && !cached.isRecycled()) image.setImageBitmap(cached);
         else loadThumbnail(item);
+        if(rank>0) {
+            GradientDrawable outline=new GradientDrawable();outline.setColor(0x00000000);
+            outline.setStroke(dp(3),BLUE);outline.setCornerRadius(dp(6));
+            View highlight=new View(this);highlight.setBackground(outline);
+            card.addView(highlight,new FrameLayout.LayoutParams(-1,-1));
+        }
         TextView name=text(item.name,10,0xffffffff,false);name.setSingleLine(true);name.setEllipsize(android.text.TextUtils.TruncateAt.END);
         name.setPadding(dp(5),dp(4),dp(5),dp(4));name.setBackgroundColor(0xb6000000);
         FrameLayout.LayoutParams labelLp=new FrameLayout.LayoutParams(-1,dp(29),Gravity.BOTTOM);card.addView(name,labelLp);

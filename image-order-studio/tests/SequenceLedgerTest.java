@@ -16,6 +16,11 @@ public class SequenceLedgerTest {
     eq(Arrays.asList("second","third","fourth"),l.snapshot());
     // Names and formats are intentionally not referenced in the ledger.
     eq(5,fileNames.length);
+    l.clear();
+    for(int i=0;i<166;i++) l.select("image-"+i);
+    eq(166,l.size());eq(1,l.rank("image-0"));eq(166,l.rank("image-165"));
+    l.swap(0,165);eq("image-165",l.snapshot().get(0));
+    l.deselect("image-60");eq(165,l.size());eq(165,l.rank("image-0"));
     System.out.println("PASS SequenceLedger: selection, swap, deletion, persistence validation, format/name independence");
   }
 }
