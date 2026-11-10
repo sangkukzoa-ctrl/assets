@@ -1,0 +1,42 @@
+name: Siman source bootstrap v1.5.5
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/siman-bootstrap-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Restore plain source from archived official v1.5.5
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p siman/development
+          base64 -d siman/release/v155/Siman_v1.5.5_SOURCE.zip.base64 > /tmp/siman-v155-source.zip
+          sha256sum /tmp/siman-v155-source.zip
+          echo '67fad3b30225e97923376c3ca3cef7a212ce31a14aec467bc2ceb3522836bbc0  /tmp/siman-v155-source.zip' | sha256sum -c -
+          unzip -q /tmp/siman-v155-source.zip -d siman/development
+          test -f siman/development/app/manifest.json
+          test -f siman/development/app/page.js
+          test -f siman/development/app/content.js
+          test -d siman/development/tests
+          find siman/development -maxdepth 3 -type f | sort | head -100
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add siman/development
+          if git diff --cached --quiet; then
+            echo 'No changes to commit'
+          else
+            git commit -m "dev(siman): restore edit-ready extension source and regression tests from v1.5.5"
+            git push origin HEAD:main
+          fi
