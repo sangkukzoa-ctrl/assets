@@ -2,4 +2,5 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <cache-path name="exports" path="exports/"/>
     <files-path name="library" path="library/"/>
+    <files-path name="picker-sessions" path="picker-sessions/"/>
 </paths>

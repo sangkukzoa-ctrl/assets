@@ -48,6 +48,9 @@ final class ImageExporter {
         return files;
     }
     File renderCombined(GalleryStore store,List<String> ids) throws Exception {
+        return renderCombined(store,ids,false);
+    }
+    File renderCombined(GalleryStore store,List<String> ids,boolean jpeg) throws Exception {
         if(ids.isEmpty()) throw new IllegalArgumentException("No selected images");
         if(ids.size()>12) throw new IllegalArgumentException("Combined mode supports up to 12 images. Use numbered images for larger batches.");
         final int width=900, header=145, maxHeight=14000;
@@ -85,8 +88,9 @@ final class ImageExporter {
                     c.restore();y+=header+heights.get(i);
                 } finally {b.recycle();}
             }
-            File folder=newExportDirectory();File out=new File(folder,"ORDERED_"+ids.size()+"_IMAGES.png");
-            writePng(combined,out);return out;
+            File folder=newExportDirectory();File out=new File(folder,"ORDERED_"+ids.size()+"_IMAGES."+(jpeg?"jpg":"png"));
+            if(jpeg)writeJpeg(combined,out);else writePng(combined,out);
+            return out;
         } finally {combined.recycle();}
     }
     private static String safeName(String name) {
