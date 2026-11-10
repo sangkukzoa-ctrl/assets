@@ -1,16 +1,13 @@
-네이버 블로그 심안 v1.5.5 Beta 갱신 순서
+네이버 블로그 심안(心眼) 고정 Beta 배포 지침
 
-1. 기존 v1.5.4 Beta 게시글을 편집합니다. 새 글을 만들 필요는 없습니다.
-2. 본문 최상단에 BLOG_UPDATE_COPY.txt 내용을 붙여넣습니다.
-3. 구버전 블로그 첨부 ZIP을 Siman_v1.5.5_BLOG_ATTACHMENT.zip으로 교체합니다.
-4. 기존 GitHub 링크를 https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.5 로 변경합니다.
-5. 제목에서 버전이 표기된 부분을 v1.5.5 Beta로 변경합니다.
-6. 기존 설명의 '모든 AI 대화 전수 수집' 같은 표현이 있다면, 서비스별 수집 범위에 맞게 수정합니다.
-7. 사용자 백업 주의 문구를 함께 남기고 업데이트 공지에 날짜를 표시합니다.
+1. 블로그 글과 다운로드 링크는 새 버전마다 고치지 않습니다.
+2. 게시글에는 아래 고정 링크를 한 번만 안내합니다.
+   https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta
+3. 사용자에게는 고정 링크에서 SimanSetup.exe 또는 Siman-Windows.zip을 받으라고 안내합니다.
+4. SimanSetup.exe를 실행하면 기존 설치된 심안은 같은 폴더에 자동으로 덮어써집니다.
+5. 기존 확장프로그램 삭제/재등록 및 JSON 백업/복원은 일반 업데이트에서 필요하지 않습니다.
+6. 실행 중인 Chrome/Edge에서 새 코드가 반영되지 않으면 기존 심안 확장프로그램만 새로고침하거나 브라우저를 재시작하도록 안내합니다.
+7. 새 버전 출시 때마다 GitHub Actions가 Windows EXE 빌드·업데이트 회귀 테스트·고정 릴리스 배포·익명 다운로드 검증을 진행합니다.
 
-배포물:
-- Siman_v1.5.5_BLOG_ATTACHMENT.zip : 사용자에게 전달
-- SimanSetup.exe : 직링크를 원하는 사용자용
-- Siman_v1.5.5_SOURCE.zip : 공개 소스·회귀 테스트
-- Siman_v1.5.5_WEBSTORE.zip : 스토어 제출용(아직 제출 전)
-- SHA256SUMS.txt : 파일 해시 검증
+기존 버전 릴리스는 이력 보존용이며 블로그에서는 고정 Beta를 안내합니다.
+개발자: 2bornot
