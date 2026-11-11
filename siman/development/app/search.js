@@ -1,5 +1,27 @@
 /* 心眼 v1.5.8: local archive with explicit crawl counters. */
 (()=>{'use strict';
+// Installer-controlled one-shot reload, initiated from an extension-owned options page.
+// The previous unpacked manifest may still be in Chrome memory while this updated
+// search.js file is read from its unchanged location on disk.
+const applyParams=new URLSearchParams(location.search);
+if(applyParams.get('siman_auto_apply')==='1'){
+ (async()=>{
+  const version=String(applyParams.get('version')||'');
+  const token=String(applyParams.get('token')||'');
+  const port=Number(applyParams.get('port')||0);
+  if(version!=='1.5.8'||!/^[a-f0-9]{32}$/i.test(token)||
+     !Number.isInteger(port)||port<1024||port>65535)return;
+  const pending={port,token,version,at:Date.now()};
+  await chrome.storage.local.set({'siman:updater:pending':pending});
+  history.replaceState(null,'',location.pathname);
+  if(chrome.runtime.getManifest().version!==version){
+   chrome.runtime.reload(); // Reload ONLY Siman; never terminate Chrome/Edge.
+  }else{
+   chrome.runtime.sendMessage({type:'SIMAN_APPLY_PENDING_UPDATE'},()=>void chrome.runtime.lastError);
+  }
+ })().catch(e=>console.warn('[Siman updater]',String(e?.message||e)));
+ return;
+}
 const $=id=>document.getElementById(id);
 const PROVIDERS=SimanCore.PROVIDERS;
 const BASE={chatllm:'https://apps.abacus.ai/chatllm/',chatgpt:'https://chatgpt.com/',claude:'https://claude.ai/'};
