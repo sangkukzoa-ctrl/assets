@@ -109,7 +109,7 @@ jobs:
         run: python ChatLensOCR/test_subtitle_rescue_v0412.py
       - name: Conservative empty Korean subtitle rescue and photo nonhallucination regression
         run: python ChatLensOCR/test_generic_blank_caption_v0413.py
-      - name: Adversarial hallucination guard: grids, grammar rewrites, caption mismatches
+      - name: Adversarial hallucination guard for grids and OCR text mismatches
         run: python ChatLensOCR/test_ocr_hallucination_v0414.py
       - name: Run three-mode synthetic screenshot OCR tests
         run: python ChatLensOCR/test_layout_v2.py
