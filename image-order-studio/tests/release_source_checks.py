@@ -6,10 +6,10 @@ export=(p/'app/src/main/java/com/twobornot/imageorder/ImageExporter.java').read_
 ledger=(p/'app/src/main/java/com/twobornot/imageorder/SequenceLedger.java').read_text()
 manifest=(p/'app/src/main/AndroidManifest.xml').read_text()
 gradle=(p/'app/build.gradle').read_text()
-assert "versionCode 5" in gradle and "versionName '0.4.0'" in gradle
+assert "versionCode 6" in gradle and "versionName '0.5.0'" in gradle
 assert 'applicationId \'com.twobornot.imageorder\'' in gradle
 assert 'android.permission.INTERNET' not in manifest
-assert 'READ_MEDIA_IMAGES' not in manifest and 'READ_EXTERNAL_STORAGE' not in manifest
+assert 'READ_MEDIA_IMAGES' in manifest and 'READ_EXTERNAL_STORAGE' in manifest
 assert 'android:allowBackup="false"' in manifest
 assert 'android.intent.action.GET_CONTENT' in manifest and 'android.intent.action.PICK' in manifest
 assert 'android.intent.category.OPENABLE' in manifest
@@ -60,3 +60,18 @@ assert 'MediaStore.MediaColumns.IS_PENDING' in gallery
 assert 'Pictures/' not in gallery  # use official DIRECTORY_PICTURES instead
 assert 'startActivityAndCollapse(intent)' in tile
 print('v0.4.0 Android gallery / SAF / Quick Settings source checks PASS')
+
+# 0.5.0 gallery-first UI and optional user-authorized overlay assistance.
+assert 'NativeGalleryActivity' in manifest and 'UploadAssistService' in manifest
+assert 'android.permission.BIND_ACCESSIBILITY_SERVICE' in manifest
+assert 'android.permission.READ_MEDIA_VISUAL_USER_SELECTED' in manifest
+native=(p/'app/src/main/java/com/twobornot/imageorder/NativeGalleryActivity.java').read_text()
+overlay=(p/'app/src/main/java/com/twobornot/imageorder/UploadAssistService.java').read_text()
+assert 'LinkedHashMap<String,Uri> ordered' in native
+assert 'EXTRA_ORDER_VERIFIED' in native
+assert 'setResult(RESULT_OK,data)' in native
+assert 'MediaStore.Images.Media.getContentUri' in native
+assert 'TYPE_ACCESSIBILITY_OVERLAY' in overlay
+assert 'requestUploadAssist()' in source
+assert 'ui.postDelayed' in source
+print('v0.5.0 unified gallery and optional overlay source checks PASS')

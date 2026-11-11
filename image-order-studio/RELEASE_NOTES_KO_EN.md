@@ -1,23 +1,21 @@
-# Image Order Studio 0.4.0 · Stable Beta / 정식 공개 베타
+# Image Order Studio v0.5.0 — Unified Gallery / 업로드 통합 갤러리
 
-Developer / 개발자: **2bornot** · Free, no ads · Android 8.0+ · 한국어/영어
+Developer: 2bornot · Android 8+ · Korean/English · no ads, no Internet permission
 
-## 핵심 개선
+## 한국어
 
-- **삼성 갤러리 우선 연결:** `com.sec.android.gallery3d`를 대상으로 사진/앨범 선택기를 직접 요청하고, 지원되지 않는 환경에서는 다른 선택기로 안전하게 대체합니다. 시스템 Photo Picker와 실제 삼성 Gallery UI는 서로 다릅니다.
-- **이미지 업로드 앱 선택권이 없는 사이트 지원:** '① 갤러리 앨범에 저장'을 누르면 `Pictures/Image Order Studio` 앨범에 순번이 직접 인쇄된 이미지가 생성됩니다. 그 사이트의 평범한 사진 첨부창에서 해당 앨범 이미지를 선택하면 됩니다.
-- **이미지 한 장만 받는 사이트:** 최대 12장까지 하나의 JPG로 결합해 동일 앨범에 저장합니다. 내부 순서는 외부 파일 정렬에 영향을 받지 않습니다.
-- **파일 탐색기 공급자:** Android `DocumentsProvider`를 통해 시스템 파일 선택기의 'Image Order Studio' 읽기 전용 출처에서 최근 출력 묶음에 접근할 수 있습니다.
-- **어디서든 빠른 접근:** Android 빠른 설정 패널에서 Image Order Studio 타일 추가 가능. 접근성·화면 위에 표시·인터넷 권한 불필요.
-- **단순한 화면:** 앨범 저장 두 버튼을 기본 동작으로, 나머지 복사/공유/필터/삭제 등은 '다른 기능·설정'으로 정리합니다.
-- **기존 기능 유지:** 단일/복수 첨부 인텐트 반환, 선택순 기록, JPG/PNG, 원본 공유, 166장 순서 무결성 테스트.
-
-## 안내 및 범위
-
-Android는 타사 앱이 모든 앱과 웹사이트의 파일 선택창을 전역으로 대체하도록 허용하지 않습니다. 이 앱은 호환되는 `ACTION_GET_CONTENT`/`ACTION_PICK` 직접 호출, `DocumentsProvider` 표시, 일반 삼성/Android 갤러리에 결과물 생성으로 단계적 호환성을 제공합니다.
-
-'갤러리 앨범에 저장'의 사진들은 사용자 휴대폰 갤러리에 나타나며, 필요하면 갤러리에서 직접 삭제할 수 있습니다. 내부에만 저장한 원본 이미지는 수정하지 않습니다. Android 8/9에서는 갤러리에 이미지 쓰기 권한을 요청하며 Android 10 이상은 시스템 MediaStore를 이용합니다.
+- 사진 첨부를 하나의 흐름으로 구성: **사진 선택 → 순서대로 탭 → 완료**.
+- 삼성 Gallery의 내부 구현에 의존하지 않고 실제 기기 MediaStore의 사진 및 앨범을 직접 보여주는 내장 갤러리 추가.
+- 외부 이미지 요청(GET_CONTENT/PICK)에서 순서대로 표시된 파일 URI를 자동 반환.
+- Android 13/14+ 사진 접근권한 및 선택한 사진만 접근하는 모드 지원.
+- 외부 앱의 시스템 선택기를 이용하는 경우, 사용자가 명시적으로 켠 접근성 보조 팝업에서 동일한 갤러리를 바로 열 수 있도록 추가. 이 보조 기능은 외부 앱 첨부 결과 자체를 강제 교체하지 않으며 원래 선택기에서 준비된 결과물을 선택해야 함.
+- 기존 패키지/서명키 유지, versionCode 6.
 
 ## English
 
-Samsung Gallery is now the preferred native image picker on supported Galaxy devices. If unavailable, fall back to the system picker. For apps that do not offer a picker choice, publish clearly numbered images to the ordinary device Gallery album **Image Order Studio** and attach them from the destination app's own picker. A read-only SAF DocumentsProvider and optional Quick Settings tile provide two additional paths. Global system-wide upload interception is not provided because Android does not expose such a universal third-party mechanism.
+- Unified workflow: **Choose photos → tap in order → Done**.
+- Native MediaStore gallery with Photos/Albums instead of forwarding to vendor-specific picker implementations.
+- Direct content URI results for supporting GET_CONTENT/PICK requesters.
+- Runtime photo permissions including Android 14+ selected-photo access.
+- Opt-in accessibility shortcut for recognizable upload pickers, without changing other apps' ActivityResult contracts.
+- Same package/signing identity, versionCode 6.
