@@ -413,6 +413,7 @@ namespace SimanSetup
                         "\" --new-window \"" + url + "\"";
                     try
                     {
+                        pending[token] = profile.Browser + "/" + profile.ProfileName;
                         Log("BROWSER LAUNCH: " + profile.Browser + "/" + profile.ProfileName +
                             " exe=" + exe + " extension ending=" + profile.Id.Substring(28));
                         Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = true });
@@ -420,11 +421,11 @@ namespace SimanSetup
                         // Address-bar delivery is a safe foreground-only fallback.
                         bool addressSent = NavigateExistingBrowser(profile.Browser, url);
                         Log("BROWSER UPDATE: direct foreground address dispatch " + (addressSent ? "sent" : "not available"));
-                        pending[token] = profile.Browser + "/" + profile.ProfileName;
                         result.Launched++;
                     }
                     catch (Exception e)
                     {
+                        pending.Remove(token);
                         result.Failed++;
                         Log("BROWSER LAUNCH ERROR: " + profile.Browser + "/" + profile.ProfileName + " " + e.Message);
                     }
