@@ -416,6 +416,10 @@ namespace SimanSetup
                         Log("BROWSER LAUNCH: " + profile.Browser + "/" + profile.ProfileName +
                             " exe=" + exe + " extension ending=" + profile.Id.Substring(28));
                         Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = true });
+                        // Chromium can silently ignore extension:// on the command line.
+                        // Address-bar delivery is a safe foreground-only fallback.
+                        bool addressSent = NavigateExistingBrowser(profile.Browser, url);
+                        Log("BROWSER UPDATE: direct foreground address dispatch " + (addressSent ? "sent" : "not available"));
                         pending[token] = profile.Browser + "/" + profile.ProfileName;
                         result.Launched++;
                     }
@@ -498,6 +502,73 @@ namespace SimanSetup
                     StringComparison.OrdinalIgnoreCase);
             }
             catch { return false; }
+        }
+
+        // External Chrome process command lines deliberately reject some chrome-extension:
+        // navigations. Use the address bar of a confirmed Chrome/Edge foreground window
+        // only, never inject keys into another application. This is a one-off bootstrap
+        // for older Siman releases that had no built-in self-update watcher.
+        private static bool NavigateExistingBrowser(string browser, string uri)
+        {
+            if (!Environment.UserInteractive) return false;
+            try
+            {
+                bool ready = false;
+                for (int pass = 0; pass < 16; pass++)
+                {
+                    if (IsBrowserForeground(browser)) { ready = true; break; }
+                    foreach (Process process in Process.GetProcessesByName(browser))
+                    {
+                        try
+                        {
+                            if (process.MainWindowHandle == IntPtr.Zero) continue;
+                            SetForegroundWindow(process.MainWindowHandle);
+                            Thread.Sleep(110);
+                            if (IsBrowserForeground(browser)) { ready = true; break; }
+                        }
+                        catch { }
+                    }
+                    if (ready) break;
+                    Thread.Sleep(130);
+                }
+                if (!ready)
+                {
+                    Log("BROWSER UPDATE: foreground browser window unavailable; no keyboard injection");
+                    return false;
+                }
+                // Preserve clipboard when it contains text; avoid replacing personal data.
+                string original = null;
+                try { if (Clipboard.ContainsText()) original = Clipboard.GetText(); }
+                catch { }
+                try
+                {
+                    Clipboard.SetText(uri);
+                    SendKeys.SendWait("^l");
+                    Thread.Sleep(110);
+                    if (!IsBrowserForeground(browser)) return false;
+                    SendKeys.SendWait("^v");
+                    Thread.Sleep(110);
+                    if (!IsBrowserForeground(browser)) return false;
+                    SendKeys.SendWait("{ENTER}");
+                    Thread.Sleep(350);
+                    Log("BROWSER UPDATE: extension address navigation sent via verified " + browser + " foreground window");
+                    return true;
+                }
+                finally
+                {
+                    try
+                    {
+                        if (original != null) Clipboard.SetText(original);
+                        else Clipboard.Clear();
+                    }
+                    catch { }
+                }
+            }
+            catch (Exception e)
+            {
+                Log("BROWSER UPDATE: foreground navigation unavailable (" + e.GetType().Name + ")");
+                return false;
+            }
         }
 
         public static bool OpenBrowser(string browser, string uri)
