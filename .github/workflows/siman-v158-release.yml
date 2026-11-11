@@ -179,20 +179,25 @@ jobs:
           $args=$args.Replace('__QUOTED_ROOT__',('"'+$root+'"')).Replace('__QUOTED_APP__',('"'+$app+'"'))
           $browser=Start-Process -FilePath $chrome -ArgumentList $args -PassThru
           try{
-            $preferences=Join-Path $root 'Default/Preferences'
-            $found=$false
-            for($attempt=0;$attempt -lt 65;$attempt++){
-              Start-Sleep -Milliseconds 400
-              if(!(Test-Path $preferences)){continue}
+            $preferences=''
+          $found=$false
+          for($attempt=0;$attempt -lt 65;$attempt++){
+            Start-Sleep -Milliseconds 400
+            foreach($source in @('Secure Preferences','Preferences')){
+              $candidate=Join-Path (Join-Path $root 'Default') $source
+              if(!(Test-Path $candidate)){continue}
               try{
-                $json=Get-Content $preferences -Raw -Encoding UTF8 | ConvertFrom-Json
+                $json=Get-Content $candidate -Raw -Encoding UTF8 | ConvertFrom-Json
                 $matches=@($json.extensions.settings.PSObject.Properties | Where-Object {
                   $_.Value.path -and ([IO.Path]::GetFullPath([string]$_.Value.path).TrimEnd('\') -ieq [IO.Path]::GetFullPath($app).TrimEnd('\'))
                 })
-                if($matches.Count){$found=$true;break}
+                if($matches.Count){$preferences=$candidate;$found=$true;break}
               }catch{}
             }
-            if(!$found){
+            if($found){break}
+          }
+          if(!$preferences){$preferences=Join-Path $root 'Default/Secure Preferences'}
+          if(!$found){
             Write-Host "Browser exited: $($browser.HasExited)"
             Write-Host "Preferences path exists: $(Test-Path $preferences)"
             Get-ChildItem -LiteralPath $root -Force -ErrorAction SilentlyContinue | Select-Object Name,Length | Format-Table | Out-String | Write-Host
