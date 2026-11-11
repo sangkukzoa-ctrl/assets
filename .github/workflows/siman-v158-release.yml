@@ -221,6 +221,22 @@ jobs:
             $upgrade=Start-Process -FilePath $installer -ArgumentList '--update' -PassThru -Wait
             if($upgrade.ExitCode -ne 0){
               if(Test-Path $log){Get-Content $log -Tail 35 | Write-Host}
+              $portFile=Join-Path $root 'DevToolsActivePort'
+              if(Test-Path $portFile){
+                $cdpPort=(Get-Content $portFile -TotalCount 1).Trim()
+                try{
+                  $browserInfo=Invoke-RestMethod "http://127.0.0.1:$cdpPort/json/version" -TimeoutSec 5
+                  Write-Host "CDP browser product $($browserInfo.Browser)"
+                  $targets=Invoke-RestMethod "http://127.0.0.1:$cdpPort/json/list" -TimeoutSec 5
+                  Write-Host ('CDP targets: '+(($targets | ForEach-Object {"$($_.type) $($_.url)"}) -join ' | '))
+                }catch{Write-Host "CDP inspection error $($_.Exception.Message)"}
+              }
+              $sprefs=Join-Path $root 'Default/Secure Preferences'
+              if(Test-Path $sprefs){
+                $secure=Get-Content $sprefs -Raw -Encoding UTF8 | ConvertFrom-Json
+                $regEntry=$secure.extensions.settings.PSObject.Properties | Where-Object {$_.Name -eq $matches[0].Name}
+                Write-Host "Secure ext registered: $([bool]$regEntry) v=$($regEntry.Value.manifest.version)"
+              }
               throw "Extension lifecycle update not acknowledged by real Chrome; exit=$($upgrade.ExitCode)"
             }
             if(!(Select-String -LiteralPath $log -Pattern 'BROWSER RELOADED:' -Quiet)){
