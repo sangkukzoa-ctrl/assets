@@ -535,9 +535,14 @@ def generic(img,language,precise):
         reread=recover_empty_caption(img,reread,language)
     metadata=[{"confidence":v["score"]} for v in rows]
     if reread!=original:
-        kind=("pixel_agreed_blank_caption" if not original.strip()
-              else "pixel_verified_white_subtitle")
+        kind=("ocr_consensus_blank_caption" if not original.strip()
+              else "ocr_consensus_white_subtitle")
+        # Agreeing OCR preprocessing variants are hypotheses, not manually
+        # checked truth. Keep this provenance with the editable result.
         metadata.append({"type":kind,
+                         "evidence":"same_engine_pixel_preprocessing_agreement",
+                         "human_verified":False,
+                         "needs_review":True,
                          "box":(0,round(img.height*.67),img.width,img.height)})
     return "범용",reread,[],metadata,items
 
