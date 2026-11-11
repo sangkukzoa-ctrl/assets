@@ -57,6 +57,6 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs --min-sdk-version 26 ImageOrderStudio.apk | tee signature.txt
           grep -F 'Verified using v2 scheme (APK Signature Scheme v2): true' signature.txt
           grep -F 'Verified using v3 scheme (APK Signature Scheme v3): true' signature.txt
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='5' versionName='0.4.0'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='6' versionName='0.5.0'"
           echo 'Public APK, source, checksum, package ID and Android signatures verified.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Signed APK install and picker intent registration are verified before publication in the release workflow.' >> "$GITHUB_STEP_SUMMARY"
