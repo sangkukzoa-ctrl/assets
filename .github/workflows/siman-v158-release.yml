@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 concurrency:
   group: siman-v158-release
-  cancel-in-progress: false
+  cancel-in-progress: true
 permissions:
   contents: write
   id-token: write
@@ -175,7 +175,7 @@ jobs:
           $reg='HKCU:\Software\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe'
           New-Item $reg -Force | Out-Null
           Set-Item -Path $reg -Value $chrome
-          $args="--headless=new --no-first-run --no-default-browser-check --disable-gpu --user-data-dir=__QUOTED_ROOT__ --load-extension=__QUOTED_APP__ --disable-extensions-except=__QUOTED_APP__ about:blank"
+          $args="--headless=new --remote-debugging-port=0 --no-first-run --no-default-browser-check --disable-gpu --user-data-dir=__QUOTED_ROOT__ --load-extension=__QUOTED_APP__ --disable-extensions-except=__QUOTED_APP__ about:blank"
           $args=$args.Replace('__QUOTED_ROOT__',('"'+$root+'"')).Replace('__QUOTED_APP__',('"'+$app+'"'))
           $browser=Start-Process -FilePath $chrome -ArgumentList $args -PassThru
           try{
@@ -192,7 +192,25 @@ jobs:
                 if($matches.Count){$found=$true;break}
               }catch{}
             }
-            if(!$found){throw 'Live Chrome for Testing did not register original v1.5.7 unpacked extension in Preferences'}
+            if(!$found){
+            Write-Host "Browser exited: $($browser.HasExited)"
+            Write-Host "Preferences path exists: $(Test-Path $preferences)"
+            Get-ChildItem -LiteralPath $root -Force -ErrorAction SilentlyContinue | Select-Object Name,Length | Format-Table | Out-String | Write-Host
+            $active=Get-Process chrome -ErrorAction SilentlyContinue
+            Write-Host "Chrome process count $(@($active).Count)"
+            if(Test-Path $preferences){
+              try{
+                $prefData=Get-Content $preferences -Raw -Encoding UTF8 | ConvertFrom-Json
+                Write-Host "Extensions settings count $(@($prefData.extensions.settings.PSObject.Properties).Count)"
+                $paths=@($prefData.extensions.settings.PSObject.Properties | ForEach-Object {$_.Value.path} | Where-Object {$_})
+                Write-Host "Registered unpacked paths ending Siman/app: $(@($paths | Where-Object {$_ -like '*Siman*'}).Count)"
+                Write-Host "Preferences total size $((Get-Item $preferences).Length)"
+              }catch{Write-Host "Preference JSON inspection: $($_.Exception.Message)"}
+            }
+            $devPort=Join-Path $root 'DevToolsActivePort'
+            if(Test-Path $devPort){Write-Host 'Remote debugging port file present'}
+            throw 'Live Chrome for Testing did not register original v1.5.7 unpacked extension in Preferences'
+          }
             Write-Host "RUNNING CHROME: previous v1.5.7 extension found; ID=$($matches[0].Name)"
             $installer=(Resolve-Path 'dist/SimanSetup.exe').Path
             $upgrade=Start-Process -FilePath $installer -ArgumentList '--update' -PassThru -Wait
