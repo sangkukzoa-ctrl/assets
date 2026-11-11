@@ -316,7 +316,12 @@ namespace SimanSetup
                 {
                     string name = Path.GetFileName(dir);
                     if (name != "Default" && !Regex.IsMatch(name, @"^Profile [0-9]+$")) continue;
-                    string prefs = Path.Combine(dir, "Preferences");
+                    var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    // Modern Chrome/Edge place unpacked extensions in Secure Preferences.
+                    // Older browser builds used Preferences; inspect both files read-only.
+                    foreach (string prefName in new[] { "Secure Preferences", "Preferences" })
+                    {
+                    string prefs = Path.Combine(dir, prefName);
                     if (!File.Exists(prefs)) continue;
                     try
                     {
@@ -344,6 +349,7 @@ namespace SimanSetup
                                 Path.IsPathRooted(raw) ? raw : Path.Combine(dir, raw))
                                 .TrimEnd(Path.DirectorySeparatorChar);
                             if (!String.Equals(path, expected, StringComparison.OrdinalIgnoreCase)) continue;
+                            if (!seenIds.Add(item.Key)) continue;
                             found.Add(new ExtensionProfile {
                                 Browser = binaries[b], ProfileName = name, UserDataDir = dataDirs[b], Id = item.Key
                             });
@@ -353,7 +359,8 @@ namespace SimanSetup
                     }
                     catch (Exception e)
                     {
-                        Log("BROWSER READ NOTE: " + binaries[b] + "/" + name + " " + e.GetType().Name);
+                        Log("BROWSER READ NOTE: " + binaries[b] + "/" + name + "/" + prefName + " " + e.GetType().Name);
+                    }
                     }
                 }
             }
