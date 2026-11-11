@@ -145,6 +145,76 @@ jobs:
           if(!(Test-Path (Join-Path $root 'setup.log'))){throw 'Installation log missing'}
           if(!(Select-String -LiteralPath (Join-Path $root 'setup.log') -Pattern 'In-place update' -Quiet)){throw 'In-place update not recorded'}
           Write-Host "PASS: automatic GUI update source, real Windows EXE, prior-version upgrade, same folder identity, stale code removed, user data preserved, repeated update ($count extension files)"
+      - name: Install Chrome for Testing for real extension lifecycle verification
+        id: chrome-test
+        uses: browser-actions/setup-chrome@v2
+        with:
+          chrome-version: stable
+
+      - name: End-to-end previous Siman -> v1.5.8 in running Chrome without user clicks
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHROME_FOR_TESTING: ${{ steps.chrome-test.outputs.chrome-path }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $chrome=$env:CHROME_FOR_TESTING
+          if(!(Test-Path $chrome)){throw "Chrome for Testing binary missing: $chrome"}
+          $app=Join-Path $env:LOCALAPPDATA '2bornot/Siman/app'
+          $root=Join-Path $env:LOCALAPPDATA 'Google/Chrome/User Data'
+          $log=Join-Path $env:LOCALAPPDATA '2bornot/Siman/setup.log'
+          $previous=Join-Path (Resolve-Path dist).Path 'Siman_v1.5.7_WEBSTORE.zip'
+          gh release download siman-v1.5.7 --repo $env:GITHUB_REPOSITORY --pattern 'Siman_v1.5.7_WEBSTORE.zip' --dir dist
+          if($LASTEXITCODE -ne 0){throw 'v1.5.7 original Chrome extension fixture download failed'}
+          if(Test-Path $root){Remove-Item $root -Recurse -Force}
+          New-Item -ItemType Directory $root -Force | Out-Null
+          Expand-Archive -LiteralPath $previous -DestinationPath $app -Force
+          if((Get-Content (Join-Path $app 'manifest.json') -Raw | ConvertFrom-Json).version -ne '1.5.7'){
+            throw 'Real previous extension fixture not installed'
+          }
+          $reg='HKCU:\Software\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe'
+          New-Item $reg -Force | Out-Null
+          Set-Item -Path $reg -Value $chrome
+          $args="--headless=new --no-first-run --no-default-browser-check --disable-gpu --user-data-dir=__QUOTED_ROOT__ --load-extension=__QUOTED_APP__ --disable-extensions-except=__QUOTED_APP__ about:blank"
+          $args=$args.Replace('__QUOTED_ROOT__',('"'+$root+'"')).Replace('__QUOTED_APP__',('"'+$app+'"'))
+          $browser=Start-Process -FilePath $chrome -ArgumentList $args -PassThru
+          try{
+            $preferences=Join-Path $root 'Default/Preferences'
+            $found=$false
+            for($attempt=0;$attempt -lt 65;$attempt++){
+              Start-Sleep -Milliseconds 400
+              if(!(Test-Path $preferences)){continue}
+              try{
+                $json=Get-Content $preferences -Raw -Encoding UTF8 | ConvertFrom-Json
+                $matches=@($json.extensions.settings.PSObject.Properties | Where-Object {
+                  $_.Value.path -and ([IO.Path]::GetFullPath([string]$_.Value.path).TrimEnd('\') -ieq [IO.Path]::GetFullPath($app).TrimEnd('\'))
+                })
+                if($matches.Count){$found=$true;break}
+              }catch{}
+            }
+            if(!$found){throw 'Live Chrome for Testing did not register original v1.5.7 unpacked extension in Preferences'}
+            Write-Host "RUNNING CHROME: previous v1.5.7 extension found; ID=$($matches[0].Name)"
+            $installer=(Resolve-Path 'dist/SimanSetup.exe').Path
+            $upgrade=Start-Process -FilePath $installer -ArgumentList '--update' -PassThru -Wait
+            if($upgrade.ExitCode -ne 0){
+              if(Test-Path $log){Get-Content $log -Tail 35 | Write-Host}
+              throw "Extension lifecycle update not acknowledged by real Chrome; exit=$($upgrade.ExitCode)"
+            }
+            if(!(Select-String -LiteralPath $log -Pattern 'BROWSER RELOADED:' -Quiet)){
+              throw 'No real Chrome background ACK after extension reload'
+            }
+            if((Get-Content (Join-Path $app 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version -ne '1.5.8'){
+              throw 'Installed manifest is not v1.5.8 after actual Chrome upgrade'
+            }
+            $after=Get-Content $preferences -Raw -Encoding UTF8 | ConvertFrom-Json
+            $same=$after.extensions.settings.PSObject.Properties | Where-Object { $_.Name -eq $matches[0].Name }
+            if(!$same){throw 'Original extension ID disappeared after update'}
+            Write-Host 'PASS: real Chrome for Testing runs installed v1.5.7; v1.5.8 installer auto-updates code and obtains background completion ACK with original extension ID'
+          }finally{
+            # Test runner profile only: never terminate a real user's browser.
+            if($browser -and !$browser.HasExited){Stop-Process -Id $browser.Id -Force -ErrorAction SilentlyContinue}
+          }
+
       - name: Prepare release ZIPs and blog attachment
         shell: pwsh
         run: |
