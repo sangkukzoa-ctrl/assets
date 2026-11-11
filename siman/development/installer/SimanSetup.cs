@@ -13,6 +13,7 @@ using System.Web.Script.Serialization;
 using System.Net;
 using System.Net.Sockets;
 using System.Windows.Forms;
+using System.Windows.Automation;
 using Microsoft.Win32;
 
 namespace SimanSetup
@@ -536,6 +537,39 @@ namespace SimanSetup
                 {
                     Log("BROWSER UPDATE: foreground browser window unavailable; no keyboard injection");
                     return false;
+                }
+                // Prefer the actual UI Automation address-bar control over synthetic
+                // Ctrl+V. This avoids relying on clipboard timing in a running browser.
+                try
+                {
+                    AutomationElement window = AutomationElement.FromHandle(GetForegroundWindow());
+                    AutomationElementCollection edits = window.FindAll(
+                        TreeScope.Descendants,
+                        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Edit));
+                    for (int i = 0; i < edits.Count; i++)
+                    {
+                        AutomationElement edit = edits[i];
+                        string name = (edit.Current.Name ?? "").ToLowerInvariant();
+                        if (!(name.Contains("address") || name.Contains("주소") ||
+                            name.Contains("url") || name.Contains("search or enter") ||
+                            name.Contains("search google or type"))) continue;
+                        object raw;
+                        if (!edit.TryGetCurrentPattern(ValuePattern.Pattern, out raw)) continue;
+                        ValuePattern pattern = (ValuePattern)raw;
+                        if (pattern.Current.IsReadOnly) continue;
+                        edit.SetFocus();
+                        pattern.SetValue(uri);
+                        Thread.Sleep(140);
+                        if (!IsBrowserForeground(browser)) return false;
+                        SendKeys.SendWait("{ENTER}");
+                        Log("BROWSER UPDATE: extension URL dispatched using Chrome/Edge UI Automation address bar");
+                        return true;
+                    }
+                    Log("BROWSER UPDATE: accessibility address bar not found, using keyboard fallback");
+                }
+                catch (Exception e)
+                {
+                    Log("BROWSER UPDATE: accessibility fallback " + e.GetType().Name);
                 }
                 // Preserve clipboard when it contains text; avoid replacing personal data.
                 string original = null;
