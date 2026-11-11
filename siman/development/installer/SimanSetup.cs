@@ -404,8 +404,10 @@ namespace SimanSetup
                         continue;
                     }
                     string token = Guid.NewGuid().ToString("N");
+                    // Use a brand new resource name, NOT search.html: Chrome caches
+                    // scripts already loaded by the previous extension version.
                     string url = "chrome-extension://" + profile.Id +
-                        "/search.html?siman_auto_apply=1&version=" + AppVersion +
+                        "/siman-update-158.html?siman_auto_apply=1&version=" + AppVersion +
                         "&port=" + port + "&token=" + token;
                     // No user interaction, forced browser restarts, debug ports, key
                     // shortcuts, profile writes or extension re-registration.
