@@ -33,7 +33,12 @@ namespace SimanSetup
                 try
                 {
                     if (args[0] == "--verify") { VerifyPayload(); return 0; }
-                    if (args[0] == "--install" || args[0] == "--update") { InstallCore(); return 0; }
+                    if (args[0] == "--install") { InstallCore(); return 0; }
+                    if (args[0] == "--update") {
+                        InstallCore();
+                        BrowserUpdateResult applied = ApplyBrowserUpdates();
+                        return applied.Failed == 0 ? 0 : 5;
+                    }
                     if (args[0] == "--apply-browser") { return ApplyBrowserUpdates().Failed == 0 ? 0 : 5; }
                     if (args[0] == "--scan-browser") { return DiscoverBrowserExtensions().Count > 0 ? 0 : 6; }
                     if (args[0] == "--show-path") { return Directory.Exists(Target) ? 0 : 3; }
