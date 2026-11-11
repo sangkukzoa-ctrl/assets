@@ -266,6 +266,7 @@ namespace SimanSetup
         {
             internal string Browser;
             internal string ProfileName;
+            internal string UserDataDir;
             internal string Id;
         }
 
@@ -344,7 +345,7 @@ namespace SimanSetup
                                 .TrimEnd(Path.DirectorySeparatorChar);
                             if (!String.Equals(path, expected, StringComparison.OrdinalIgnoreCase)) continue;
                             found.Add(new ExtensionProfile {
-                                Browser = binaries[b], ProfileName = name, Id = item.Key
+                                Browser = binaries[b], ProfileName = name, UserDataDir = dataDirs[b], Id = item.Key
                             });
                             Log("BROWSER FOUND: " + binaries[b] + "/" + name +
                                 " extension ID ending " + item.Key.Substring(28));
@@ -400,7 +401,8 @@ namespace SimanSetup
                         "&port=" + port + "&token=" + token;
                     // No user interaction, forced browser restarts, debug ports, key
                     // shortcuts, profile writes or extension re-registration.
-                    string args = "--profile-directory=\"" + profile.ProfileName +
+                    string args = "--user-data-dir=\"" + profile.UserDataDir +
+                        "\" --profile-directory=\"" + profile.ProfileName +
                         "\" --new-tab \"" + url + "\"";
                     try
                     {
