@@ -413,6 +413,8 @@ namespace SimanSetup
                         "\" --new-tab \"" + url + "\"";
                     try
                     {
+                        Log("BROWSER LAUNCH: " + profile.Browser + "/" + profile.ProfileName +
+                            " exe=" + exe + " extension ending=" + profile.Id.Substring(28));
                         Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = true });
                         pending[token] = profile.Browser + "/" + profile.ProfileName;
                         result.Launched++;
