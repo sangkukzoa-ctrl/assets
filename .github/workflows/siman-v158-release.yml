@@ -75,7 +75,7 @@ jobs:
           $csc=Join-Path $env:windir 'Microsoft.NET/Framework/v4.0.30319/csc.exe'
           if(!(Test-Path $csc)){throw 'Windows compiler missing'}
           $sourceFile=Join-Path (Resolve-Path source/installer).Path 'SimanSetup.cs'
-          & $csc /nologo /target:winexe /platform:anycpu /optimize+ /out:dist/SimanSetup.exe "/resource:${payload},siman.extension.payload" "/win32icon:${icon}" /reference:System.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll $sourceFile
+          & $csc /nologo /target:winexe /platform:anycpu /optimize+ /out:dist/SimanSetup.exe "/resource:${payload},siman.extension.payload" "/win32icon:${icon}" /reference:System.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:UIAutomationClient.dll /reference:UIAutomationTypes.dll $sourceFile
           if($LASTEXITCODE -ne 0){throw 'Windows installer compile failure'}
       - name: Real Windows EXE first install, in-place upgrade, user file preservation and repeated update
         shell: pwsh
