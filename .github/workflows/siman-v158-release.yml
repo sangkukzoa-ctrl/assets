@@ -75,7 +75,25 @@ jobs:
           $csc=Join-Path $env:windir 'Microsoft.NET/Framework/v4.0.30319/csc.exe'
           if(!(Test-Path $csc)){throw 'Windows compiler missing'}
           $sourceFile=Join-Path (Resolve-Path source/installer).Path 'SimanSetup.cs'
-          & $csc /nologo /target:winexe /platform:anycpu /optimize+ /out:dist/SimanSetup.exe "/resource:${payload},siman.extension.payload" "/win32icon:${icon}" /reference:System.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:UIAutomationClient.dll /reference:UIAutomationTypes.dll $sourceFile
+          $referenceRoot=${env:ProgramFiles(x86)}
+          $uiRefRoot=Join-Path $referenceRoot 'Reference Assemblies/Microsoft/Framework/.NETFramework/v4.8'
+          $wpfRoot=Join-Path $env:WINDIR 'Microsoft.NET/Framework/v4.0.30319/WPF'
+          $uiRefs=@()
+          foreach($dll in @('UIAutomationClient.dll','UIAutomationTypes.dll')){
+            $options=@(
+              (Join-Path $uiRefRoot $dll),
+              (Join-Path $wpfRoot $dll)
+            )
+            $selected=$options | Where-Object {Test-Path $_} | Select-Object -First 1
+            if(!$selected){
+              $folder=Join-Path $env:WINDIR ('Microsoft.NET/assembly/GAC_MSIL/'+[IO.Path]::GetFileNameWithoutExtension($dll))
+              if(Test-Path $folder){$selected=Get-ChildItem $folder -Filter $dll -Recurse -File | Select-Object -First 1 -ExpandProperty FullName}
+            }
+            if(!$selected){throw "UI Automation reference assembly not found: $dll"}
+            Write-Host "UI Automation assembly resolved: $selected"
+            $uiRefs+=('/reference:'+([string]$selected))
+          }
+          & $csc /nologo /target:winexe /platform:anycpu /optimize+ /out:dist/SimanSetup.exe "/resource:${payload},siman.extension.payload" "/win32icon:${icon}" /reference:System.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll @uiRefs $sourceFile
           if($LASTEXITCODE -ne 0){throw 'Windows installer compile failure'}
       - name: Real Windows EXE first install, in-place upgrade, user file preservation and repeated update
         shell: pwsh
