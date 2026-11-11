@@ -410,7 +410,7 @@ namespace SimanSetup
                     // shortcuts, profile writes or extension re-registration.
                     string args = "--user-data-dir=\"" + profile.UserDataDir +
                         "\" --profile-directory=\"" + profile.ProfileName +
-                        "\" --new-tab \"" + url + "\"";
+                        "\" --new-window \"" + url + "\"";
                     try
                     {
                         Log("BROWSER LAUNCH: " + profile.Browser + "/" + profile.ProfileName +
