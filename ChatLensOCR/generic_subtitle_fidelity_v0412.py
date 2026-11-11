@@ -5,7 +5,6 @@ Only adds a missing subtitle line when the *existing* OCR output already
 contains another line from the same visible region AND two independent
 Tesseract language passes agree. No contextual reconstruction or guesses.
 """
-import difflib
 import re
 import numpy as np
 from PIL import Image
@@ -53,8 +52,7 @@ def restore_white_subtitle(image,original,language):
         if len(re.findall("[가-힣]",line))<4:continue
         # An already-recognized second line must not corroborate an
         # unrelated *new* first line merely through common Hangul suffixes.
-        if not any(difflib.SequenceMatcher(
-                None,normalized,_normal(other)).ratio()>=.78
+        if not any(normalized==_normal(other)
                 for other in m_lines if _normal(other) not in base):continue
         result.append(line)
     if not result:return original
