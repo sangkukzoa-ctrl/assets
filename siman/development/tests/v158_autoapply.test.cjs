@@ -21,6 +21,26 @@ async function testCommand(manifestVersion){
  assert.equal(changes.some(x=>x==='reload'),manifestVersion!=='1.5.8');
  assert.equal(changes.some(x=>x?.type==='SIMAN_APPLY_PENDING_UPDATE'),manifestVersion==='1.5.8');
 }
+async function testUncachedBootstrap(loadedVersion){
+ const url='chrome-extension://abcdefabcdefabcdefabcdefabcdefab/siman-update-158.html?version=1.5.8&port=30222&token='+TOKEN;
+ const records={old:{messages:[{text:'preserved conversation'}]}},actions=[];
+ const ctx={URL,Date,Number,String,RegExp,Promise,console,
+  location:{href:url,pathname:'/siman-update-158.html'},
+  history:{replaceState(...args){actions.push(args)}},
+  document:{getElementById:()=>null},
+  chrome:{storage:{local:{set:async values=>{records.pending=values['siman:updater:pending']}}},
+    runtime:{id:'test-extension',getManifest:()=>({version:loadedVersion}),
+      reload:()=>actions.push('reload'),sendMessage:()=>actions.push('message'),lastError:null}}
+ };
+ vm.createContext(ctx);vm.runInContext(app('siman-update-158.js'),ctx);
+ await wait(20);
+ assert.equal(records.old.messages[0].text,'preserved conversation');
+ assert.equal(records.pending.token,TOKEN,'bootstrap must write updater token');
+ assert.equal(actions[0][2],'/siman-update-158.html');
+ assert.equal(actions.includes('reload'),loadedVersion!=='1.5.8');
+ assert.equal(actions.includes('message'),loadedVersion==='1.5.8');
+}
+
 async function testBackground(){
  const archive={messages:[{text:'never overwrite existing user archive'}]};
  const data=new Map([['siman:v11:record:chatgpt:keep',archive],
@@ -57,6 +77,8 @@ async function testBackground(){
  const manifest=JSON.parse(app('manifest.json'));
  assert.equal(manifest.background.service_worker,'background.js');
  assert.equal(manifest.version,'1.5.8');
+ await testUncachedBootstrap('1.5.7');
+ await testUncachedBootstrap('1.5.8');
  await testCommand('1.5.7');
  await testCommand('1.5.8');
  await testBackground();
