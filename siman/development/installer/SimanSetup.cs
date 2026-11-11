@@ -9,6 +9,9 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Web.Script.Serialization;
+using System.Net;
+using System.Net.Sockets;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
@@ -31,6 +34,8 @@ namespace SimanSetup
                 {
                     if (args[0] == "--verify") { VerifyPayload(); return 0; }
                     if (args[0] == "--install" || args[0] == "--update") { InstallCore(); return 0; }
+                    if (args[0] == "--apply-browser") { return ApplyBrowserUpdates().Failed == 0 ? 0 : 5; }
+                    if (args[0] == "--scan-browser") { return DiscoverBrowserExtensions().Count > 0 ? 0 : 6; }
                     if (args[0] == "--show-path") { return Directory.Exists(Target) ? 0 : 3; }
                 }
                 catch (Exception e) { Log("CLI ERROR: " + e.ToString()); return 2; }
@@ -250,6 +255,209 @@ namespace SimanSetup
                 if (backupReady)
                     try { if (Directory.Exists(backup)) Directory.Delete(backup, true); } catch { }
             }
+        }
+
+        internal sealed class ExtensionProfile
+        {
+            internal string Browser;
+            internal string ProfileName;
+            internal string Id;
+        }
+
+        internal sealed class BrowserUpdateResult
+        {
+            internal int Found;
+            internal int Launched;
+            internal int Confirmed;
+            internal int DraftTabs;
+            internal int RefreshedTabs;
+            internal int Failed;
+            internal string Details = "";
+        }
+
+        private static Dictionary<string, object> Obj(object value)
+        {
+            return value as Dictionary<string, object>;
+        }
+
+        private static object At(Dictionary<string, object> node, string key)
+        {
+            object found;
+            return node != null && node.TryGetValue(key, out found) ? found : null;
+        }
+
+        // Chrome stores each unpacked extension's original source directory and
+        // stable extension ID in its read-only Preferences snapshot. We inspect only
+        // known Chrome/Edge profiles and match the EXACT Siman installation path.
+        // Never edit Preferences, Secure Preferences, Extension State or the archive.
+        internal static List<ExtensionProfile> DiscoverBrowserExtensions()
+        {
+            var found = new List<ExtensionProfile>();
+            string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string[] binaries = { "chrome", "msedge" };
+            string[] dataDirs = {
+                Path.Combine(local, @"Google\Chrome\User Data"),
+                Path.Combine(local, @"Microsoft\Edge\User Data")
+            };
+            string expected = Path.GetFullPath(Target).TrimEnd(Path.DirectorySeparatorChar);
+            for (int b = 0; b < binaries.Length; b++)
+            {
+                if (!Directory.Exists(dataDirs[b])) continue;
+                string[] dirs;
+                try { dirs = Directory.GetDirectories(dataDirs[b]); }
+                catch { continue; }
+                foreach (string dir in dirs)
+                {
+                    string name = Path.GetFileName(dir);
+                    if (name != "Default" && !Regex.IsMatch(name, @"^Profile [0-9]+$")) continue;
+                    string prefs = Path.Combine(dir, "Preferences");
+                    if (!File.Exists(prefs)) continue;
+                    try
+                    {
+                        string json = "";
+                        for (int attempt = 0; attempt < 3; attempt++)
+                        {
+                            try { json = File.ReadAllText(prefs, Encoding.UTF8); break; }
+                            catch (IOException) { Thread.Sleep(100); }
+                        }
+                        if (json.Length < 10 || json.Length > 64 * 1024 * 1024) continue;
+                        var parser = new JavaScriptSerializer {
+                            MaxJsonLength = 64 * 1024 * 1024, RecursionLimit = 220
+                        };
+                        var root = Obj(parser.DeserializeObject(json));
+                        var extensions = Obj(At(root, "extensions"));
+                        var settings = Obj(At(extensions, "settings"));
+                        if (settings == null) continue;
+                        foreach (var item in settings)
+                        {
+                            if (!Regex.IsMatch(item.Key, "^[a-p]{32}$")) continue;
+                            var ext = Obj(item.Value);
+                            string raw = At(ext, "path") as string;
+                            if (String.IsNullOrWhiteSpace(raw)) continue;
+                            string path = Path.GetFullPath(
+                                Path.IsPathRooted(raw) ? raw : Path.Combine(dir, raw))
+                                .TrimEnd(Path.DirectorySeparatorChar);
+                            if (!String.Equals(path, expected, StringComparison.OrdinalIgnoreCase)) continue;
+                            found.Add(new ExtensionProfile {
+                                Browser = binaries[b], ProfileName = name, Id = item.Key
+                            });
+                            Log("BROWSER FOUND: " + binaries[b] + "/" + name +
+                                " extension ID ending " + item.Key.Substring(28));
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Log("BROWSER READ NOTE: " + binaries[b] + "/" + name + " " + e.GetType().Name);
+                    }
+                }
+            }
+            return found;
+        }
+
+        private static string QueryValue(string request, string name)
+        {
+            Match match = Regex.Match(request, "(?:[?&])" + Regex.Escape(name) + "=([^&\\s]+)");
+            return match.Success ? Uri.UnescapeDataString(match.Groups[1].Value) : "";
+        }
+
+        // A single-use 128-bit token is sent to the extension-owned page and returned
+        // by the updated extension background worker to this loopback-only listener.
+        // This proves the new extension context ran, not just that a browser tab opened.
+        public static BrowserUpdateResult ApplyBrowserUpdates()
+        {
+            var result = new BrowserUpdateResult();
+            List<ExtensionProfile> installed = DiscoverBrowserExtensions();
+            result.Found = installed.Count;
+            if (installed.Count == 0)
+            {
+                result.Details = "브라우저에 등록된 심안을 아직 찾지 못했습니다.";
+                return result;
+            }
+            var pending = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            TcpListener listener = null;
+            try
+            {
+                listener = new TcpListener(IPAddress.Loopback, 0);
+                listener.Start();
+                int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+                foreach (ExtensionProfile profile in installed)
+                {
+                    string exe = FindBrowser(profile.Browser);
+                    if (String.IsNullOrEmpty(exe))
+                    {
+                        result.Failed++;
+                        Log("BROWSER REFRESH: executable missing: " + profile.Browser);
+                        continue;
+                    }
+                    string token = Guid.NewGuid().ToString("N");
+                    string url = "chrome-extension://" + profile.Id +
+                        "/search.html?siman_auto_apply=1&version=" + AppVersion +
+                        "&port=" + port + "&token=" + token;
+                    // No user interaction, forced browser restarts, debug ports, key
+                    // shortcuts, profile writes or extension re-registration.
+                    string args = "--profile-directory=\"" + profile.ProfileName +
+                        "\" --new-tab \"" + url + "\"";
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = true });
+                        pending[token] = profile.Browser + "/" + profile.ProfileName;
+                        result.Launched++;
+                    }
+                    catch (Exception e)
+                    {
+                        result.Failed++;
+                        Log("BROWSER LAUNCH ERROR: " + profile.Browser + "/" + profile.ProfileName + " " + e.Message);
+                    }
+                }
+                var watch = Stopwatch.StartNew();
+                while (pending.Count > 0 && watch.ElapsedMilliseconds < 14000)
+                {
+                    if (!listener.Pending()) { Thread.Sleep(80); continue; }
+                    using (TcpClient client = listener.AcceptTcpClient())
+                    {
+                        client.ReceiveTimeout = 1200;
+                        client.SendTimeout = 1200;
+                        string first = "";
+                        try
+                        {
+                            using (StreamReader input = new StreamReader(client.GetStream(), Encoding.ASCII, false, 1024, true))
+                                first = input.ReadLine() ?? "";
+                            string token = QueryValue(first, "token");
+                            string version = QueryValue(first, "v");
+                            if (first.StartsWith("GET /complete?", StringComparison.Ordinal) &&
+                                version == AppVersion && pending.ContainsKey(token))
+                            {
+                                result.Confirmed++;
+                                result.RefreshedTabs += int.TryParse(QueryValue(first, "refreshed"), out int a) ? a : 0;
+                                result.DraftTabs += int.TryParse(QueryValue(first, "drafts"), out int d) ? d : 0;
+                                Log("BROWSER RELOADED: " + pending[token] +
+                                    " / app " + version + " / tabs " + QueryValue(first, "refreshed") +
+                                    " / preserved drafts " + QueryValue(first, "drafts"));
+                                pending.Remove(token);
+                            }
+                            byte[] bytes = Encoding.UTF8.GetBytes("<!doctype html><meta charset=utf-8><title>Siman updated</title>OK");
+                            byte[] header = Encoding.ASCII.GetBytes(
+                                "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n" +
+                                "Content-Length: " + bytes.Length + "\r\nConnection: close\r\n\r\n");
+                            client.GetStream().Write(header, 0, header.Length);
+                            client.GetStream().Write(bytes, 0, bytes.Length);
+                        }
+                        catch (Exception e) { Log("BROWSER ACK NOTE: " + e.GetType().Name); }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Log("BROWSER AUTO RELOAD ERROR: " + e.ToString());
+                result.Failed++;
+            }
+            finally { if (listener != null) listener.Stop(); }
+            result.Failed += pending.Count;
+            result.Details = result.Confirmed + "/" + result.Found +
+                "개 브라우저 프로필 새 코드 적용 확인 · AI 탭 자동 갱신 " +
+                result.RefreshedTabs + "개 · 작성 중인 입력 보호 " + result.DraftTabs + "개";
+            Log("BROWSER AUTO RELOAD: " + result.Details + " · failed " + result.Failed);
+            return result;
         }
 
         // Opening a chrome:// page as an external process argument can be ignored by a running
