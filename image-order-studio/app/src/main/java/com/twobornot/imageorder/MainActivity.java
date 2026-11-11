@@ -66,6 +66,7 @@ public class MainActivity extends Activity {
         store=new GalleryStore(this,externalMode);exporter=new ImageExporter(this);
         setup();rebuildVisible();updateCounters();
         if(externalMode) ui.post(this::openPicker);
+        else if(launch.getBooleanExtra("from_upload_assist",false))ui.post(this::openPicker);
         else handleIncoming(launch);
     }
     @Override protected void onNewIntent(Intent intent) {
@@ -88,8 +89,8 @@ public class MainActivity extends Activity {
             t("선택한 순서가 곧 정답입니다", "Your selection order is authoritative"),12,0xffcbd8ee,false);
         header.addView(subtitle);
         LinearLayout toolbar=row(); toolbar.setPadding(dp(8),dp(10),dp(8),dp(5));root.addView(toolbar);
-        addButton(toolbar,t("＋ 삼성/기본 갤러리","＋ Gallery / albums"),()->openPicker(),BLUE);
-        addButton(toolbar,t("사진 선택 설정","Photo source"),()->choosePhotoSource(),NAVY);
+        addButton(toolbar,t("＋ 갤러리","＋ Gallery"),()->openPicker(),BLUE);
+
         LinearLayout toolbarOrder=row();toolbarOrder.setPadding(dp(8),0,dp(8),dp(5));root.addView(toolbarOrder);
         addButton(toolbarOrder,t("순서 편집","Edit order"),()->editSequence(),NAVY);
         if(!externalMode)addButton(toolbarOrder,t("다른 기능 · 설정","More tools / settings"),()->showOtherTools(),0xff6f8095);
@@ -137,17 +138,11 @@ public class MainActivity extends Activity {
             addButton(secondary,t("처음부터 선택","Restart order"),()->confirmClearSequence(),NAVY);
             addButton(secondary,t("취소하고 돌아가기","Cancel and return"),()->cancelExternal(),0xff6f8095);
         } else {
-            TextView actions=text(t("모든 사이트에서 사용하기 · 갤러리에 저장","USE FROM ANY WEBSITE · SAVE TO GALLERY"),11,MUTED,true);
-            actions.setPadding(dp(13),dp(9),0,dp(4));root.addView(actions);
-            LinearLayout albumActions=row();albumActions.setPadding(dp(8),0,dp(8),dp(5));root.addView(albumActions);
-            addButton(albumActions,t("① 갤러리 앨범에 저장","① Save to Gallery album"),()->publishGallery(false),BLUE);
-            addButton(albumActions,t("② 한 장으로 갤러리 저장","② Single image to Gallery"),()->publishGallery(true),NAVY);
-            LinearLayout bottomActions=row();bottomActions.setPadding(dp(8),0,dp(8),dp(5));root.addView(bottomActions);
-            addButton(bottomActions,t("공유하기","Share images"),()->shareNumbered(true),NAVY);
-            addButton(bottomActions,t("다른 기능 · 설정","More options"),()->showOtherTools(),0xff6f8095);
-            TextView hint=text(t("어느 사이트에서든: 이 앱에서 순서 지정 → 갤러리 앨범에 저장 → 원래 앱의 기본 첨부창에서 'Image Order Studio' 앨범 선택",
-                "For any website: set order here → Save to Gallery → select from the Image Order Studio album in that site's normal picker"),11,MUTED,false);
-            hint.setPadding(dp(13),0,dp(13),dp(8));root.addView(hint);
+            LinearLayout primary=row();primary.setPadding(dp(8),dp(6),dp(8),dp(6));root.addView(primary);
+            addButton(primary,t("＋ 사진 선택 · 순서대로 업로드 준비", "＋ Select photos · prepare upload"),this::openPicker,BLUE);
+            LinearLayout more=row();more.setPadding(dp(8),0,dp(8),dp(7));root.addView(more);
+            addButton(more,t("모든 앱에서 첨부 감지 켜기", "Enable upload popup"),this::requestUploadAssist,NAVY);
+            addButton(more,t("설정", "Settings"),this::showOtherTools,0xff6f8095);
         }
     }
     private LinearLayout row() {
@@ -231,16 +226,12 @@ public class MainActivity extends Activity {
             +t("장"," images") + (selectedOnly?t("  •  선택만 표시","  •  Filtered"):"")
             + (selectedFirst?t("  •  선택순 정렬","  •  Ordered first"):""));
     }
-    /** Prefers the actual Samsung Gallery component (Galaxy devices), not Android's Photo Picker album sheet. */
+    /** One gallery experience for both launcher use and third-party GET_CONTENT/PICK calls. */
     private void openPicker() {
         if(working)return;
-        String source=getPreferences(MODE_PRIVATE).getString(PHOTO_PREF,"samsung");
-        if("samsung".equals(source)&&trySamsungPicker())return;
-        if("system".equals(source)&&trySystemPhotoPicker())return;
-        if("generic".equals(source)&&tryOtherGalleryPicker())return;
-        if(!"system".equals(source)&&tryOtherGalleryPicker())return;
-        if(trySystemPhotoPicker())return;
-        toastDialog(t("사용 가능한 사진 선택기를 찾지 못했습니다.","No compatible gallery picker found."));
+        Intent gallery=new Intent(this,NativeGalleryActivity.class);
+        gallery.putExtra(NativeGalleryActivity.EXTRA_MAX_SELECTION,externalMode&&!externalAllowsMultiple?12:100);
+        startActivityForResult(gallery,IMPORT_IMAGES);
     }
     private boolean trySamsungPicker() {
         // Package-targeted ACTION_GET_CONTENT bypasses the unrequested AOSP Photo Picker UI.
@@ -338,7 +329,8 @@ public class MainActivity extends Activity {
             if(data.getClipData()!=null) {
                 for(int j=0;j<data.getClipData().getItemCount();j++) uris.add(data.getClipData().getItemAt(j).getUri());
             } else if(data.getData()!=null) uris.add(data.getData());
-            boolean trustOrder=PickerDecision.trustNativeOrder(nativePickerOrdered,uris.size());
+            boolean trustOrder=data.getBooleanExtra(NativeGalleryActivity.EXTRA_ORDER_VERIFIED,false)
+                || PickerDecision.trustNativeOrder(nativePickerOrdered,uris.size());
             nativePickerOrdered=false;
             importAll(uris,trustOrder);
         } else if(request==CHOOSE_FOLDER) {
@@ -348,6 +340,8 @@ public class MainActivity extends Activity {
     private void importAll(List<Uri> uris,boolean sourceHasVerifiedOrder) {
         if(uris.isEmpty()||working)return;
         run(t("이미지 가져오는 중…","Importing images…"),()->{
+            // A fresh gallery confirmation is a new upload batch, not an append of old ranks.
+            if(sourceHasVerifiedOrder){store.sequence.clear();store.save();}
             int ok=0;ArrayList<String> errors=new ArrayList<>();
             for(Uri uri:uris) {
                 try{
@@ -362,6 +356,14 @@ public class MainActivity extends Activity {
             final int count=ok;
             ui.post(()->{
                 rebuildVisible();updateCounters();
+                if(sourceHasVerifiedOrder && count>0) {
+                    // Let run() clear working before launching the export/return job.
+                    ui.postDelayed(()->{
+                        if(isFinishing()||working)return;
+                        if(externalMode) returnToCaller();
+                        else publishGallery(false);
+                    },250);
+                }
                 // Avoid an extra OK dialog after a successful native photo selection.
                 if(!errors.isEmpty())toastDialog(t("가져오기 실패 ","Import errors ")+errors.size()+"\n"+errors.get(0));
                 else if(!sourceHasVerifiedOrder && count>0)Toast.makeText(this,
@@ -378,12 +380,9 @@ public class MainActivity extends Activity {
         if(!externalMode||!hasSelection()||working)return;
         List<String> ids=store.sequence.snapshot();
         if(PickerDecision.needsCombine(ids.size(),externalAllowsMultiple)) {
-            new AlertDialog.Builder(this)
-                .setTitle(t("사이트에서는 한 장만 받을 수 있습니다.","This website requests one image."))
-                .setMessage(t("선택한 이미지를 순서대로 한 장으로 합쳐서 첨부할까요? (최대 12장)",
-                    "Combine selected photos in order into one upload? (up to 12)"))
-                .setPositiveButton(t("한 장으로 결합","Combine"),(d,w)->deliverToCaller(ids,true))
-                .setNegativeButton(t("선택 수정","Change selection"),null).show();
+            if(ids.size()>12){toastDialog(t("이 요청에서는 최대 12장을 선택하세요.",
+               "For this single-file upload, select up to 12 photos."));return;}
+            deliverToCaller(ids,true);
             return;
         }
         deliverToCaller(ids,false);
@@ -493,6 +492,14 @@ public class MainActivity extends Activity {
             // Keep independent copies in the SAF source for system Files pickers.
             OrderedOutbox.publish(this,results);
             List<Uri> added=GalleryMediaExporter.publish(this,results);
+            if(getIntent().getBooleanExtra("from_upload_assist",false)) {
+                ui.post(()->{
+                    Toast.makeText(this,t("순서 이미지를 갤러리에 준비했습니다. 원래 첨부창에서 선택하세요.",
+                         "Ordered images are ready in Gallery. Select them in the original picker."),Toast.LENGTH_LONG).show();
+                    finish();
+                });
+                return;
+            }
             ui.post(()->new AlertDialog.Builder(this)
                 .setTitle(t("갤러리에서 바로 선택할 수 있습니다","Ready in your Gallery"))
                 .setMessage(t("사진 "+added.size()+"장을 'Image Order Studio' 앨범에 저장했습니다.\n\n원래 사이트의 이미지 첨부 화면으로 돌아가 일반 갤러리에서 이 앨범을 선택하세요. 이미지에는 순서가 직접 표시되어 있습니다.",
@@ -501,6 +508,18 @@ public class MainActivity extends Activity {
                 .show());
         });
     }
+
+    private void requestUploadAssist() {
+        new AlertDialog.Builder(this)
+            .setTitle(t("이미지 첨부 감지", "Upload popup assistant"))
+            .setMessage(t("이 기능을 켜면 다른 앱의 사진/파일 선택창이 나타날 때 작은 바로가기 버튼을 표시할 수 있습니다. 이를 위해 Android 접근성 서비스 권한이 필요합니다. 화면의 선택창 여부만 기기 안에서 확인하며 수집하거나 서버로 전송하지 않습니다. 다른 앱의 첨부 결과를 강제로 바꾸지는 않습니다. 활성화하시겠습니까?",
+                "This optional feature watches for photo/file picker windows and displays a small shortcut. Android Accessibility access is required. Detection runs on device only; no content is collected or transmitted. It does not replace another app's attachment result. Open settings to enable?"))
+            .setNegativeButton(t("취소","Cancel"),null)
+            .setPositiveButton(t("접근성 설정 열기","Open Accessibility Settings"),(d,w)->{
+                startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS));
+            }).show();
+    }
+
     private void showOtherTools() {
         String[] items={
             t("JPG 번호 이미지 공유","Share numbered JPG"),

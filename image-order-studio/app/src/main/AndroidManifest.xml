@@ -3,11 +3,15 @@
     <!-- Android 11+ restricts visibility of installed applications. -->
     <!-- Gallery export on Android 8/9 only; Android 10+ uses scoped MediaStore. -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <queries>
         <package android:name="com.sec.android.gallery3d" />
         <intent><action android:name="android.intent.action.GET_CONTENT" /><data android:mimeType="image/*" /></intent>
     </queries>
     <application android:allowBackup="false" android:label="Image Order Studio" android:icon="@drawable/ic_launcher" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:usesCleartextTraffic="false">
+        <activity android:name=".NativeGalleryActivity" android:exported="false" android:screenOrientation="unspecified" />
         <activity android:name=".MainActivity" android:screenOrientation="unspecified" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -49,6 +53,13 @@
             android:permission="android.permission.MANAGE_DOCUMENTS">
             <intent-filter><action android:name="android.content.action.DOCUMENTS_PROVIDER" /></intent-filter>
         </provider>
+        <service android:name=".UploadAssistService" android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:label="Image Order Studio - 첨부 감지"
+            android:description="@string/accessibility_description">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/upload_assist_service" />
+        </service>
         <service android:name=".OrderTileService" android:label="Image Order Studio"
             android:icon="@drawable/ic_launcher" android:exported="true"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
