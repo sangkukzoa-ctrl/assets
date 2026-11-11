@@ -16,8 +16,8 @@ namespace SimanSetup
 {
     internal static class Program
     {
-        public const string AppVersion = "1.5.7";
-        public const string InstallerRevision = "4";
+        public const string AppVersion = "1.5.8";
+        public const string InstallerRevision = "5";
         public static readonly string Root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "2bornot", "Siman");
         public static readonly string Target = Path.Combine(Root, "app");
         public static readonly string LogPath = Path.Combine(Root, "setup.log");
