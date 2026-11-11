@@ -428,8 +428,11 @@ namespace SimanSetup
                                 version == AppVersion && pending.ContainsKey(token))
                             {
                                 result.Confirmed++;
-                                result.RefreshedTabs += int.TryParse(QueryValue(first, "refreshed"), out int a) ? a : 0;
-                                result.DraftTabs += int.TryParse(QueryValue(first, "drafts"), out int d) ? d : 0;
+                                int refreshed; int drafts;
+                                if (Int32.TryParse(QueryValue(first, "refreshed"), out refreshed))
+                                    result.RefreshedTabs += refreshed;
+                                if (Int32.TryParse(QueryValue(first, "drafts"), out drafts))
+                                    result.DraftTabs += drafts;
                                 Log("BROWSER RELOADED: " + pending[token] +
                                     " / app " + version + " / tabs " + QueryValue(first, "refreshed") +
                                     " / preserved drafts " + QueryValue(first, "drafts"));
@@ -667,21 +670,50 @@ namespace SimanSetup
             {
                 string path = Program.InstallCore();
                 ready = true;
+                // Complete the upgrade in Chrome/Edge too: no manual extension reload.
+                status.Text = "Chrome · Edge의 기존 심안에 새 코드 반영 중...";
+                Application.DoEvents();
+                Program.BrowserUpdateResult applied = Program.ApplyBrowserUpdates();
+                if (applied.Found > 0)
+                {
+                    status.Text = applied.Failed == 0 ? "자동 업데이트 완료 ✓ · " + applied.Details :
+                        "파일 설치 완료 · 브라우저 적용 일부 미확인 (" + applied.Confirmed + "/" + applied.Found + ")";
+                    if (applied.Failed == 0 && automatic)
+                    {
+                        var completeTimer = new System.Windows.Forms.Timer();
+                        completeTimer.Interval = 1800;
+                        completeTimer.Tick += delegate {
+                            completeTimer.Stop(); completeTimer.Dispose();
+                            Close();
+                        };
+                        completeTimer.Start();
+                    }
+                }
+                else status.Text = "파일 설치 완료 · 브라우저 최초 등록 안내";
                 status.ForeColor = Color.FromArgb(25, 123, 74);
-                status.Text = (wasInstalledAtStart ? "자동 업데이트 완료" : "최초 설치 완료") +
-                    " ✓  (v" + Program.AppVersion + ")";
+                if (applied.Found == 0)
+                    status.Text = (wasInstalledAtStart ? "설치 파일 갱신 완료" : "최초 설치 완료") +
+                        " ✓  (v" + Program.AppVersion + ")";
                 pathText.Text = path;
-                if (!wasInstalledAtStart)
+                if (applied.Found == 0)
                 {
                     MessageBox.Show(this,
                         "심안 파일 설치가 완료됐습니다.\n\n아래의 Chrome 또는 Edge 등록 버튼으로 최초 한 번만 연결하세요.\n이후 새 설치 관리자는 이 경로를 자동으로 덮어씁니다.",
                         "심안 - 최초 설치 완료", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
+                else if (applied.Failed > 0)
+                {
+                    MessageBox.Show(this,
+                        "심안 코드 파일은 업데이트됐지만 일부 브라우저에서 새 코드 적용 확인을 받지 못했습니다.\n\n" +
+                        applied.Details + "\n기존 확장프로그램은 삭제하지 않았습니다.\n\n진단 로그: " + Program.LogPath,
+                        "심안 - 브라우저 자동 적용 점검", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
                 else if (!automatic)
                 {
                     MessageBox.Show(this,
-                        "기존 심안을 같은 위치에 덮어썼습니다.\n브라우저에 저장된 원문과 검색 색인은 유지됩니다.\n\n기존 확장프로그램을 삭제하거나 다시 등록하지 마세요.\n실행 중인 브라우저에서는 기존 심안 카드 새로고침 또는 브라우저 재시작으로 새 코드를 적용하세요.",
-                        "심안 - 자동 업데이트 완료", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        "자동 덮어쓰기 및 브라우저 확장 새로고침 완료.\n" + applied.Details +
+                        "\n\n기존 대화 원문과 검색 색인은 유지됩니다.",
+                        "심안 - 전체 업데이트 완료", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
             catch (Exception e)
