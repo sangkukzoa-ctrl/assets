@@ -175,7 +175,7 @@ jobs:
           $reg='HKCU:\Software\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe'
           New-Item $reg -Force | Out-Null
           Set-Item -Path $reg -Value $chrome
-          $args="--headless=new --remote-debugging-port=0 --no-first-run --no-default-browser-check --disable-gpu --user-data-dir=__QUOTED_ROOT__ --load-extension=__QUOTED_APP__ --disable-extensions-except=__QUOTED_APP__ about:blank"
+          $args="--remote-debugging-port=0 --no-first-run --no-default-browser-check --disable-gpu --user-data-dir=__QUOTED_ROOT__ --load-extension=__QUOTED_APP__ --disable-extensions-except=__QUOTED_APP__ about:blank"
           $args=$args.Replace('__QUOTED_ROOT__',('"'+$root+'"')).Replace('__QUOTED_APP__',('"'+$app+'"'))
           $browser=Start-Process -FilePath $chrome -ArgumentList $args -PassThru
           try{
