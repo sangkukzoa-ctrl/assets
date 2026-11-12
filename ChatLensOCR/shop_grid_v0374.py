@@ -175,11 +175,34 @@ def card_boxes(image, forced=False):
 
 
 def analyze(image, language='한국어', precise=True, forced=False, reader=None):
+    if reader is None:
+        from multicolumn_v037 import _read as reader
+    if not forced:
+        # A strip of alternate photographs underneath ONE large hero image
+        # must not become five independently numbered products. This check
+        # is only activated by the geometry of a true single-item detail.
+        from product_detail_v0415 import detail_evidence
+        detail=detail_evidence(image)
+        if detail is not None:
+            x0,y0,x1,y1=detail["detail_box"]
+            content,local_boxes,confidence=reader(
+                image.crop((x0,y0,x1,y1)),language,precise)
+            if content.strip():
+                items=[]
+                for item in local_boxes:
+                    a,b,c,d=item["box"]
+                    items.append({**item,"box":(x0+a,y0+b,x0+c,y0+d)})
+                metadata=[{"type":"product_detail","product_count":1,
+                           "box":detail["detail_box"],
+                           "evidence":detail["evidence"],
+                           "confidence":confidence,
+                           "human_verified":False}]
+                # The only output text is OCR actually returned from the
+                # product-details region; no name or price is synthesized.
+                return "쇼핑몰",content.strip(),[],metadata,items
     geo = card_boxes(image, forced=forced)
     if geo is None:
         return None
-    if reader is None:
-        from multicolumn_v037 import _read as reader
     output, raw, metadata = [], [], []
     for index, (x0, y0, x1, y1) in enumerate(geo['boxes'], 1):
         crop = image.crop((x0, y0, x1, y1))
