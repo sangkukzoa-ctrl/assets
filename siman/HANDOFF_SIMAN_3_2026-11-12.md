@@ -1,3 +1,27 @@
+# 심안(心眼) — v1.5.9 공식 DeepSeek 웹 수집기 배포 결산 (2026-11-12 KST)
+
+> 이 문서 아래의 v1.5.8 및 이전 인수인계는 당시 기록으로 보존합니다. **현재 최신 공개판은 v1.5.9** 입니다. 후속 세션은 v1.5.9 기준으로 진행하십시오.
+
+- 사용자 제공 `Siman_v1.5.8_Debug_20261112_153417.txt`에서 DeepSeek 0건·열린 탭 없음, ChatLLM 발견 301/완료 301(계정 목록 완결 별도 불명), Claude 111/111, ChatGPT 646 발견·405 완료·241 남음/429 보호 중단 확인.
+- 핵심 변경: **DeepSeek 공식 웹 `chat.deepseek.com` 독립 대화 목록·원문 읽기 전용 API 수집기 구현.** ChatLLM의 DeepSeek 모델과 분리. 자동으로 공식 사이트 탭을 열고 `fetch_page` → `history_messages`로 원문 저장. 기존 DOM 방문 저장 유지.
+- 새로운 파일: `siman/development/app/deepseek-web.js`, `siman/development/app/siman-update-159.html`, `siman-update-159.js`, `siman/development/tests/v159_deepseek_web.test.cjs`, `v159_autoapply.test.cjs`, `.github/workflows/siman-v159-release.yml`, `siman/development/RELEASE_NOTES_v1.5.9.md`.
+- 추가 변경: `page.js` 인증된 DeepSeek 웹 원문 수집, `search.js` 전체 일괄/단독 버튼·연결·진단, `manifest.json` MAIN 세계에 전용 읽기 모듈 등록, `core.js` 원본 URL, `store.js` 구조화된 DeepSeek 원문 우선 병합, `search.html` 안내, 설치 관리자 버전 v1.5.9/R7.
+- DeepSeek 세션의 재생성/편집 분기는 `current_message_id` → `parent_id` 따라 활성 분기만 검색. 로그인 토큰은 공식 웹 MAIN 컨텍스트의 같은 출처 인증 요청에만 쓰며 원문 저장소/진단 로그/GitHub로 전송하지 않음. 별도 권한 증가는 없음.
+- ChatLLM 완료 판정: 발견된 모든 세션의 원문이 처리된 상태를 `observedComplete`로 분리. 전계정 페이지 완결은 여전히 미확인. ChatGPT HTTP 429 중단/쿨다운/원문 보존은 그대로 유지.
+- **Windows CI 성공:** https://github.com/sangkukzoa-ctrl/assets/actions/runs/43171062601 — Node 9종, Windows EXE 컴파일 및 반복 설치, v1.5.8 Chrome에서 v1.5.9 동일 ID 자동 갱신 및 ACK, 고정 Beta 게시까지 성공.
+- 개별 릴리스: https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.9
+- 영구 다운로드: https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta
+- 이전 v1.5.8 자동 게시 workflow는 수동 전용. v1.5.9 workflow가 현재 최신 배포를 담당. 공개 다운로드 검사 workflow는 v1.5.9 성공 실행 후에도 검증하도록 확장.
+
+### 다음 검증 대상
+
+1. 사용자 실제 `chat.deepseek.com` 계정에서 수집 건수 및 `DEEPSEEK_LIST`, `DEEPSEEK_DETAIL_ERROR`, `DONE` 로그 검증. Node 회귀는 합성 인증 API 응답에 대한 테스트이며 실제 사용자 계정 수집 결과를 대체하지 않음.
+2. DeepSeek 웹 API 목록의 `has_more=true`이지만 커서가 제공되지 않는 사례: 현재 발견된 목록만 안전하게 저장하고 전체 수집완료로 허위 표시하지 않음. 필요 시 실제 응답 형태 진단 후 페이지네이션 확장.
+3. ChatGPT 429 이후 재개(현행 보호 유지), 일부 서비스 메시지 완결성, Gemini/Grok 방문 저장 및 Edge 실제 브라우저 호환성.
+4. 새 기능을 수정할 때 `siman/development/` 소스와 v1.5.9 CI를 유지; 원문/확장 ID/블로그 고정 URL 보존. '진행' 입력 시 이 최신 상태부터 이어갈 것.
+
+---
+
 # 심안(心眼) 3차 — 2026-11-12 실개발 결과 (최신)
 
 > **아래의 원본 2차→3차 인수인계는 당시 기록으로 유지합니다. 현재 상태 판단에는 이 3차 결과를 우선 적용하십시오.**
