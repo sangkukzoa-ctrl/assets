@@ -515,58 +515,115 @@ namespace SimanSetup
             catch { return false; }
         }
 
-        // Chrome's native extensions manager has the authoritative unpacked-extension
-        // Reload action. It rereads manifest.json and starts the NEW service worker;
-        // toggling an extension on/off is insufficient for a changed manifest.
-        // Navigate to the detail page of ONE known ID, then invoke only the
-        // accessible Reload button inside the page (not the browser toolbar).
+        // Only the browser's own unpacked-extension Reload operation rereads
+        // manifest.json. It preserves the extension ID and chrome.storage.local.
+        private static bool IsExtensionReloadButton(AutomationElement button, double top)
+        {
+            try
+            {
+                if (!button.Current.IsEnabled || button.Current.BoundingRectangle.Top < top + 135)
+                    return false; // NEVER click the browser toolbar reload.
+                string name = (button.Current.Name ?? "").Trim().ToLowerInvariant();
+                return name == "reload" || name.StartsWith("reload (") ||
+                    name == "reload extension" || name == "다시 로드" ||
+                    name == "새로고침" || name == "확장 프로그램 새로고침";
+            }
+            catch { return false; }
+        }
+
+        private static bool InvokePageReload(AutomationElement root, double top)
+        {
+            AutomationElementCollection buttons = root.FindAll(
+                TreeScope.Descendants,
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button));
+            var candidates = new List<AutomationElement>();
+            for (int i = 0; i < buttons.Count; i++)
+                if (IsExtensionReloadButton(buttons[i], top)) candidates.Add(buttons[i]);
+            // A unique button inside an ID-specific view/card is required.
+            if (candidates.Count != 1) return false;
+            object raw;
+            if (!candidates[0].TryGetCurrentPattern(InvokePattern.Pattern, out raw)) return false;
+            ((InvokePattern)raw).Invoke();
+            return true;
+        }
+
         private static bool ReloadExtensionFromManager(string browser, string extensionId)
         {
             string scheme = browser == "msedge" ? "edge" : "chrome";
             if (!Regex.IsMatch(extensionId, "^[a-p]{32}$")) return false;
-            if (!NavigateExistingBrowser(browser, scheme + "://extensions/?id=" + extensionId))
+
+            // First try the exact-ID detail route, never a generic extension action.
+            if (NavigateExistingBrowser(browser, scheme + "://extensions/?id=" + extensionId))
             {
-                Log("BROWSER MANAGER: unable to open extension detail");
-                return false;
+                for (int attempt = 0; attempt < 12; attempt++)
+                {
+                    Thread.Sleep(250);
+                    if (!IsBrowserForeground(browser)) return false;
+                    try
+                    {
+                        AutomationElement window = AutomationElement.FromHandle(GetForegroundWindow());
+                        if (InvokePageReload(window, window.Current.BoundingRectangle.Top))
+                        {
+                            Log("BROWSER MANAGER: exact-ID detail Reload invoked for " +
+                                browser + " ID ending " + extensionId.Substring(28));
+                            Thread.Sleep(450);
+                            return true;
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        if (attempt == 11) Log("BROWSER MANAGER: detail view " + e.GetType().Name);
+                    }
+                }
             }
+
+            // Chrome's developer Reload control normally lives on the list CARD
+            // (#dev-reload-button), not the details view. Identify the specific
+            // extension by its visible full ID before searching parent card nodes.
+            if (!NavigateExistingBrowser(browser, scheme + "://extensions/"))
+                return false;
             for (int attempt = 0; attempt < 18; attempt++)
             {
-                Thread.Sleep(240);
+                Thread.Sleep(260);
                 if (!IsBrowserForeground(browser)) return false;
                 try
                 {
                     AutomationElement window = AutomationElement.FromHandle(GetForegroundWindow());
-                    var top = window.Current.BoundingRectangle.Top;
-                    AutomationElementCollection buttons = window.FindAll(
-                        TreeScope.Descendants,
-                        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button));
-                    for (int i = 0; i < buttons.Count; i++)
+                    double top = window.Current.BoundingRectangle.Top;
+                    AutomationElementCollection elements = window.FindAll(
+                        TreeScope.Descendants, Condition.TrueCondition);
+                    bool idVisible = false;
+                    for (int i = 0; i < elements.Count; i++)
                     {
-                        AutomationElement button = buttons[i];
-                        if (!button.Current.IsEnabled) continue;
-                        // Ignore browser-toolbar Reload and all other UI chrome.
-                        if (button.Current.BoundingRectangle.Top < top + 135) continue;
-                        string name = (button.Current.Name ?? "").Trim().ToLowerInvariant();
-                        bool reload = name == "reload" || name.StartsWith("reload (") ||
-                            name == "reload extension" || name == "다시 로드" ||
-                            name == "새로고침" || name == "확장 프로그램 새로고침";
-                        if (!reload) continue;
-                        object raw;
-                        if (!button.TryGetCurrentPattern(InvokePattern.Pattern, out raw)) continue;
-                        ((InvokePattern)raw).Invoke();
-                        Log("BROWSER MANAGER: invoked unpacked extension Reload for " +
-                            browser + " ID ending " + extensionId.Substring(28));
-                        Thread.Sleep(450);
-                        return true;
+                        AutomationElement label = elements[i];
+                        string name = label.Current.Name ?? "";
+                        if (name.IndexOf(extensionId, StringComparison.OrdinalIgnoreCase) < 0)
+                            continue;
+                        idVisible = true;
+                        AutomationElement card = label;
+                        for (int depth = 0; depth < 8; depth++)
+                        {
+                            card = TreeWalker.ControlViewWalker.GetParent(card);
+                            if (card == null || card.Equals(window)) break;
+                            if (InvokePageReload(card, top))
+                            {
+                                Log("BROWSER MANAGER: matching-ID card Reload invoked for " +
+                                    browser + " ID ending " + extensionId.Substring(28));
+                                Thread.Sleep(450);
+                                return true;
+                            }
+                        }
                     }
+                    if (attempt == 17)
+                        Log("BROWSER MANAGER: matching-ID card reload unavailable; ID visible=" +
+                            idVisible + "; retry through extension bootstrap only");
                 }
                 catch (Exception e)
                 {
-                    if (attempt == 17) Log("BROWSER MANAGER: reload control inaccessible " +
-                        e.GetType().Name);
+                    if (attempt == 17)
+                        Log("BROWSER MANAGER: matching card inaccessible " + e.GetType().Name);
                 }
             }
-            Log("BROWSER MANAGER: extension Reload control not found; will attempt existing bootstrap");
             return false;
         }
 
