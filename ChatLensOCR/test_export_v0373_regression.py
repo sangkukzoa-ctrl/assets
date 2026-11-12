@@ -9,12 +9,12 @@ from test_export_v0373 import (
     default_test_result_filename,export_payload,VERSION,
 )
 
-assert VERSION=="0.4.15",VERSION
+assert VERSION=="0.4.16",VERSION
 assert default_test_result_filename(date(2026,11,6)) == (
-    "ChatLensOCR_v0.4.15-테스트결과-2026-11-06.txt"
+    "ChatLensOCR_v0.4.16-테스트결과-2026-11-06.txt"
 )
 assert default_test_result_filename(date(2027,1,2)) == (
-    "ChatLensOCR_v0.4.15-테스트결과-2027-01-02.txt"
+    "ChatLensOCR_v0.4.16-테스트결과-2027-01-02.txt"
 )
 assert default_test_result_filename().endswith(".txt")
 
@@ -37,4 +37,4 @@ assert 'lambda:save("txt",default_test_result_filename())' in source
 assert 'if ext=="txt":content=fields[0].get("1.0","end-1c")' in source
 for name in ("app.py","test_export_v0373.py","debuglog_v0372.py"):
     ast.parse((Path(__file__).resolve().parent/name).read_text(encoding="utf-8"))
-print("v0.4.15 default filename, UI adjacency, TXT payload and syntax tests PASSED",flush=True)
+print("v0.4.16 default filename, UI adjacency, TXT payload and syntax tests PASSED",flush=True)
