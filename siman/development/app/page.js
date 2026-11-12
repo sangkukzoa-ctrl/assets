@@ -282,9 +282,20 @@ async function scanDeepSeek(){
   listComplete&&!pausedError&&!cancelled&&!failed&&processed===rows.length,
   {listComplete,paused:!!pausedError,retryAt:pausedError?.retryAt||0,cancelled});
 }
-async function scanChatGPT(){let session=await pacedRequest('/api/auth/session');auth=session.accessToken||session.access_token||null;
+async function scanChatGPT({resumeOnly=false}={}){
+ let session=await pacedRequest('/api/auth/session');
+ auth=session.accessToken||session.access_token||null;
  const items=new Map(),limit=100;let offset=0,lastSig='',listComplete=false,pausedError=null;
- for(let page=0;page<1000&&!cancelled;page++){
+ let usedLocalCatalog=false;
+ if(resumeOnly){
+  const cached=(await bridge('CATALOG_GET',{providerName:'chatgpt'},60000)).entries||[];
+  if(cached.length){
+   for(const row of cached)if(row.id)items.set(String(row.id),row);
+   listComplete=true;usedLocalCatalog=true;
+   trace('CHATGPT_FAST_RESUME','429 재개: 기존 목록 '+items.size+'건 재사용 · 불필요한 대화 목록 요청 생략');
+  }
+ }
+ if(!usedLocalCatalog)for(let page=0;page<1000&&!cancelled;page++){
   let j;try{j=await pacedRequest('/backend-api/conversations?offset='+offset+'&limit='+limit+'&order=updated',{done:items.size,total:0})}catch(e){if(e.ratePaused){pausedError=e;break}throw e}
   const a=arrays(j,['items','conversations']),sig=a.slice(0,8).map(x=>x.id).join('|');if(!a.length){listComplete=true;break}
   if(sig===lastSig){emit('WARN',{text:'ChatGPT 목록이 반복되어 마지막 페이지를 확인할 수 없습니다.'});break}lastSig=sig;
@@ -304,7 +315,7 @@ async function scanChatGPT(){let session=await pacedRequest('/api/auth/session')
      failed++;await mark('chatgpt',id,'failed',e.message);emit('WARN',{text:'ChatGPT 상세 실패 ('+id+'): '+e.message})}
    processed++;progress('원문 수집',processed,entries.length,counts());
  }
- const result=report(entries.length,read,skipped,failed,processed,listComplete&&failed===0&&!pausedError&&!cancelled&&processed===entries.length,{listComplete,paused:!!pausedError,cancelled, retryAt:pausedError?.retryAt||0});
+ const result=report(entries.length,read,skipped,failed,processed,listComplete&&failed===0&&!pausedError&&!cancelled&&processed===entries.length,{listComplete,usedLocalCatalog,paused:!!pausedError,cancelled, retryAt:pausedError?.retryAt||0});
  if(pausedError)emit('WARN',{text:'ChatGPT 429 제한으로 중단: 재시도 시점 '+new Date(pausedError.retryAt).toLocaleString()+' · 미수집 대화는 다음 수집에 유지'});
  progress(pausedError?'429 제한 · 재개 대기':cancelled?'사용자 중지':'수집 종료',processed,entries.length,{...counts(),retryAt:pausedError?.retryAt||0});return result}
 // Claude is an account-scoped app. Organization discovery and conversation lists
@@ -428,12 +439,12 @@ async function scanChatLLM(){
  trace('CHATLLM_DETAIL_STATUS','원문 저장 성공 '+read+' · 상세 응답 완결 '+verified+' · 추가 페이지 필요 '+partial+' · 계정 목록 완결 미확인');
  return report(rows.length,read,skipped,failed,processed,false,{observedComplete:processed===rows.length&&!failed&&!pausedError&&!cancelled,listComplete,detailVerified:verified,detailPartial:partial,sourceCount:sources.size,paused:!!pausedError,cancelled,retryAt:pausedError?.retryAt||0});
 }
-async function run(){if(running)return;running=true;cancelled=false;auth=null;lastRequestAt=0;let heartbeat=null;
+async function run(options={}){if(running)return;running=true;cancelled=false;auth=null;lastRequestAt=0;let heartbeat=null;
  try{await bridge('TEST',{},7000);trace('BRIDGE_OK','수집기↔로컬 저장소 왕복 통신 확인');progress('수집 시작',0,0);
  heartbeat=setInterval(()=>{if(running&&Date.now()-lastProgressAt>8000)emit('PROGRESS',{...lastProgress,details:'응답 대기 중 · 마지막 단계: '+lastProgress.stage})},10000);
  let result;
- if(provider==='chatgpt')result=await scanChatGPT();else if(provider==='claude')result=await scanClaude();else if(provider==='chatllm')result=await scanChatLLM();else if(provider==='deepseek')result=await scanDeepSeek();else if(provider==='gemini')result=await scanGemini();else if(provider==='grok')result=await scanGrok();else throw Error('해당 서비스는 방문 대화 자동 저장만 지원합니다.');emit('DONE',{result});trace('DONE','발견 '+(result.found||0)+' / 저장 '+(result.read||0)+' / 계정 목록 확인 '+!!result.listComplete)}
+ if(provider==='chatgpt')result=await scanChatGPT({resumeOnly:!!options.resumeOnly});else if(provider==='claude')result=await scanClaude();else if(provider==='chatllm')result=await scanChatLLM();else if(provider==='deepseek')result=await scanDeepSeek();else if(provider==='gemini')result=await scanGemini();else if(provider==='grok')result=await scanGrok();else throw Error('해당 서비스는 방문 대화 자동 저장만 지원합니다.');emit('DONE',{result});trace('DONE','발견 '+(result.found||0)+' / 저장 '+(result.read||0)+' / 계정 목록 확인 '+!!result.listComplete)}
  catch(e){if(e.cancelled)emit('DONE',{result:report(0,0,0,0,0,false,{cancelled:true})});else if(e.ratePaused){emit('DONE',{result:report(0,0,0,0,0,false,{paused:true,retryAt:e.retryAt||0})});emit('WARN',{text:'서버 429 요청 제한으로 수집 일시 중지'});}else {trace('FAIL',String(e?.message||e),'ERROR');emit('ERROR',{text:String(e?.message||e)})}}finally{clearInterval(heartbeat);running=false;auth=null}}
-window.__SimanRunnerV155={start:()=>{if(running)return {ok:true,already:true};run();return {ok:true}},stop:()=>{cancelled=true;activeController?.abort();return {ok:true}},ping:()=>({ok:true,provider,version:'1.5.11',running,stage:lastProgress.stage,lastProgressAt}),pingStorage:async()=>{const started=Date.now();const r=await bridge('TEST',{},6500);return {ok:!!r.ok&&!!r.storageReady,latencyMs:Date.now()-started}}};
+window.__SimanRunnerV155={start:(options={})=>{if(running)return {ok:true,already:true};run(options);return {ok:true}},stop:()=>{cancelled=true;activeController?.abort();return {ok:true}},ping:()=>({ok:true,provider,version:'1.5.11',running,stage:lastProgress.stage,lastProgressAt}),pingStorage:async()=>{const started=Date.now();const r=await bridge('TEST',{},6500);return {ok:!!r.ok&&!!r.storageReady,latencyMs:Date.now()-started}}};
 window.addEventListener('message',ev=>{if(ev.source!==window||ev.origin!==origin||ev.data?.tag!==TAG)return;const d=ev.data;if(d.kind==='BRIDGE_REPLY'){pending.get(d.seqId)?.(d);pending.delete(d.seqId)}if(d.kind==='COMMAND'){if(d.action==='START')run();if(d.action==='STOP')cancelled=true}});
 })();
