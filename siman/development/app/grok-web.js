@@ -70,9 +70,11 @@ async function getJson(path,{method='GET',body}={}){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);
  try{
   const res=await fetch(url.href,{credentials:'include',cache:'no-store',redirect:'error',method,
-   headers:method==='POST'?{'Accept':'application/json','Content-Type':'application/json'}:{Accept:'application/json'},
+   headers:{Accept:'application/json',...(method==='POST'?{'Content-Type':'application/json'}:{}),
+    // Grok's web app expects an opaque per-request identifier for some REST paths.
+    ...(globalThis.crypto?.randomUUID?{'x-xai-request-id':globalThis.crypto.randomUUID()}:{})},
    ...(body!==undefined?{body:JSON.stringify(body)}:{}),signal:controller.signal});
-  if(!res.ok){const err=Error('Grok HTTP '+res.status);err.status=res.status;
+  if(!res.ok){const err=Error(res.status===401||res.status===403?'Grok 웹 계정 인증 필요 (HTTP '+res.status+')':'Grok HTTP '+res.status);err.status=res.status;err.authRequired=res.status===401||res.status===403;
    const header=res.headers?.get?.('Retry-After'),retry=Number(header);
    err.retryAfterMs=Number.isFinite(retry)&&retry>0?retry*1000:0;throw err}
   const ct=res.headers?.get?.('content-type')||'';
