@@ -1,4 +1,4 @@
-/* 心眼 v1.5.9 — same-origin archive reader, conservative pacing and resumable index. */
+/* 心眼 v1.5.10 — same-origin archive reader, conservative pacing and resumable index. */
 (()=>{'use strict';
 if(window.__simanPageV155)return;
 window.__simanPageV155=true;
@@ -336,6 +336,6 @@ async function run(){if(running)return;running=true;cancelled=false;auth=null;la
  let result;
  if(provider==='chatgpt')result=await scanChatGPT();else if(provider==='claude')result=await scanClaude();else if(provider==='chatllm')result=await scanChatLLM();else if(provider==='deepseek')result=await scanDeepSeek();else if(provider==='gemini')result=await scanGemini();else throw Error('해당 서비스는 방문 대화 자동 저장만 지원합니다.');emit('DONE',{result});trace('DONE','발견 '+(result.found||0)+' / 저장 '+(result.read||0)+' / 계정 목록 확인 '+!!result.listComplete)}
  catch(e){if(e.cancelled)emit('DONE',{result:report(0,0,0,0,0,false,{cancelled:true})});else if(e.ratePaused){emit('DONE',{result:report(0,0,0,0,0,false,{paused:true,retryAt:e.retryAt||0})});emit('WARN',{text:'서버 429 요청 제한으로 수집 일시 중지'});}else {trace('FAIL',String(e?.message||e),'ERROR');emit('ERROR',{text:String(e?.message||e)})}}finally{clearInterval(heartbeat);running=false;auth=null}}
-window.__SimanRunnerV155={start:()=>{if(running)return {ok:true,already:true};run();return {ok:true}},stop:()=>{cancelled=true;activeController?.abort();return {ok:true}},ping:()=>({ok:true,provider,version:'1.5.9',running,stage:lastProgress.stage,lastProgressAt}),pingStorage:async()=>{const started=Date.now();const r=await bridge('TEST',{},6500);return {ok:!!r.ok&&!!r.storageReady,latencyMs:Date.now()-started}}};
+window.__SimanRunnerV155={start:()=>{if(running)return {ok:true,already:true};run();return {ok:true}},stop:()=>{cancelled=true;activeController?.abort();return {ok:true}},ping:()=>({ok:true,provider,version:'1.5.10',running,stage:lastProgress.stage,lastProgressAt}),pingStorage:async()=>{const started=Date.now();const r=await bridge('TEST',{},6500);return {ok:!!r.ok&&!!r.storageReady,latencyMs:Date.now()-started}}};
 window.addEventListener('message',ev=>{if(ev.source!==window||ev.origin!==origin||ev.data?.tag!==TAG)return;const d=ev.data;if(d.kind==='BRIDGE_REPLY'){pending.get(d.seqId)?.(d);pending.delete(d.seqId)}if(d.kind==='COMMAND'){if(d.action==='START')run();if(d.action==='STOP')cancelled=true}});
 })();
