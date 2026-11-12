@@ -1,3 +1,42 @@
+# 심안(心眼) v1.5.11 — Grok 공식 웹 수집기 구현·배포 인수인계 (2026-11-12 KST)
+
+> **현재 최신 고정 Beta = v1.5.11.** 이 문서 아래의 v1.5.10 및 이전 버전 내역은 과거 작업 기록으로 보존합니다. 다음 세션의 '진행'은 v1.5.11 기준으로 이어갑니다.
+
+## 문제와 사용자 요구
+
+- 사용자가 실제 Grok을 사용하지 않아도, 심안이 지원한다고 명시한 서비스는 완전한 대화 수집·검색이 가능해야 한다고 요청.
+- v1.5.10 Grok은 `PROVIDERS`, `grok.com` host_permissions와 DOM 방문 저장만 있었고, 공식 웹 전체 목록 조회·원문 수집기/단독 재개 버튼·전체 일괄수집 단계가 없었음.
+- 확인한 외부 구현 증거: GitHub `nikolaylosev/ai-chat-exporter` (`src/adapters/grok/adapter.ts`, `schema.ts`, `urls.ts`, MIT); Grok 웹 대화 목록 `GET /rest/app-chat/conversations?pageSize=60&pageToken=...`, 세션 메타 `GET /rest/app-chat/conversations_v2/{id}`, 메시지 관계 `GET /rest/app-chat/conversations/{id}/response-node`, 원문 `POST /rest/app-chat/conversations/{id}/load-responses` (읽기 전용 조회). 기존 프로그램의 소스 코드는 복제하지 않고 응답 구조를 참고해 자체 구현.
+
+## v1.5.11 변경 범위
+
+- `siman/development/app/grok-web.js` 신규: 동일 출처 `grok.com`에 대해서만 인증된 브라우저 세션 쿠키로 REST 조회. 원문 메시지 관계 그래프와 선택된 `rid`(답변 재생성 분기), 시간순 새 응답 기준으로 활성 분기를 저장. 누락된 원문 응답은 완료 처리하지 않음. 페이지/원문 응답 형식이 변경되면 명확한 오류로 중단.
+- `page.js` `scanGrok()`: 페이지 토큰으로 세션 목록 조회 → 브라우저 로컬 카탈로그 → 이미 저장된 원문 건너뜀 → 누락된 원문 조회 → 동기화 상태 기록. HTTP 429는 15분 이상 대기 상태로 기록하고 추가 요청 중단, 다른 오류 5건 누적 시 중단.
+- `search.js`, `search.html`: 전체 일괄수집에 Grok 추가 (ChatLLM → Claude → DeepSeek → Gemini → Grok → ChatGPT), Grok 단독 수집·재개 및 중지 지원, 자동 탭 연결 복구 통합.
+- `core.js`: 원본 Grok URL `https://grok.com/c/{uuid}`; `content.js`: 실제 `/c/{uuid}` 및 `/project/{uuid}?chat={uuid}` 대화 URL만 방문 저장. 프로젝트 개요를 대화로 잘못 저장하지 않음.
+- `manifest.json`: MAIN world `grok-web.js` 추가, 기존 권한 그대로 유지. `SimanSetup.cs`: v1.5.11 / InstallerRevision=9, 새 `siman-update-1511.html` 및 JS. 기존 확장 ID, 데이터·설치 경로 보존.
+- 신규 회귀: `tests/v1511_grok_web.test.cjs` (Grok 목록/원문/답변 분기/동일 출처/원본 URL), v1511 자동 업데이트·Gemini·DeepSeek 회귀도 유지.
+- 문서: `RELEASE_NOTES_v1.5.11.md`, 블로그 배포 안내, Windows 설치 안내, `siman/README.md` 업데이트.
+
+## 실제 빌드 / 배포 확인
+
+- **Windows CI SUCCESS:** https://github.com/sangkukzoa-ctrl/assets/actions/runs/43200664060 — Node 11종 회귀, Windows EXE 컴파일 및 실제 설치·업데이트·반복 실행, Chrome for Testing 실제 v1.5.10→v1.5.11 동일 ID 자동 갱신·ACK, GitHub 릴리스 업로드까지 성공.
+- 개별 v1.5.11 배포 https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.11
+- 고정 Beta https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta
+- 고정 EXE https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/SimanSetup.exe
+- 고정 ZIP https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip
+- v1.5.10 배포 workflow는 수동 실행 전용으로 격하해 구버전이 고정 Beta를 다시 덮지 않도록 구성.
+- 공개 다운로드 검증 `.github/workflows/siman-public-download-check.yml`에 v1.5.11 workflow_run 추가.
+
+## 다음 후속 검증
+
+- 사용자가 실제 Grok 계정을 사용하지 않으므로 이번 Grok API 검증은 실제 서비스에서 얻은 오픈소스 응답 구조와 합성된 테스트 서버 응답을 기반으로 함. 실제 로그인 사용자 Grok 계정 1건 이상에서 목록·원문·분기·프로젝트 기록 검증은 추후 진행.
+- Grok 서버의 웹 내부 API 형식·토큰·페이징 정책이 변경되면 새 `GROK_LIST`/ `GROK_DETAIL_ERROR` 로그로 구분하고 누락 원문을 완료 상태로 처리하지 않음.
+- ChatGPT 기존 429 보호와 재개, Gemini 공식 웹의 실사용 목록·원문, Edge 환경은 별도 사용자 테스트로 계속 확인.
+- 고정 Beta를 갱신할 때 **원본 검색 색인·확장 ID·설치 폴더·블로그 링크**는 반드시 보존. 임의로 기존 기록 초기화, 확장 삭제/재등록, 원본 데이터 이동 금지.
+
+---
+
 # 심안(心眼) — v1.5.10 4차 수정 결산 / 다음 세션 인수인계 (2026-11-12 KST)
 
 > **현재 최신 고정 Beta는 v1.5.10입니다.** 아래에는 v1.5.9→v1.5.8→더 이전 당시 기록을 보존합니다. 후속 작업은 반드시 이 상단 최신 상태부터 진행하십시오.
