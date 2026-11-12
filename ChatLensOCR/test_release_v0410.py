@@ -12,14 +12,14 @@ version=(d/"test_export_v0373.py").read_text(encoding="utf-8")
 meta=(d/"version_info.txt").read_text(encoding="utf-8")
 for file in d.glob("*.py"):
     ast.parse(file.read_text(encoding="utf-8"),filename=str(file))
-for expected in ("ChatLens OCR v0.4.14", "2bornot", "Copyright © 2026 2bornot", "MIT"):
+for expected in ("ChatLens OCR v0.4.15", "2bornot", "Copyright © 2026 2bornot", "MIT"):
     assert expected in app or expected in meta,expected
-assert 'VERSION = "0.4.14"' in version
+assert 'VERSION = "0.4.15"' in version
 from test_export_v0373 import default_test_result_filename
-assert default_test_result_filename(date(2026,11,7))=="ChatLensOCR_v0.4.14-테스트결과-2026-11-07.txt"
+assert default_test_result_filename(date(2026,11,7))=="ChatLensOCR_v0.4.15-테스트결과-2026-11-07.txt"
 assert 'Copyright (c) 2026 2bornot' in (d/"LICENSE").read_text(encoding="utf-8")
 assert 'SignPath Foundation' in (d/"CODE_SIGNING_POLICY.md").read_text(encoding="utf-8")
-assert 'ChatLensOCR_v0.4.14.exe' in meta
+assert 'ChatLensOCR_v0.4.15.exe' in meta
 
 blank=Image.new("RGB",(1100,660),"white")
 assert card_boxes(blank) is None
@@ -36,4 +36,4 @@ def mock_reader(crop,language,precise):
 result=analyze_shop(img,reader=mock_reader)
 assert result is not None and len(seen)==10
 assert len(result[3])==10 and len(result[4])==10
-print("v0.4.14 metadata, developer copyright, export name, code syntax and product grid PASSED")
+print("v0.4.15 metadata, developer copyright, export name, code syntax and product grid PASSED")
