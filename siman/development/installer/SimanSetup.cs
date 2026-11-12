@@ -21,7 +21,7 @@ namespace SimanSetup
     internal static class Program
     {
         public const string AppVersion = "1.5.8";
-        public const string InstallerRevision = "5";
+        public const string InstallerRevision = "6";
         public static readonly string Root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "2bornot", "Siman");
         public static readonly string Target = Path.Combine(Root, "app");
         public static readonly string LogPath = Path.Combine(Root, "setup.log");
@@ -420,10 +420,17 @@ namespace SimanSetup
                         Log("BROWSER LAUNCH: " + profile.Browser + "/" + profile.ProfileName +
                             " exe=" + exe + " extension ending=" + profile.Id.Substring(28));
                         Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = true });
-                        // Chromium can silently ignore extension:// on the command line.
-                        // Address-bar delivery is a safe foreground-only fallback.
+                        // The old extension can be blocked after replacing its on-disk
+                        // manifest. A new extension:// page cannot fix a disabled old
+                        // runtime. Ask Chrome's own extensions manager to reload the
+                        // existing unpacked ID before delivering the update receipt.
+                        // This is a user-interface action; never edit Chrome profiles.
+                        bool managerReload = ReloadExtensionFromManager(profile.Browser, profile.Id);
+                        Log("BROWSER UPDATE: original extension manager reload " +
+                            (managerReload ? "invoked" : "unavailable"));
                         bool addressSent = NavigateExistingBrowser(profile.Browser, url);
-                        Log("BROWSER UPDATE: direct foreground address dispatch " + (addressSent ? "sent" : "not available"));
+                        Log("BROWSER UPDATE: extension bootstrap address dispatch " +
+                            (addressSent ? "sent" : "not available"));
                         result.Launched++;
                     }
                     catch (Exception e)
@@ -506,6 +513,61 @@ namespace SimanSetup
                     StringComparison.OrdinalIgnoreCase);
             }
             catch { return false; }
+        }
+
+        // Chrome's native extensions manager has the authoritative unpacked-extension
+        // Reload action. It rereads manifest.json and starts the NEW service worker;
+        // toggling an extension on/off is insufficient for a changed manifest.
+        // Navigate to the detail page of ONE known ID, then invoke only the
+        // accessible Reload button inside the page (not the browser toolbar).
+        private static bool ReloadExtensionFromManager(string browser, string extensionId)
+        {
+            string scheme = browser == "msedge" ? "edge" : "chrome";
+            if (!Regex.IsMatch(extensionId, "^[a-p]{32}$")) return false;
+            if (!NavigateExistingBrowser(browser, scheme + "://extensions/?id=" + extensionId))
+            {
+                Log("BROWSER MANAGER: unable to open extension detail");
+                return false;
+            }
+            for (int attempt = 0; attempt < 18; attempt++)
+            {
+                Thread.Sleep(240);
+                if (!IsBrowserForeground(browser)) return false;
+                try
+                {
+                    AutomationElement window = AutomationElement.FromHandle(GetForegroundWindow());
+                    var top = window.Current.BoundingRectangle.Top;
+                    AutomationElementCollection buttons = window.FindAll(
+                        TreeScope.Descendants,
+                        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button));
+                    for (int i = 0; i < buttons.Count; i++)
+                    {
+                        AutomationElement button = buttons[i];
+                        if (!button.Current.IsEnabled) continue;
+                        // Ignore browser-toolbar Reload and all other UI chrome.
+                        if (button.Current.BoundingRectangle.Top < top + 135) continue;
+                        string name = (button.Current.Name ?? "").Trim().ToLowerInvariant();
+                        bool reload = name == "reload" || name.StartsWith("reload (") ||
+                            name == "reload extension" || name == "다시 로드" ||
+                            name == "새로고침" || name == "확장 프로그램 새로고침";
+                        if (!reload) continue;
+                        object raw;
+                        if (!button.TryGetCurrentPattern(InvokePattern.Pattern, out raw)) continue;
+                        ((InvokePattern)raw).Invoke();
+                        Log("BROWSER MANAGER: invoked unpacked extension Reload for " +
+                            browser + " ID ending " + extensionId.Substring(28));
+                        Thread.Sleep(450);
+                        return true;
+                    }
+                }
+                catch (Exception e)
+                {
+                    if (attempt == 17) Log("BROWSER MANAGER: reload control inaccessible " +
+                        e.GetType().Name);
+                }
+            }
+            Log("BROWSER MANAGER: extension Reload control not found; will attempt existing bootstrap");
+            return false;
         }
 
         // External Chrome process command lines deliberately reject some chrome-extension:
