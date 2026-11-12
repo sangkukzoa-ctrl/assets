@@ -3,7 +3,7 @@
 if(window.__simanPageV155)return;
 window.__simanPageV155=true;
 const TAG='siman-heart-v155',C=window.SimanCore,origin=location.origin,provider=C.providerFromUrl(location.href);
-const PACE_MS=1700,MIN_RETRY_MS=15*60*1000;
+const PACE_MS=2700,MIN_RETRY_MS=15*60*1000;
 const pending=new Map();let seq=0,running=false,cancelled=false,auth=null,lastRequestAt=0,activeController=null;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function emit(kind,data={}){window.postMessage({tag:TAG,kind,provider,...data},origin)}
@@ -30,7 +30,7 @@ async function request(path){const url=new URL(path,origin);if(url.origin!==orig
  }catch(e){if(e.status==null)trace('NETWORK_ERROR',safePath(path)+' / '+String(e.message).slice(0,140),'ERROR');if(cancelled)e.cancelled=true;throw e}
  finally{clearTimeout(timer);if(activeController===controller)activeController=null}
 }
-async function cancellableWait(ms,stage,counts={}){const until=Date.now()+ms;while(Date.now()<until){if(cancelled)throw Object.assign(Error('수집 중지됨'),{cancelled:true});progress(stage,counts.done||0,counts.total||0,{...counts,retryAt:until});await sleep(Math.min(5000,Math.max(1,until-Date.now())))}}
+async function cancellableWait(ms,stage,counts={}){const until=Date.now()+ms;while(Date.now()<until){if(cancelled)throw Object.assign(Error('수집 중지됨'),{cancelled:true});progress(stage,counts.done||0,counts.total||0,{...counts,...(stage.includes('429')?{retryAt:until}:{})});await sleep(Math.min(5000,Math.max(1,until-Date.now())))}}
 // Respect server rate limiting: on the FIRST 429, stop detailed requests instead
 // of automatically hammering the same endpoint repeatedly every ~2 minutes.
 async function pacedRequest(path,counts={}){
