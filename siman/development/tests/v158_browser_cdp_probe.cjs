@@ -10,7 +10,7 @@ function getJson(path){return new Promise((resolve,reject)=>http.get({host:'127.
  const ws=new WebSocket(target.webSocketDebuggerUrl);
  const timeout=setTimeout(()=>{console.log('PROBE: Chrome WebSocket timeout');process.exit(0)},4500);
  ws.onopen=()=>ws.send(JSON.stringify({id:1,method:'Runtime.evaluate',
-   params:{expression:"JSON.stringify({title:document.title,ready:document.readyState,body:(document.body&&document.body.innerText||'').slice(0,180),scripts:[...document.scripts].map(x=>x.getAttribute('src')||'inline').slice(0,6),hasRuntime:!!(globalThis.chrome&&chrome.runtime&&chrome.runtime.id),isError:!!document.querySelector('html[crashpage]')})",
+   params:{expression:"JSON.stringify({title:document.title.split('?')[0],ready:document.readyState,body:(document.body&&document.body.innerText||'').slice(0,180),scripts:[...document.scripts].map(x=>x.getAttribute('src')||'inline').slice(0,6),hasRuntime:!!(globalThis.chrome&&chrome.runtime&&chrome.runtime.id),isError:!!document.querySelector('html[crashpage]')})",
       returnByValue:true}}));
  ws.onmessage=m=>{try{let r=JSON.parse(m.data);if(r.id===1){
    const text=r.result?.result?.value||r.error?.message||'(no result)';
