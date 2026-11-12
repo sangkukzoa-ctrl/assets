@@ -3,7 +3,7 @@ name: Siman permanent beta public download verification
 on:
   workflow_dispatch:
   workflow_run:
-    workflows: ['Siman v1.5.5 Windows regression and beta release', 'Siman v1.5.6 Windows regression and beta release', 'Siman v1.5.7 Windows regression and beta release']
+    workflows: ['Siman v1.5.5 Windows regression and beta release', 'Siman v1.5.6 Windows regression and beta release', 'Siman v1.5.7 Windows regression and beta release', 'Siman v1.5.8 Windows regression and beta release']
     types: [completed]
   push:
     branches: [main]
