@@ -1,4 +1,4 @@
-심안(心眼) v1.5.10 Beta — Windows / Chrome / Edge
+심안(心眼) v1.5.11 Beta — Windows / Chrome / Edge
 개발자: 2bornot
 
 [첫 설치]
@@ -7,17 +7,18 @@
 3. 심안 검색창에서 대화 수집을 시작합니다.
 
 [기존 사용자: 자동 덮어쓰기 업데이트]
-1. 새 SimanSetup.exe를 실행하면 기존 설치 위치에 v1.5.10 코드가 자동 덮어써집니다.
+1. 새 SimanSetup.exe를 실행하면 기존 설치 위치에 v1.5.11 코드가 자동 덮어써집니다.
 2. 기존 확장프로그램을 삭제하거나 재등록하지 않습니다. 원문 JSON 백업/복원도 필요하지 않습니다.
 3. 설치 관리자가 Chrome/Edge의 기존 심안 확장을 자동 재시작하고 실행 확인 ACK를 검사합니다. ACK 실패 시 진단 로그를 확인합니다.
 4. 기존 검색 색인과 대화 원문은 브라우저 확장프로그램 ID에 연결된 저장소에 그대로 남습니다.
 5. 오류가 발생하면 설치 관리자가 이전 설치 코드 복원을 시도하고 %LOCALAPPDATA%\\2bornot\\Siman\\setup.log에 기록합니다.
 
 [수집 범위]
-ChatLLM / Claude / ChatGPT / Gemini 공식 웹: 과거 대화 계정 목록·원문 수집 시도
+ChatLLM / Claude / ChatGPT / Gemini / Grok 공식 웹: 과거 대화 목록·원문 일괄수집 시도
 DeepSeek 공식 웹(chat.deepseek.com): 계정 목록·원문 수집과 방문 저장
+Grok 공식 웹(grok.com): 계정 목록·원문 수집과 방문 저장
 Gemini: 웹 과거 원문 자동 수집 + Google Takeout JSON 가져오기
-Grok: 웹에서 방문한 대화 메시지 저장(부분 수집)
+Grok 공식 웹: 과거 원문 수집 + 방문 중 대화 저장
 
 [진단]
 심안 → 「진단 로그 TXT 저장」
