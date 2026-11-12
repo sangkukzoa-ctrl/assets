@@ -54,6 +54,7 @@
       "js": [
         "core.js",
         "network.js",
+        "deepseek-web.js",
         "page.js"
       ],
       "world": "MAIN",
