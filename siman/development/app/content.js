@@ -76,7 +76,7 @@ function combineDeepSeek(previous,visible){
  return result.map((m,index)=>({...m,index}));
 }
 let lastSig='',captureBusy=false;
-let visitHealth={ok:true,provider,version:'1.5.5',stage:'초기화',count:0,at:0};
+let visitHealth={ok:true,provider,version:'1.5.9',stage:'초기화',count:0,at:0};
 const visitLogged=new Set(),skipLogged=new Set();
 async function noteSkip(stage){
  visitHealth={...visitHealth,stage,at:Date.now()};
