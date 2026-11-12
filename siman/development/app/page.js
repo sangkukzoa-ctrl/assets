@@ -138,29 +138,55 @@ async function scanGemini(){
  const g=window.SimanGeminiWeb;
  if(!g||provider!=='gemini')throw Error('Gemini 웹 수집기 연결 실패');
  progress('Gemini 웹 로그인 확인',0,0);
- const session=await g.start(); // Token lives only in the site's MAIN world.
- const payload=await g.rpc(session,'MaZiqc',[1000]);
- const rows=g.list(payload);
- if(!rows.length)throw Error('Gemini 웹 목록이 비어 있습니다. gemini.google.com의 로그인 계정 및 이전 기록을 확인하세요.');
+ let session=await g.start();
+ const byId=new Map(),seenTokens=new Set();let cursor=null,listComplete=false,pausedError=null;
+ // Gemini's real MaZiqc list caps each response at 100, even when asked for 1000.
+ // The continuation token is payload[1]; 100 found does NOT prove 100 total.
+ for(let page=0;page<200&&!cancelled;page++){
+  const payload=await g.rpc(session,'MaZiqc',[100,cursor,[0,null,1]]);
+  const list=g.page(payload);
+  for(const row of list.rows)byId.set(row.id,row);
+  progress('Gemini 과거 목록 페이지 조회',byId.size,byId.size,{details:'페이지 '+(page+1)});
+  trace('GEMINI_LIST_PAGE','페이지 '+(page+1)+' · 누적 '+byId.size+'건 · 다음 페이지 '+!!list.nextToken);
+  if(!list.nextToken){listComplete=true;break}
+  if(seenTokens.has(list.nextToken))throw Error('Gemini 페이지 커서 반복 · 전체 목록 완결 미확인');
+  seenTokens.add(list.nextToken);cursor=list.nextToken;
+  if(!list.rows.length)throw Error('Gemini 다음 페이지 커서가 있지만 목록이 비어 있습니다.');
+  await sleep(550);
+ }
+ const rows=[...byId.values()];
  await register('gemini',rows);
  const cached=await completeIds('gemini',rows.map(x=>x.id));
  await markMany('gemini',[...cached],'complete');
- let read=0,skipped=0,failed=0,processed=0,pausedError=null;
+ let read=0,skipped=0,failed=0,processed=0;
  const counts=()=>({read,skipped,failed,done:processed,total:rows.length});
- const listComplete=rows.length<1000;
- trace('GEMINI_LIST','공식 Gemini 웹 세션 '+rows.length+'건 · 한 번에 조회 가능한 목록 '+(listComplete?'확인':'상한에 도달'));
+ trace('GEMINI_LIST','Gemini 공식 웹 '+rows.length+'건 발견 · 전체 목록 완료 '+listComplete);
  for(const item of rows){
   if(cancelled)break;
   if(cached.has(item.id)){skipped++;processed++;continue}
   progress('Gemini 웹 원문 조회 중',processed,rows.length,counts());
   try{
-   // Read-only history RPC; no chat creation, sending or mutation.
-   const detail=await g.rpc(session,'hNvQHb',['c_'+item.id,1000,null,1,[0],[4],null,1]);
-   const record=g.history(detail,item.id,item.title);
-   if(record.messages.length){
-    if(await saveRecord(record))read++;
-    else{failed++;await mark('gemini',item.id,'failed','저장 실패')}
-   }else{failed++;await mark('gemini',item.id,'failed','웹 원문 메시지 미발견')}
+   let c=null;
+   // A small number of otherwise valid chats intermittently return empty
+   // hNvQHb frames. Retry the same chat instead of marking all 100 complete.
+   for(let attempt=0;attempt<3;attempt++){
+    try{
+     const detail=await g.rpc(session,'hNvQHb',['c_'+item.id,10000,null,1,[0],[4],null,1]);
+     c=g.history(detail,item.id,item.title);
+     if(!c.messages.length)throw Error('원문에 텍스트 메시지 없음');
+     break;
+    }catch(e){
+     if(e.status===429||cancelled)throw e;
+     if(attempt===2)throw e;
+     const canRetry=e.code==='GEMINI_EMPTY_FRAME'||e.status===400||e.status===401||e.status===403||e.status===408||e.status>=500;
+     if(!canRetry)throw e;
+     trace('GEMINI_RETRY','Gemini 특정 대화 원문 응답 재시도 '+(attempt+1)+'/2 · '+(e.code||e.status||e.name||'오류'),'WARN');
+     if(e.status===400||e.status===401||e.status===403)session=await g.start();
+     await sleep(1300*(attempt+1));
+    }
+   }
+   if(c&&await saveRecord(c))read++;
+   else{failed++;await mark('gemini',item.id,'failed','Gemini 웹 원문 저장 실패')}
   }catch(e){
    if(e.status===429){
     const retryAt=Date.now()+Math.max(MIN_RETRY_MS,e.retryAfterMs||0);
@@ -171,12 +197,12 @@ async function scanGemini(){
    }
    if(e.cancelled||cancelled)break;
    failed++;await mark('gemini',item.id,'failed',String(e.message||e).slice(0,110));
-   trace('GEMINI_DETAIL_ERROR','Gemini 웹 원문 '+String(e.message||e).slice(0,110),'WARN');
-   if(failed>=5){emit('WARN',{text:'Gemini 웹 원문 조회 오류 5건 — 추가 요청을 중단합니다.'});break;}
+   trace('GEMINI_DETAIL_ERROR','Gemini 원문 '+String(e.message||e).slice(0,110),'WARN');
+   if(failed>=8){emit('WARN',{text:'Gemini 원문 오류 8건 누적 · 남은 기록은 다음 실행에서 재개'});break}
   }
   processed++;
-  if(processed%10===0)progress('Gemini 웹 원문 저장 중',processed,rows.length,counts());
-  if(!cancelled)await sleep(1800);
+  if(processed%10===0)progress('Gemini 웹 원문 저장',processed,rows.length,counts());
+  if(!cancelled)await sleep(1350);
  }
  progress(pausedError?'429 제한 · 재개 대기':'Gemini 수집 종료',processed,rows.length,{...counts(),retryAt:pausedError?.retryAt||0});
  return report(rows.length,read,skipped,failed,processed,
