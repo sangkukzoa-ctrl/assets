@@ -278,7 +278,7 @@ async function scanChatLLM(){
  progress(pausedError?'429 제한 · 재개 대기':'수집 종료',processed,rows.length,{...totals(),retryAt:pausedError?.retryAt||0});
  const listComplete=false; // Passive discovery alone cannot prove all projects/pages were enumerated.
  trace('CHATLLM_DETAIL_STATUS','원문 저장 성공 '+read+' · 상세 응답 완결 '+verified+' · 추가 페이지 필요 '+partial+' · 계정 목록 완결 미확인');
- return report(rows.length,read,skipped,failed,processed,false,{listComplete,detailVerified:verified,detailPartial:partial,sourceCount:sources.size,paused:!!pausedError,cancelled,retryAt:pausedError?.retryAt||0});
+ return report(rows.length,read,skipped,failed,processed,false,{observedComplete:processed===rows.length&&!failed&&!pausedError&&!cancelled,listComplete,detailVerified:verified,detailPartial:partial,sourceCount:sources.size,paused:!!pausedError,cancelled,retryAt:pausedError?.retryAt||0});
 }
 async function run(){if(running)return;running=true;cancelled=false;auth=null;lastRequestAt=0;let heartbeat=null;
  try{await bridge('TEST',{},7000);trace('BRIDGE_OK','수집기↔로컬 저장소 왕복 통신 확인');progress('수집 시작',0,0);
