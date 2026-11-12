@@ -1,5 +1,7 @@
 # 심안(心眼) / Siman — AI 대화 원문 통합 검색
 
+> **개발 세션 이관:** [심안 3차 — v1.5.8 자동 확장 새로고침 작업 인수인계](HANDOFF_SIMAN_3_2026-11-12.md). 공개 검증본 v1.5.7 유지, v1.5.8 실브라우저 E2E 실패(`ERR_BLOCKED_BY_CLIENT`) 해결 후 자동 배포. 새 세션에서 '진행' 입력 시 이 파일과 GitHub 실제 소스부터 확인.
+
 **개발자:** 2bornot  
 **최신 공개 테스트판:** v1.5.7 Beta (2026-11-11)  
 **환경:** Windows 설치 관리자 `SimanSetup.exe` + Chrome/Edge Manifest V3 확장프로그램
