@@ -1,3 +1,45 @@
+# 심안(心眼) — v1.5.10 4차 수정 결산 / 다음 세션 인수인계 (2026-11-12 KST)
+
+> **현재 최신 고정 Beta는 v1.5.10입니다.** 아래에는 v1.5.9→v1.5.8→더 이전 당시 기록을 보존합니다. 후속 작업은 반드시 이 상단 최신 상태부터 진행하십시오.
+
+## 사용자 실측 기준 및 첨부 검증
+
+- 2026-11-12 18시경: **검색 가능 982건 / 발견 1,097건 / 원문 완결 982건 / 아직 미수집 114건 / 재시도 대기 1건**.
+- `Siman_v1.5.9_Debug_20261112_180352.txt`: ChatLLM 301 완료(재시작 시 95초 watchdog DISCONNECT), ChatGPT 647 발견·459 완결·187 pending+1 retry, Claude 111 완료, DeepSeek 38 완료, Gemini 0, Grok 0.
+- ChatGPT 서버는 `/backend-api/conversation/[ID]`에서 2026-11-12 16:40:29 KST HTTP 429. 16:51 재수집 요청은 이미 기록한 15분 보호 시간 안이므로 시작 전 제한됨. 이것이 188건 잔여의 주원인.
+- `크롬 확장프로그램 오류.txt`는 `content.js` 원문이 반복 복사된 형태이며 실제 예외 메시지와 stack trace는 없음. 무조건 재주입과 만료된 브라우저 확장 컨텍스트 이벤트를 수정함. 실제 크롬 오류 카드에서 오류 메시지가 사라졌는지는 사용자 실사용 추가 확인.
+- v1.5.9 당시 Gemini는 **방문 화면 DOM 저장만 구현됨**. 과거 계정 목록 수집 자체가 없었기에 오래 사용했어도 0건이었음. 사용자 설정 누락 아님.
+
+## v1.5.10 실제 코드 수정
+
+1. ChatGPT: `page.js` 요청 템포 1700→2700ms, 완료된 원문을 보존하고 첫 HTTP 429에서 추가 호출 중단. `search.js`의 `autoChatgptResume` 토글(기본 켬)이 45초마다 마지막 수집 제한/시간을 확인, **검색 창과 ChatGPT 로그인 탭이 열린 경우에만** 429 대기 시각이 지난 후 남은 대화 수집 자동 재개. 검색 화면 닫힌 동안 Windows 백그라운드 예약 작업을 만든 것은 아님. 현행 제한은 15분 이상이며 서버 제한 우회/폭주하지 않음.
+2. ChatLLM: 전체 일괄수집에서 기존 발견 세션 301건이 모두 complete면 긴 재조회 생략; 새 대화 발견이 필요한 경우 서비스별 ChatLLM 수집 버튼 사용. `network.js`의 관찰 replay 개별 20초, 목록 전체 48초 상한 설정. 95초 watchdog 등으로 업무가 정지하던 경로 감소.
+3. Gemini: `siman/development/app/gemini-web.js` 신규, `page.js`의 `scanGemini()`에 읽기 전용 same-origin RPC `MaZiqc`(목록), `hNvQHb`(대화 원문) 연동. Google 로그인 웹 세션의 일시 토큰은 해당 웹 페이지의 MAIN 컨텍스트 내부에만 둠. 선택 답변 후보/역시간순 웹 응답을 처리, 구글 내부 RPC 응답이 바뀌면 실패로 기록해 0건 완료 오판 방지. 목록 최대 1000건 제한을 만나면 전체 계정 목록 확인으로 간주하지 않음.
+4. Gemini 백업: `core.js` `geminiImport()` 추가. `gemini.google.com` 웹 대화 JSON과 Google Takeout의 **My Activity > Gemini Apps > MyActivity.json** ZIP/JSON 가져오기. Takeout 활동 데이터는 원문 답변이 포함되지 않을 수 있어 부분 기록 처리.
+5. Chrome: `search.js` 설치 연결에서 이미 실행 중인 MAIN/ISOLATED 스크립트는 재주입하지 않고, `content.js` 비동기 이벤트 처리 오류를 잡아 오래된 브라우저 컨텍스트의 불필요한 콘솔 오류를 억제.
+6. 기존 설치 데이터/확장 ID/최초 설치 및 제자리 자동 업데이트/네이버 블로그 고정 다운로드 링크 모두 유지. 최신 C# `SimanSetup.exe` v1.5.10 / InstallerRevision=8, 새 bootstrap `siman-update-1510.html`·`.js`.
+
+## 빌드·배포 실적
+
+- **Windows CI 성공:** https://github.com/sangkukzoa-ctrl/assets/actions/runs/43190906315
+- Node 회귀 **10종 통과**, Windows EXE 실제 신규 설치·제자리 덮어쓰기·반복 실행/사용자 파일 보존 검사 통과.
+- Chrome for Testing에서 이전 **v1.5.9 → v1.5.10** 자동 갱신, 동일 확장 ID 유지·실제 백그라운드 ACK 검증 성공.
+- 최신 버전 릴리스 https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.10
+- **고정 Beta** https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta
+- 고정 EXE https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/SimanSetup.exe
+- 고정 Windows ZIP https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip
+- 새 워크플로 `.github/workflows/siman-v1510-release.yml`; 과거 v159는 수동 전용. 공개 다운로드 체크 워크플로에 v1510 트리거 추가.
+- `RELEASE_NOTES_v1.5.10.md`, `v1510_gemini_web.test.cjs`, `v1510_stall_recovery.test.cjs`, `v1510_deepseek_web.test.cjs`, `v1510_autoapply.test.cjs` 추가.
+
+## 남은 실사용 검증
+
+- 사용자 로그인 Gemini 계정에서 새 수집 세션 개수, 실제 API 응답 구조/페이지네이션, 선택 응답 후보, Takeout activity 기록 불완전성 확인. Node 테스트는 합성된 인증 웹 응답으로 수행됨.
+- Chrome 확장 오류 카드에 남은 **실제 예외 문구**가 있다면 별도 수집; 기존 TXT에는 예외 코드/문구가 없었음.
+- ChatGPT 429 이후 검색 화면+로그인 탭이 열린 상태에서 자동 재개된 실제 건수 확인. 재시도 제한은 서버가 결정하므로 완전히 회피한다고 주장하지 말 것.
+- Google RPC 및 DeepSeek 웹 API는 공개 안정 API가 아닌 웹사이트 내부 호출이므로 실제 사이트 버전 변동 시 갱신 필요. Edge 실사용 및 Chrome 개발자 모드 OFF 환경 추가 검증.
+
+---
+
 # 심안(心眼) — v1.5.9 공식 DeepSeek 웹 수집기 배포 결산 (2026-11-12 KST)
 
 > 이 문서 아래의 v1.5.8 및 이전 인수인계는 당시 기록으로 보존합니다. **현재 최신 공개판은 v1.5.9** 입니다. 후속 세션은 v1.5.9 기준으로 진행하십시오.
