@@ -246,7 +246,8 @@ jobs:
                   $browserInfo=Invoke-RestMethod "http://127.0.0.1:$cdpPort/json/version" -TimeoutSec 5
                   Write-Host "CDP browser product $($browserInfo.Browser)"
                   $targets=Invoke-RestMethod "http://127.0.0.1:$cdpPort/json/list" -TimeoutSec 5
-                  Write-Host ('CDP targets: '+(($targets | ForEach-Object {"$($_.type) $(($_.url -replace '\?.*
+                  $safeTargets=@($targets | ForEach-Object { $_.type + ' ' + (($_.url -split '[?]')[0]) })
+                  Write-Host ('CDP targets: '+($safeTargets -join ' | '))
                   node 'source/tests/v158_browser_cdp_probe.cjs' $cdpPort
                 }catch{Write-Host "CDP inspection error $($_.Exception.Message)"}
               }
