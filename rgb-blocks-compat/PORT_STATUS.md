@@ -1,5 +1,14 @@
 # RGB Blocks 1.3.1 — legacy port recovery and verification ledger
 
+## 2026-11-12 phase 10 — 3rd-session interrupted diagnostic recovered and Forge C&B root cause fixed
+- Current release source branch: `rgb-blocks-legacy-compat-audit`, patch `9000f7e`. Existing user's original 1.3.1 whole-building-ecosystem contract remains in force, unchanged.
+- Confirmed actual strict shader OFF #43194331180 and Complementary ON #43194331204 failed for C&B only. Native full RGB source probe PASS. Diagnostic emitted `RGB_PORT_CNB_CLIENT_COUNTS count=1`, one `rgbblocks:rgb_red_186_72_96_glow` state at count 4095, `EFFECTIVE_MODE AUTO`, tracking=true, but `CNB_PENDING` and `CNB_CACHE` empty, `NoSuchMethodException ...ChiseledBlockEntity.getBlockPos()`.
+- Root cause: original `cnbBlockEntityPos` reflective `getBlockPos` string failed in Forge 1.20.1 runtime with remapped inherited Minecraft methods; Forge-only direct compiled `BlockEntity#getBlockPos` + fallback committed in `9000f7e`.
+- Latest verification started with `9000f7e`: Forge native build #43195703246, real-world shader OFF #43195703488, shader ON #43195703426, production client GUI #43195703260. Evaluate explicit PASS logs, including `RGB_PORT_CNB_LIGHT_PROBE_PASS`, before claiming runtime success.
+- Independently, NeoForge 1.21.1 latest `5b546a` strict #43194331152 and combined shader #43194331374 completed SUCCESS. No code changes to NeoForge in this patch.
+- Next after strict Forge PASS: two-client sync, C&B mixed RGB/glass microbits, dynamic relight and world/dimension persistence, AUTO/MANUAL dirty bake parity for BOTH targets.
+
+
 ## 2026-11-09 third-session live continuation — Forge C&B microbit regression
 - Recovered the persisted source branch `sangkukzoa-ctrl/assets:rgb-blocks-legacy-compat-audit`; did not restart/reconstruct the port.
 - Checked the previous four acceptance runs from `1b9a0ef`: Forge full build / source ZIP / MRPACK / server PASS [#42505523026](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42505523026) and production GUI PASS [#42505522986](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42505522986). Real in-world shader OFF [#42505523022](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42505523022) and shader ON [#42505522987](https://github.com/sangkukzoa-ctrl/assets/actions/runs/42505522987) both FAIL strict C&B colored emission. In both, normal RGB source emitted [15,6,8], but C&B 4095-bit sculpted emitter stayed [0,0,0]; server chiseled block fixture and client join succeeded. No test gate was disabled.
