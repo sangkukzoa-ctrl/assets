@@ -57,6 +57,7 @@ assert.equal(main.__SimanRunnerV155.start().ok,true);
  for(let attempts=0;attempts<300&&!outputs.some(x=>x.kind==='DONE');attempts++)
   await new Promise(resolve=>setTimeout(resolve,20));
  const done=outputs.find(x=>x.kind==='DONE');
+ if(!done)console.error('DeepSeek test trace:',outputs.filter(x=>x.kind!=='BRIDGE').map(x=>({kind:x.kind,stage:x.stage,text:x.text,result:x.result})).slice(-20), 'calls',calls);
  assert(done,'DeepSeek standalone history must complete');
  assert.equal(done.result.found,1);assert.equal(done.result.read,1);
  assert.equal(done.result.complete,true);
