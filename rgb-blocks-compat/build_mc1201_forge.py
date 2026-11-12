@@ -352,6 +352,35 @@ def forge_cnb_information_api(source):
     return source.replace(obsolete, translated)
 patch(rgbengine,forge_cnb_information_api)
 
+# Forge production runtime uses remapped Minecraft method names (SRG).
+# Reflective getMethod("getBlockPos") on C&B's BlockEntity fails even while
+# the tile's fully synchronized 4095 RGB bits are readable. Use a compiled,
+# remapper-aware BlockEntity#getBlockPos invocation before the preserved
+# original reflection fallback. This is Forge-only, preserving NeoForge.
+def forge_cnb_position_access(source):
+    old='''   private static BlockPos cnbBlockEntityPos(Object blockEntity) {
+      try {
+         return invokeNoArg(blockEntity, "getBlockPos") instanceof BlockPos blockPos ? blockPos.immutable() : null;
+      } catch (Throwable ignored) {
+         return null;
+      }
+   }'''
+    new='''   private static BlockPos cnbBlockEntityPos(Object blockEntity) {
+      if (blockEntity instanceof net.minecraft.world.level.block.entity.BlockEntity tile) {
+         return tile.getBlockPos().immutable();
+      }
+
+      try {
+         return invokeNoArg(blockEntity, "getBlockPos") instanceof BlockPos blockPos ? blockPos.immutable() : null;
+      } catch (Throwable ignored) {
+         return null;
+      }
+   }'''
+    if source.count(old)!=1:
+        raise AssertionError("Original C&B position reader moved")
+    return source.replace(old,new)
+patch(rgbengine,forge_cnb_position_access)
+
 # The original 1.3.1 C&B vanilla-emission suppression hook also reflects
 # BlockInformation#blockState(), separately from the real RGB light engine.
 # C&B 20.1.20 implements IBlockInformation#getBlockState(), so both readers
