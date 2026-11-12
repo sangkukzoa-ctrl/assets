@@ -28,7 +28,7 @@ main.postMessage=d=>{
  if(d.action==='SAVE')saved.push(d.record);
  queueMicrotask(()=>{
   const reply={tag:d.tag,kind:'BRIDGE_REPLY',seqId:d.seqId,ok:true,storageReady:true,completeIds:[]};
-  for(const cb of events.get('message')||[])cb({source:main,origin,data:reply});
+  for(const cb of events.get('message')||[])cb({source:vm.runInContext('window',main),origin,data:reply});
  });
 };
 main.fetch=async (url,opt)=>{
@@ -38,7 +38,7 @@ main.fetch=async (url,opt)=>{
  const payload=u.pathname.includes('fetch_page')?listing:history;
  return {ok:true,status:200,headers:new Headers({'content-type':'application/json'}),json:async()=>payload};
 };
-vm.createContext(main);vm.runInContext(source('core.js'),main);vm.runInContext(source('deepseek-web.js'),main);
+vm.createContext(main);vm.runInContext('window=globalThis',main);vm.runInContext(source('core.js'),main);vm.runInContext(source('deepseek-web.js'),main);
 const ds=main.SimanDeepSeekWeb;
 assert(ds,'official web parser missing');
 assert.equal(main.SimanCore.providerFromUrl(root),'deepseek');
