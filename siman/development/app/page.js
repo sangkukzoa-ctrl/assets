@@ -72,6 +72,56 @@ async function mark(providerName,id,status,reason=''){await bridge('MARK',{provi
 async function markMany(providerName,ids,status){if(!ids.length)return;for(let i=0;i<ids.length;i+=250)await bridge('MARK_MANY',{providerName,ids:ids.slice(i,i+250),status},60000)}
 async function saveRecord(c){if(!c?.id||!c.messages?.length)return false;const reply=await bridge('SAVE',{record:c},60000);return !!reply.ok}
 function report(found,read,skipped,failed,processed,complete,extra={}){return {found,read,skipped,completed:read+skipped,errors:failed,processed,remaining:Math.max(0,found-processed),complete:!!complete,...extra}}
+// Gemini official web history, separate from its previously visit-only DOM saving.
+async function scanGemini(){
+ const g=window.SimanGeminiWeb;
+ if(!g||provider!=='gemini')throw Error('Gemini 웹 수집기 연결 실패');
+ progress('Gemini 웹 로그인 확인',0,0);
+ const session=await g.start(); // Token lives only in the site's MAIN world.
+ const payload=await g.rpc(session,'MaZiqc',[1000]);
+ const rows=g.list(payload);
+ if(!rows.length)throw Error('Gemini 웹 목록이 비어 있습니다. gemini.google.com의 로그인 계정 및 이전 기록을 확인하세요.');
+ await register('gemini',rows);
+ const cached=await completeIds('gemini',rows.map(x=>x.id));
+ await markMany('gemini',[...cached],'complete');
+ let read=0,skipped=0,failed=0,processed=0,pausedError=null;
+ const counts=()=>({read,skipped,failed,done:processed,total:rows.length});
+ const listComplete=rows.length<1000;
+ trace('GEMINI_LIST','공식 Gemini 웹 세션 '+rows.length+'건 · 한 번에 조회 가능한 목록 '+(listComplete?'확인':'상한에 도달'));
+ for(const item of rows){
+  if(cancelled)break;
+  if(cached.has(item.id)){skipped++;processed++;continue}
+  progress('Gemini 웹 원문 조회 중',processed,rows.length,counts());
+  try{
+   // Read-only history RPC; no chat creation, sending or mutation.
+   const detail=await g.rpc(session,'hNvQHb',['c_'+item.id,1000,null,1,[0],[4],null,1]);
+   const record=g.history(detail,item.id,item.title);
+   if(record.messages.length){
+    if(await saveRecord(record))read++;
+    else{failed++;await mark('gemini',item.id,'failed','저장 실패')}
+   }else{failed++;await mark('gemini',item.id,'failed','웹 원문 메시지 미발견')}
+  }catch(e){
+   if(e.status===429){
+    const retryAt=Date.now()+Math.max(MIN_RETRY_MS,e.retryAfterMs||0);
+    pausedError={retryAt};
+    await mark('gemini',item.id,'retry','서버 요청 제한');
+    trace('GEMINI_RATE_LIMIT','Gemini HTTP 429 · 추가 요청 중단 · '+new Date(retryAt).toLocaleString(),'WARN');
+    break;
+   }
+   if(e.cancelled||cancelled)break;
+   failed++;await mark('gemini',item.id,'failed',String(e.message||e).slice(0,110));
+   trace('GEMINI_DETAIL_ERROR','Gemini 웹 원문 '+String(e.message||e).slice(0,110),'WARN');
+   if(failed>=5){emit('WARN',{text:'Gemini 웹 원문 조회 오류 5건 — 추가 요청을 중단합니다.'});break;}
+  }
+  processed++;
+  if(processed%10===0)progress('Gemini 웹 원문 저장 중',processed,rows.length,counts());
+  if(!cancelled)await sleep(1800);
+ }
+ progress(pausedError?'429 제한 · 재개 대기':'Gemini 수집 종료',processed,rows.length,{...counts(),retryAt:pausedError?.retryAt||0});
+ return report(rows.length,read,skipped,failed,processed,
+  listComplete&&!pausedError&&!failed&&!cancelled&&processed===rows.length,
+  {listComplete,paused:!!pausedError,retryAt:pausedError?.retryAt||0,cancelled});
+}
 // DeepSeek official web archive, NOT ChatLLM's DeepSeek model. Independent IDs and host.
 // Fetches existing chats using the site's read-only authenticated REST endpoints.
 async function scanDeepSeek(){
@@ -284,7 +334,7 @@ async function run(){if(running)return;running=true;cancelled=false;auth=null;la
  try{await bridge('TEST',{},7000);trace('BRIDGE_OK','수집기↔로컬 저장소 왕복 통신 확인');progress('수집 시작',0,0);
  heartbeat=setInterval(()=>{if(running&&Date.now()-lastProgressAt>8000)emit('PROGRESS',{...lastProgress,details:'응답 대기 중 · 마지막 단계: '+lastProgress.stage})},10000);
  let result;
- if(provider==='chatgpt')result=await scanChatGPT();else if(provider==='claude')result=await scanClaude();else if(provider==='chatllm')result=await scanChatLLM();else if(provider==='deepseek')result=await scanDeepSeek();else throw Error('해당 서비스는 방문 대화 자동 저장만 지원합니다.');emit('DONE',{result});trace('DONE','발견 '+(result.found||0)+' / 저장 '+(result.read||0)+' / 계정 목록 확인 '+!!result.listComplete)}
+ if(provider==='chatgpt')result=await scanChatGPT();else if(provider==='claude')result=await scanClaude();else if(provider==='chatllm')result=await scanChatLLM();else if(provider==='deepseek')result=await scanDeepSeek();else if(provider==='gemini')result=await scanGemini();else throw Error('해당 서비스는 방문 대화 자동 저장만 지원합니다.');emit('DONE',{result});trace('DONE','발견 '+(result.found||0)+' / 저장 '+(result.read||0)+' / 계정 목록 확인 '+!!result.listComplete)}
  catch(e){if(e.cancelled)emit('DONE',{result:report(0,0,0,0,0,false,{cancelled:true})});else if(e.ratePaused){emit('DONE',{result:report(0,0,0,0,0,false,{paused:true,retryAt:e.retryAt||0})});emit('WARN',{text:'서버 429 요청 제한으로 수집 일시 중지'});}else {trace('FAIL',String(e?.message||e),'ERROR');emit('ERROR',{text:String(e?.message||e)})}}finally{clearInterval(heartbeat);running=false;auth=null}}
 window.__SimanRunnerV155={start:()=>{if(running)return {ok:true,already:true};run();return {ok:true}},stop:()=>{cancelled=true;activeController?.abort();return {ok:true}},ping:()=>({ok:true,provider,version:'1.5.9',running,stage:lastProgress.stage,lastProgressAt}),pingStorage:async()=>{const started=Date.now();const r=await bridge('TEST',{},6500);return {ok:!!r.ok&&!!r.storageReady,latencyMs:Date.now()-started}}};
 window.addEventListener('message',ev=>{if(ev.source!==window||ev.origin!==origin||ev.data?.tag!==TAG)return;const d=ev.data;if(d.kind==='BRIDGE_REPLY'){pending.get(d.seqId)?.(d);pending.delete(d.seqId)}if(d.kind==='COMMAND'){if(d.action==='START')run();if(d.action==='STOP')cancelled=true}});
