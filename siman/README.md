@@ -1,12 +1,12 @@
 # 심안(心眼) / Siman — AI 대화 원문 통합 검색
 
-> **2026-11-12 현재:** v1.5.9 Windows CI 및 Chrome for Testing v1.5.8→v1.5.9 실브라우저 E2E 성공, 기존 확장 ID·설치 경로·검색 데이터 유지 및 ACK 확인. DeepSeek 공식 웹 전체 대화 목록·원문 수집기를 추가했습니다. DeepSeek 실제 로그인 계정에서의 수집은 추가 검증 대상입니다. [인수인계·검증 상세](HANDOFF_SIMAN_3_2026-11-12.md).
+> **2026-11-12 현재:** v1.5.10 Windows CI + Chrome for Testing v1.5.9→v1.5.10 제자리 자동 갱신 E2E 통과. Gemini 공식 웹 과거 대화 수집·Google Takeout 가져오기, ChatGPT 429 이후 자동 재개, ChatLLM 응답 제한, Chrome 확장 스크립트 중복 주입 방지 적용. 사용자 실제 Gemini 계정의 최종 수집량은 후속 실사용 검증 대상. [인수인계](HANDOFF_SIMAN_3_2026-11-12.md).
 
 **개발자:** 2bornot  
-**최신 공개 테스트판:** v1.5.9 Beta (2026-11-12)  
+**최신 공개 테스트판:** v1.5.10 Beta (2026-11-12)  
 **환경:** Windows 설치 관리자 `SimanSetup.exe` + Chrome/Edge Manifest V3 확장프로그램
 
-**[최신 Beta 고정 다운로드](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta)** · [고정 설치 ZIP](https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip) · [v1.5.9 개별 버전 기록](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.9)
+**[최신 Beta 고정 다운로드](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta)** · [고정 설치 ZIP](https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip) · [v1.5.10 개별 버전 기록](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.10)
 
 GitHub Actions가 [`siman/development/`](development/)의 소스 변경을 감지하면 Windows 회귀 테스트·실제 EXE 설치 검사·ZIP/SHA-256 검증을 진행한 다음, 성공 시 **`siman-beta`의 동일한 URL에 최신 파일을 자동 배포**합니다. 블로그는 이 고정 주소만 안내하면 되며, 업데이트된 파일을 직접 설치할 때에는 기존 확장프로그램을 삭제하지 않습니다.
 
@@ -20,20 +20,29 @@ GitHub Actions가 [`siman/development/`](development/)의 소스 변경을 감�
 | --- | --- | --- |
 | ChatLLM (Abacus AI) | 과거 목록·원문 일괄수집 | 프로젝트와 일반 대화 포함; 일부 원문 완결 판정은 추가 확인 필요 |
 | Claude | 과거 목록·원문 일괄수집 | 로그인·서비스 응답 구조에 따라 결과 변경 가능 |
-| ChatGPT | 과거 목록·원문 일괄수집 | HTTP 429 제한 시 보호 중단, 이후 미완료분 재개 |
-| Gemini | 방문한 대화 화면 저장 | 전체 과거 기록 일괄수집 미지원 |
+| ChatGPT | 과거 목록·원문 일괄수집 | HTTP 429 보호 중단 후 심안 검색 화면과 ChatGPT 탭이 열려 있으면 15분 이상 대기 후 자동 재개 |
+| Gemini | 공식 웹 계정 원문 일괄수집 + 방문 저장 + Takeout JSON 가져오기 | 내부 RPC 기반이므로 웹 구조 변경 시 다시 검증 필요; Takeout 활동은 일부 내용만 포함 가능 |
 | DeepSeek (공식 웹) | 로그인한 chat.deepseek.com 계정 목록·원문 수집 + 방문 저장 | 내부 웹 API 사용. 페이지 커서가 없으면 일부 목록만 확인될 수 있음; 실제 계정 검증 필요 |
 | Grok | 방문한 대화 화면 저장 | 전체 과거 기록 일괄수집 미지원 |
 
-일괄수집은 **ChatLLM → Claude → ChatGPT** 순서입니다. 방문 저장 서비스는 사용자가 해당 대화를 화면에 열면 저장을 시도합니다.
+일괄수집은 **ChatLLM → Claude → DeepSeek 웹 → Gemini 웹 → ChatGPT** 순서입니다. ChatLLM 기존 발견 기록이 전부 저장됐으면 전체 재수집에서 불필요한 조회를 생략합니다. 새로운 ChatLLM 대화를 찾으려면 개별 수집을 실행합니다.
 
 ## 설치와 업데이트
 
 **신규 설치:** 최신 `SimanSetup.exe`를 실행하면 필요한 확장프로그램 파일이 자동 설치됩니다. 이후 한 번만 Chrome 또는 Edge 확장프로그램 관리 화면에서 개발자 모드 → 압축해제된 확장프로그램 로드 → 설치 폴더 선택으로 등록합니다.
 
-**기존 사용자:** 고정 GitHub 다운로드의 최신 `SimanSetup.exe`를 실행하면 **기존 설치 위치에 자동으로 덮어쓰기 업데이트하고 기존 확장 ID를 Chrome·Edge 관리 화면에서 찾아 새 코드를 적용**합니다. Chrome 개발자 모드가 켜진 압축해제 확장 환경에서 실제 Chrome v1.5.8→v1.5.9 무인 업데이트 및 ACK 수신까지 검증했습니다. 수동 재등록과 JSON 원문 백업/복원은 요구하지 않습니다. 브라우저가 ACK를 보내지 않으면 파일 설치만 완료된 것으로 구분하고 `%LOCALAPPDATA%\\2bornot\\Siman\\setup.log`에 이유를 기록합니다. 사용자 검색 색인·대화 원문은 확장프로그램 저장소에 남습니다.
+**기존 사용자:** 고정 GitHub 다운로드의 최신 `SimanSetup.exe`를 실행하면 **기존 설치 위치에 자동으로 덮어쓰기 업데이트하고 기존 확장 ID를 Chrome·Edge 관리 화면에서 찾아 새 코드를 적용**합니다. Chrome 개발자 모드가 켜진 압축해제 확장 환경에서 실제 Chrome v1.5.9→v1.5.10 무인 업데이트 및 ACK 수신까지 검증했습니다. 수동 재등록과 JSON 원문 백업/복원은 요구하지 않습니다. 브라우저가 ACK를 보내지 않으면 파일 설치만 완료된 것으로 구분하고 `%LOCALAPPDATA%\\2bornot\\Siman\\setup.log`에 이유를 기록합니다. 사용자 검색 색인·대화 원문은 확장프로그램 저장소에 남습니다.
 
 설치 실패 시 이전 설치 코드 롤백을 시도하며 로그는 `%LOCALAPPDATA%\\2bornot\\Siman\\setup.log`에 기록됩니다.
+
+## v1.5.10 변경 사항 (2026-11-12 검증 배포)
+
+- ChatGPT의 남은 188건에 대한 HTTP 429 반복 발생을 반영해 요청 간격 조정 및 제한 종료 후 검색 화면에서 자동 이어받기 지원(검색 화면·ChatGPT 탭을 열어둬야 함)
+- ChatLLM 발견 301건이 모두 완료된 상태에서 불필요한 전체 재조회 생략; 목록 재요청 타임아웃 단축 및 전체 시간 상한
+- Gemini 공식 웹 과거 대화 읽기 전용 목록·원문 수집기, 선택 답변 분기/메시지 시간순 처리, Google Takeout My Activity > Gemini Apps JSON 가져오기 추가
+- Chrome 확장프로그램 중복 스크립트 주입과 오래된 확장 컨텍스트 비동기 오류 보완
+- Node 10종 회귀 테스트 + Windows EXE 실설치/갱신 + Chrome v1.5.9→v1.5.10 동일 확장 ID 갱신 및 ACK 확인 성공
+- 실제 Gemini 로그인 계정 내 전체 기록의 수집 여부와 Chrome/Edge 개별 사용자 환경의 오류는 다음 실사용 로그로 검증
 
 ## v1.5.9 변경 사항 (2026-11-12 검증 배포)
 
