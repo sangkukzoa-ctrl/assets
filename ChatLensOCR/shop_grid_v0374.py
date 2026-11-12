@@ -200,6 +200,17 @@ def analyze(image, language='한국어', precise=True, forced=False, reader=None
                 # The only output text is OCR actually returned from the
                 # product-details region; no name or price is synthesized.
                 return "쇼핑몰",content.strip(),[],metadata,items
+            # A VERIFIED single-detail pixel layout must never fall through to
+            # the catalog card detector just because its text OCR failed.
+            # Otherwise gallery thumbnails are fabricated as multiple items.
+            # Preserve the real single-item geometry and report missing text,
+            # without inventing a product name, price, or card count.
+            return ("쇼핑몰","",[],[{
+                "type":"product_detail","product_count":1,
+                "box":detail["detail_box"],"evidence":detail["evidence"],
+                "confidence":confidence,"human_verified":False,
+                "needs_review":True,"reason":"detail_text_unreadable"
+            }],[])
     geo = card_boxes(image, forced=forced)
     if geo is None:
         return None
