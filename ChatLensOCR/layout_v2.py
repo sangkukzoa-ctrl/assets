@@ -509,6 +509,12 @@ def generic(img,language,precise):
     """Text-page OCR: recover visible lines and paragraph gaps before recognition.
     This avoids whole-page OCR dropping bold numbered headings and bullets.
     """
+    # Dense HTML-like table screenshots are read by visual row/column grids.
+    # This precedes free-form row merging; unsupported layouts fall back.
+    from table_v0419 import analyze as table_read
+    pixel_table=table_read(img,language,precise)
+    if pixel_table is not None:
+        return pixel_table
     # Image icons arranged as a full-screen inventory are not actual prose.
     # Recognize only the pixel-evidenced title above the first slot border,
     # preserving the exact OCR output without running OCR on the icon rows.
