@@ -2,10 +2,9 @@
    The web protocol is private and may change; fail closed rather than mark missing chats complete. */
 (function(G){'use strict';
 if(location.hostname!=='gemini.google.com')return;
-const PREFIX='/ _ /'.replace(/ /g,''); // avoid accidental cross-origin request
 let requestNumber=100000;
 function token(html,key){
- const match=String(html).match(new RegExp('["\\\\]'+key+'["\\\\]\\s*:\\s*"([^"]+)"'));
+ const match=String(html).match(new RegExp('"'+key+'"\\s*:\\s*"([^"]+)"'));
  return match?.[1]||'';
 }
 function credentials(html){
