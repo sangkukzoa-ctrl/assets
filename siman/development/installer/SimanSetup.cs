@@ -20,8 +20,8 @@ namespace SimanSetup
 {
     internal static class Program
     {
-        public const string AppVersion = "1.5.9";
-        public const string InstallerRevision = "7";
+        public const string AppVersion = "1.5.10";
+        public const string InstallerRevision = "8";
         public static readonly string Root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "2bornot", "Siman");
         public static readonly string Target = Path.Combine(Root, "app");
         public static readonly string LogPath = Path.Combine(Root, "setup.log");
@@ -407,7 +407,7 @@ namespace SimanSetup
                     // Use a brand new resource name, NOT search.html: Chrome caches
                     // scripts already loaded by the previous extension version.
                     string url = "chrome-extension://" + profile.Id +
-                        "/siman-update-159.html?siman_auto_apply=1&version=" + AppVersion +
+                        "/siman-update-1510.html?siman_auto_apply=1&version=" + AppVersion +
                         "&port=" + port + "&token=" + token;
                     // No user interaction, forced browser restarts, debug ports, key
                     // shortcuts, profile writes or extension re-registration.
