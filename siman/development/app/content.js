@@ -21,7 +21,7 @@ function boot(){
  globalThis.__simanContentV155=true;
 
 let statusQueue=Promise.resolve();const storeEvent=(kind,d)=>{statusQueue=statusQueue.catch(()=>{}).then(()=>kind==='TRACE'?SimanStore.appendDebug({provider:d.provider||provider,level:d.level||'TRACE',stage:d.stage||'',message:d.text||''}):SimanStore.updateEvent({kind,provider:d.provider||provider,stage:d.stage,done:d.done,total:d.total,read:d.read,skipped:d.skipped,failed:d.failed,remaining:d.remaining,retryAt:d.retryAt,details:d.details,text:d.text,result:d.result}));return statusQueue};
-window.addEventListener('message',async ev=>{if(ev.source!==window||ev.origin!==location.origin||ev.data?.tag!==TAG)return;const d=ev.data;
+window.addEventListener('message',ev=>{void (async()=>{if(ev.source!==window||ev.origin!==location.origin||ev.data?.tag!==TAG)return;const d=ev.data;
  if(d.kind==='BRIDGE'){
   let out={tag:TAG,kind:'BRIDGE_REPLY',seqId:d.seqId,ok:false};
   try{const p=d.providerName||provider;
@@ -34,6 +34,12 @@ window.addEventListener('message',async ev=>{if(ev.source!==window||ev.origin!==
   }catch(e){out.error=e.message;await storeEvent('WARN',{provider,text:'저장소 작업 실패: '+e.message}).catch(()=>{})}
   window.postMessage(out,location.origin);
  }else if(['PROGRESS','DONE','WARN','ERROR','TRACE'].includes(d.kind))await storeEvent(d.kind,d);
+ })().catch(e=>{
+  // Chrome invalidates old content-script contexts after unpacked extension reload.
+  // Expected late events must not become unhandled rejection cards in chrome://extensions.
+  if(!globalThis.chrome?.runtime?.id)return;
+  console.warn('[Siman isolated bridge] ignored stale page event:',String(e?.name||'Error'));
+ });
 });
 const nodeSelectors={
  chatgpt:'[data-testid^="conversation-turn"]',
@@ -127,7 +133,7 @@ async function captureOnce(){
  await SimanStore.save(SimanCore.record(provider,id,title,msgs,{url:location.href,complete:false,source:'visited-dom'}));
  // Commit the signature ONLY after a successful storage write; failed writes must retry.
  lastSig=sig;
- visitHealth={ok:true,provider,version:'1.5.5',stage:'저장 성공',count:msgs.length,at:Date.now()};
+ visitHealth={ok:true,provider,version:'1.5.10',stage:'저장 성공',count:msgs.length,at:Date.now()};
  if(['gemini','deepseek','grok'].includes(provider)&&!visitLogged.has(id)){
   visitLogged.add(id);
   await SimanStore.appendDebug({provider,level:'INFO',stage:'VISIT_CAPTURE',message:'방문 대화 원문을 저장했습니다. 화면 메시지 '+msgs.length+'건'});
