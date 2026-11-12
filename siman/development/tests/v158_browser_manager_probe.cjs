@@ -65,6 +65,12 @@ async function main(){
   const page=await connect(tab.webSocketDebuggerUrl);
   try{
    await cdp(page,'Runtime.enable');
+   if(process.argv.includes('--dev-mode')){
+     const setter='(()=>{const mgr=document.querySelector("extensions-manager"); const toggle=mgr?.shadowRoot?.querySelector("#devMode");if(!toggle)return "missing";if(!toggle.checked){toggle.click();return "enabled"}return "already-enabled"})()';
+     const applied=await cdp(page,'Runtime.evaluate',{expression:setter,returnByValue:true});
+     console.log('MANAGER FIXTURE: developer mode '+String(applied.result?.value||'unknown'));
+     await delay(700);
+   }
    const expr='('+inspect.toString()+')('+JSON.stringify(extensionId)+')';
    const value=await cdp(page,'Runtime.evaluate',{expression:expr,returnByValue:true});
    console.log('MANAGER PROBE: '+String(value.result?.value||value.exceptionDetails?.text||'no page result'));
