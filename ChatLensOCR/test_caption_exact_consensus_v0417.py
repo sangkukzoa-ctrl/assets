@@ -4,7 +4,7 @@
 Real transcripts and screen pixels remain on the user's private machine.
 """
 from unittest.mock import patch
-from PIL import Image
+from PIL import Image,ImageDraw,ImageFont
 import numpy as np
 from generic_blank_caption_v0413 import recover_empty_caption
 
@@ -12,6 +12,11 @@ w,h=545,363
 yy,xx=np.mgrid[0:h,0:w]
 v=(10+xx/w*205+yy/h*67).clip(0,240).astype("uint8")
 photo=Image.fromarray(np.stack([v,v//2+19,v//2+26],axis=2),"RGB")
+# A positive white-pixel observation is required before caption OCR runs.
+# Otherwise the test mock could pass even with no caption-like pixels.
+font=ImageFont.truetype("C:/Windows/Fonts/malgun.ttf",25)
+ImageDraw.Draw(photo).text((66,298),"다음 주말에 만나요",font=font,
+                          fill="white",stroke_width=2,stroke_fill="black")
 
 # A pure trailing segmentation artifact is resolved using an extra real
 # pixel-processing read, NEVER by removing a syllable on semantic grounds.
