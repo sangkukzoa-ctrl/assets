@@ -63,17 +63,32 @@ def analyze(image,language,precise):
         # Both Latin character names and Korean skill names can occur.
         big=clip.resize((clip.width*3,clip.height*3),Image.Resampling.LANCZOS)
         text,boxes,confidence=read(big,"파판14",language,psm=7)
-        if not text or confidence<30:
-            fallback=merge_rows(recognize(big,language,False))
-            guess=" ".join(r["text"] for r in fallback)
-            if len(guess)>len(text):text=guess
+        ocr_source="tesseract"
+        if not text.strip():
+            # Never swap a real, even low-confidence transcription for a
+            # longer but ungrounded alternative. Fallback is a last resort
+            # only when primary OCR returned no characters at all.
+            alternatives=recognize(big,language,False)
+            reliable=[
+                item for item in alternatives
+                if float(item.get("score",0))>=.85
+                and len(str(item.get("text","")).strip())>=2
+            ]
+            if reliable:
+                text=" ".join(r["text"] for r in merge_rows(reliable))
+                boxes=reliable
+                ocr_source="rapidocr_fallback"
         text=" ".join(text.split())
         if not text:
             # Never silently drop a detected visual line.
             text="[문자 인식 실패]"
+            ocr_source="unrecognized"
         output.append("[전투] "+text)
         metadata.append({"type":"battle_event","row":idx+1,"y":top,
-                         "tesseract_confidence":round(confidence,1)})
+                         "tesseract_confidence":round(confidence,1),
+                         "ocr_source":ocr_source,
+                         "human_verified":False,
+                         "needs_review":ocr_source!="tesseract"})
         for item in boxes:
             x0,b0,x1,b1=item["box"]
             raw.append({**item,"box":(int(x0/3),int(b0/3+y0),
