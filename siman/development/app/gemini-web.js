@@ -29,12 +29,17 @@ function unframe(text,rpcid){
    visit(v);
   }catch{}
  }
- if(!found.length)throw Error('Gemini 대화 API 응답 형식이 변경되었습니다: '+rpcid);
+ if(!found.length){const err=Error('Gemini 웹 응답 프레임 누락: '+rpcid+' (응답 길이 '+s.length+')');err.code='GEMINI_EMPTY_FRAME';throw err;}
  return found[0];
 }
+function page(payload){
+ if(!Array.isArray(payload)||!Array.isArray(payload[2]))throw Error('Gemini 대화 목록 API 응답 배열이 없습니다');
+ const nextToken=typeof payload[1]==='string'&&payload[1].length?payload[1]:null;
+ return {rows:list(payload),nextToken};
+}
 function list(payload){
- const rows=Array.isArray(payload?.[2])?payload[2]:[];
- if(!Array.isArray(rows))throw Error('Gemini 웹 세션 목록 배열이 없습니다.');
+ if(!Array.isArray(payload?.[2]))throw Error('Gemini 웹 세션 목록 배열이 없습니다.');
+ const rows=payload[2];
  const seen=new Set(),out=[];
  for(const entry of rows){
   if(!Array.isArray(entry))continue;
@@ -64,7 +69,7 @@ function history(payload,id,title){
  }
  return G.SimanCore.record('gemini',id,title,messages,{
   url:'https://gemini.google.com/app/'+encodeURIComponent(id),
-  complete:messages.length>0&&payload[0].length<1000,
+  complete:messages.length>0&&payload[0].length<10000,
   expected:messages.length,source:'gemini-web-rpc'});
 }
 async function webRequest(url,options={}){
@@ -90,5 +95,5 @@ async function rpc(info,rpcid,body){
   method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:params});
  return unframe(result,rpcid);
 }
-G.SimanGeminiWeb={start,rpc,list,history,unframe,credentials};
+G.SimanGeminiWeb={start,rpc,list,page,history,unframe,credentials};
 })(globalThis);
