@@ -1,12 +1,12 @@
 # 심안(心眼) / Siman — AI 대화 원문 통합 검색
 
-> **개발 세션 이관:** [심안 3차 — v1.5.8 자동 확장 새로고침 작업 인수인계](HANDOFF_SIMAN_3_2026-11-12.md). 공개 검증본 v1.5.7 유지, v1.5.8 실브라우저 E2E 실패(`ERR_BLOCKED_BY_CLIENT`) 해결 후 자동 배포. 새 세션에서 '진행' 입력 시 이 파일과 GitHub 실제 소스부터 확인.
+> **2026-11-12 검증 완료:** v1.5.8 Chrome for Testing 실브라우저 E2E 통과, 원본 확장 ID·설치 경로 유지, 새 확장 백그라운드 ACK 확인 후 영구 Beta URL 자동 배포. Chrome 테스트는 개발자 모드를 켠 압축해제 확장 환경이며 Edge와 일부 환경은 별도 실사용 검증 대상. [3차 인수인계와 검증 상세](HANDOFF_SIMAN_3_2026-11-12.md).
 
 **개발자:** 2bornot  
-**최신 공개 테스트판:** v1.5.7 Beta (2026-11-11)  
+**최신 공개 테스트판:** v1.5.8 Beta (2026-11-12)  
 **환경:** Windows 설치 관리자 `SimanSetup.exe` + Chrome/Edge Manifest V3 확장프로그램
 
-**[최신 Beta 고정 다운로드](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta)** · [고정 설치 ZIP](https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip) · [v1.5.7 개별 버전 기록](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.7)
+**[최신 Beta 고정 다운로드](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta)** · [고정 설치 ZIP](https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip) · [v1.5.8 개별 버전 기록](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.8)
 
 GitHub Actions가 [`siman/development/`](development/)의 소스 변경을 감지하면 Windows 회귀 테스트·실제 EXE 설치 검사·ZIP/SHA-256 검증을 진행한 다음, 성공 시 **`siman-beta`의 동일한 URL에 최신 파일을 자동 배포**합니다. 블로그는 이 고정 주소만 안내하면 되며, 업데이트된 파일을 직접 설치할 때에는 기존 확장프로그램을 삭제하지 않습니다.
 
@@ -31,9 +31,17 @@ GitHub Actions가 [`siman/development/`](development/)의 소스 변경을 감�
 
 **신규 설치:** 최신 `SimanSetup.exe`를 실행하면 필요한 확장프로그램 파일이 자동 설치됩니다. 이후 한 번만 Chrome 또는 Edge 확장프로그램 관리 화면에서 개발자 모드 → 압축해제된 확장프로그램 로드 → 설치 폴더 선택으로 등록합니다.
 
-**기존 사용자:** 고정 GitHub 다운로드의 최신 `SimanSetup.exe`를 실행하면 **기존 설치 위치에 자동으로 덮어쓰기 업데이트**됩니다. 파일 관리나 확장프로그램 삭제/재등록, JSON 원문 백업/복원은 필요하지 않습니다. 브라우저 검색 색인·대화 원문은 확장프로그램 저장소에 그대로 남습니다. 실행 중인 브라우저가 이전 코드를 유지하는 경우에는 기존 심안 확장을 새로고침하거나 브라우저를 재시작하면 됩니다.
+**기존 사용자:** 고정 GitHub 다운로드의 최신 `SimanSetup.exe`를 실행하면 **기존 설치 위치에 자동으로 덮어쓰기 업데이트하고 기존 확장 ID를 Chrome·Edge 관리 화면에서 찾아 새 코드를 적용**합니다. Chrome 개발자 모드가 켜진 압축해제 확장 환경에서는 실제 Chrome v1.5.7→v1.5.8 무인 업데이트 및 ACK 수신까지 검증했습니다. 수동 재등록과 JSON 원문 백업/복원은 요구하지 않습니다. 브라우저가 ACK를 보내지 않으면 파일 설치만 완료된 것으로 구분하고 `%LOCALAPPDATA%\\2bornot\\Siman\\setup.log`에 이유를 기록합니다. 사용자 검색 색인·대화 원문은 확장프로그램 저장소에 남습니다.
 
 설치 실패 시 이전 설치 코드 롤백을 시도하며 로그는 `%LOCALAPPDATA%\\2bornot\\Siman\\setup.log`에 기록됩니다.
+
+## v1.5.8 변경 사항 (2026-11-12 검증 배포)
+
+- 기존 Windows 설치 폴더·확장 ID를 유지하면서 Chrome·Edge 확장 관리 화면에서 기존 ID만 찾아 자체 재로드 시도
+- Manifest V3 백그라운드가 기존 원문 저장소에 손대지 않고 AI 대화 탭 입력 중인 초안은 보호, 새 확장 적용 후 설치 관리자에 일회용 ACK 전달
+- Chrome for Testing 압축해제 확장(개발자 모드 ON) 실브라우저에서 v1.5.7 → v1.5.8 실제 무인 갱신, ACK, Windows EXE, 8개 Node 회귀 테스트 통과
+- Chrome 개발자 모드 OFF, Edge 실브라우저 및 비표준 프로필은 아직 동일 수준의 E2E 성공을 입증하지 않음
+- 고정 주소 `siman-beta`의 EXE/ZIP/SHA256 파일은 Windows 게이트 통과 후에만 자동 교체
 
 ## v1.5.7 변경 사항
 
