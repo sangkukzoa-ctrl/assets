@@ -72,6 +72,67 @@ async function mark(providerName,id,status,reason=''){await bridge('MARK',{provi
 async function markMany(providerName,ids,status){if(!ids.length)return;for(let i=0;i<ids.length;i+=250)await bridge('MARK_MANY',{providerName,ids:ids.slice(i,i+250),status},60000)}
 async function saveRecord(c){if(!c?.id||!c.messages?.length)return false;const reply=await bridge('SAVE',{record:c},60000);return !!reply.ok}
 function report(found,read,skipped,failed,processed,complete,extra={}){return {found,read,skipped,completed:read+skipped,errors:failed,processed,remaining:Math.max(0,found-processed),complete:!!complete,...extra}}
+// Full Grok.com account history, separate from browser DOM visit capture.
+async function scanGrok(){
+ const g=window.SimanGrokWeb;
+ if(provider!=='grok'||!g)throw Error('Grok 공식 웹 수집기 연결 실패');
+ let token='',lastToken='',listComplete=false,pausedError=null;
+ const seen=new Set(),rows=[];
+ for(let page=0;page<200&&!cancelled;page++){
+  const params=new URLSearchParams({pageSize:'60'});
+  if(token)params.set('pageToken',token);
+  let body;
+  try{body=await g.getJson('/rest/app-chat/conversations?'+params)}
+  catch(e){
+   if(e.status===429){pausedError={retryAt:Date.now()+Math.max(MIN_RETRY_MS,e.retryAfterMs||0)};break}
+   throw e;
+  }
+  const list=g.validList(body);
+  for(const item of list.rows)if(!seen.has(item.id)){seen.add(item.id);rows.push(item)}
+  progress('Grok 웹 계정 목록 탐색',rows.length,rows.length,{details:'페이지 '+(page+1)});
+  trace('GROK_LIST','목록 페이지 '+(page+1)+' · 누적 '+rows.length+'건'+(list.nextPageToken?' · 다음 페이지 있음':''));
+  if(!list.nextPageToken){listComplete=true;break}
+  if(list.nextPageToken===token||list.nextPageToken===lastToken)throw Error('Grok 목록 커서 반복: 전체 세션 수집 완결 미확인');
+  lastToken=token;token=list.nextPageToken;
+  await sleep(850);
+ }
+ await register('grok',rows);
+ const cached=await completeIds('grok',rows.map(x=>x.id));
+ await markMany('grok',[...cached],'complete');
+ let read=0,skipped=0,failed=0,processed=0;
+ const counts=()=>({read,skipped,failed,done:processed,total:rows.length});
+ for(const item of rows){
+  if(cancelled||pausedError)break;
+  if(cached.has(item.id)){skipped++;processed++;continue}
+  progress('Grok 원문 조회',processed,rows.length,{...counts(),details:'현재 '+(processed+1)+' / '+rows.length});
+  try{
+   // Respect the currently displayed regenerated answer when this chat is open.
+   const here=new URL(location.href),rid=here.pathname.includes(item.id)?here.searchParams.get('rid')||'':'';
+   const c=await g.getDetail(item.id,{responseId:rid});
+   if(c.messages.length){if(await saveRecord(c))read++;
+    else{failed++;await mark('grok',item.id,'failed','저장 실패')}}
+   else{failed++;await mark('grok',item.id,'failed','빈 원문')}
+  }catch(e){
+   if(e.status===429){
+    pausedError={retryAt:Date.now()+Math.max(MIN_RETRY_MS,e.retryAfterMs||0)};
+    await mark('grok',item.id,'retry','HTTP 429');
+    trace('GROK_RATE_LIMIT','Grok 서버 요청 제한 · 추가 요청 중단','WARN');
+    break;
+   }
+   if(cancelled||e.cancelled)break;
+   failed++;await mark('grok',item.id,'failed',String(e.message||e).slice(0,130));
+   trace('GROK_DETAIL_ERROR','Grok 원문 조회 실패: '+String(e.message||e).slice(0,130),'WARN');
+   if(failed>=5){emit('WARN',{text:'Grok 원문 조회 오류 누적 5건 · 수집 중단 및 다음 실행에서 재시도'});break}
+  }
+  processed++;
+  if(processed%5===0)progress('Grok 원문 저장',processed,rows.length,counts());
+  if(!cancelled)await sleep(1200);
+ }
+ progress(pausedError?'429 제한 · 재개 대기':'Grok 수집 종료',processed,rows.length,{...counts(),retryAt:pausedError?.retryAt||0});
+ return report(rows.length,read,skipped,failed,processed,
+  listComplete&&!pausedError&&!cancelled&&!failed&&processed===rows.length,
+  {listComplete,paused:!!pausedError,retryAt:pausedError?.retryAt||0,cancelled});
+}
 // Gemini official web history, separate from its previously visit-only DOM saving.
 async function scanGemini(){
  const g=window.SimanGeminiWeb;
@@ -334,7 +395,7 @@ async function run(){if(running)return;running=true;cancelled=false;auth=null;la
  try{await bridge('TEST',{},7000);trace('BRIDGE_OK','수집기↔로컬 저장소 왕복 통신 확인');progress('수집 시작',0,0);
  heartbeat=setInterval(()=>{if(running&&Date.now()-lastProgressAt>8000)emit('PROGRESS',{...lastProgress,details:'응답 대기 중 · 마지막 단계: '+lastProgress.stage})},10000);
  let result;
- if(provider==='chatgpt')result=await scanChatGPT();else if(provider==='claude')result=await scanClaude();else if(provider==='chatllm')result=await scanChatLLM();else if(provider==='deepseek')result=await scanDeepSeek();else if(provider==='gemini')result=await scanGemini();else throw Error('해당 서비스는 방문 대화 자동 저장만 지원합니다.');emit('DONE',{result});trace('DONE','발견 '+(result.found||0)+' / 저장 '+(result.read||0)+' / 계정 목록 확인 '+!!result.listComplete)}
+ if(provider==='chatgpt')result=await scanChatGPT();else if(provider==='claude')result=await scanClaude();else if(provider==='chatllm')result=await scanChatLLM();else if(provider==='deepseek')result=await scanDeepSeek();else if(provider==='gemini')result=await scanGemini();else if(provider==='grok')result=await scanGrok();else throw Error('해당 서비스는 방문 대화 자동 저장만 지원합니다.');emit('DONE',{result});trace('DONE','발견 '+(result.found||0)+' / 저장 '+(result.read||0)+' / 계정 목록 확인 '+!!result.listComplete)}
  catch(e){if(e.cancelled)emit('DONE',{result:report(0,0,0,0,0,false,{cancelled:true})});else if(e.ratePaused){emit('DONE',{result:report(0,0,0,0,0,false,{paused:true,retryAt:e.retryAt||0})});emit('WARN',{text:'서버 429 요청 제한으로 수집 일시 중지'});}else {trace('FAIL',String(e?.message||e),'ERROR');emit('ERROR',{text:String(e?.message||e)})}}finally{clearInterval(heartbeat);running=false;auth=null}}
 window.__SimanRunnerV155={start:()=>{if(running)return {ok:true,already:true};run();return {ok:true}},stop:()=>{cancelled=true;activeController?.abort();return {ok:true}},ping:()=>({ok:true,provider,version:'1.5.10',running,stage:lastProgress.stage,lastProgressAt}),pingStorage:async()=>{const started=Date.now();const r=await bridge('TEST',{},6500);return {ok:!!r.ok&&!!r.storageReady,latencyMs:Date.now()-started}}};
 window.addEventListener('message',ev=>{if(ev.source!==window||ev.origin!==origin||ev.data?.tag!==TAG)return;const d=ev.data;if(d.kind==='BRIDGE_REPLY'){pending.get(d.seqId)?.(d);pending.delete(d.seqId)}if(d.kind==='COMMAND'){if(d.action==='START')run();if(d.action==='STOP')cancelled=true}});
