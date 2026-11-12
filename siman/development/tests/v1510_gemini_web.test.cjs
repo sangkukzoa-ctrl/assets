@@ -1,0 +1,67 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const files=path.resolve(__dirname,'../app'),code=f=>fs.readFileSync(path.join(files,f),'utf8');
+const id='ab12cd34ef56aa78';
+const r1=['c_'+id,'테스트 Gemini 대화',null,null,null,[1790000000,0]];
+const listing=[null,null,[r1]];
+const firstTurn=[['c_'+id,'r_a'],null,[['먼저 묻는 질문']],[[['rc_1',['첫 답변']]],null,null,'rc_1']];
+const lastTurn=[['c_'+id,'r_b'],null,[['다시 묻는 질문']],[[['rc_old',['선택 안된 초안']],['rc_new',['선택된 답변']]],null,null,'rc_new']];
+const detail=[[lastTurn,firstTurn]];
+const frame=(rid,body)=>{const row=JSON.stringify([['wrb.fr',rid,JSON.stringify(body),null,null,null]]);return ")]}'\n"+row.length+'\n'+row+'\n'};
+const events=new Map(),out=[],saved=[],requests=[],origin='https://gemini.google.com';
+const main={URL,URLSearchParams,Headers,AbortController,Map,Set,Object,Promise,JSON,Error,RegExp,Array,Math,Number,String,Boolean,console,Date,
+ location:{href:origin+'/app',origin,hostname:'gemini.google.com',pathname:'/app'}};
+main.window=main;main.globalThis=main;main.setTimeout=setTimeout;main.clearTimeout=clearTimeout;main.setInterval=()=>0;main.clearInterval=()=>{};
+main.addEventListener=(event,callback)=>{let a=events.get(event)||[];a.push(callback);events.set(event,a)};
+main.postMessage=d=>{
+ out.push(d);
+ if(d.kind!=='BRIDGE')return;
+ if(d.action==='SAVE')saved.push(d.record);
+ queueMicrotask(()=>{
+  const reply={tag:d.tag,kind:'BRIDGE_REPLY',seqId:d.seqId,ok:true,storageReady:true,completeIds:[]};
+  for(const cb of events.get('message')||[])cb({source:vm.runInContext('window',main),origin,data:reply});
+ });
+};
+main.fetch=async (url,opts={})=>{
+ const u=new URL(url);assert.equal(u.hostname,'gemini.google.com');
+ requests.push({path:u.pathname,method:opts.method||'GET'});
+ if(u.pathname==='/app')return {ok:true,headers:new Headers(),text:async()=>'{"SNlM0e":"localtoken","cfb2h":"localbuild","FdrFJe":"localsession"}'};
+ assert(u.pathname.includes('/batchexecute'));
+ const rpc=u.searchParams.get('rpcids');
+ assert(['MaZiqc','hNvQHb'].includes(rpc));
+ assert(String(opts.body).includes('localtoken'),'site credential should be sent only same-origin');
+ return {ok:true,headers:new Headers(),text:async()=>frame(rpc,rpc==='MaZiqc'?listing:detail)};
+};
+vm.createContext(main);vm.runInContext('window=globalThis',main);
+vm.runInContext(code('core.js'),main);vm.runInContext(code('gemini-web.js'),main);
+const g=main.SimanGeminiWeb;
+assert(g,'Gemini adapter missing');
+assert.equal(g.credentials('{"SNlM0e":"AA","cfb2h":"BB"}').at,'AA');
+assert.equal(g.list(g.unframe(frame('MaZiqc',listing),'MaZiqc')).length,1);
+const parsed=g.history(g.unframe(frame('hNvQHb',detail),'hNvQHb'),id,'제목');
+assert.equal(parsed.messages.length,4);
+assert.equal(parsed.messages[0].text,'먼저 묻는 질문');
+assert.equal(parsed.messages[3].text,'선택된 답변');
+assert(!JSON.stringify(parsed).includes('선택 안된 초안'));
+assert.equal(main.SimanCore.providerFromUrl(origin+'/app'),'gemini');
+vm.runInContext(code('page.js'),main);
+main.__SimanRunnerV155.start();
+(async()=>{
+ for(let i=0;i<130&&!out.some(x=>x.kind==='DONE'||x.kind==='ERROR');i++)await new Promise(r=>setTimeout(r,30));
+ const err=out.find(x=>x.kind==='ERROR');
+ if(err)console.error('Gemini failure:',err.text);
+ assert(!err,'Gemini web collector emitted error');
+ const done=out.find(x=>x.kind==='DONE');
+ assert(done,'Gemini collector did not finish');
+ assert.equal(done.result.found,1);
+ assert.equal(done.result.read,1);
+ assert.equal(saved.length,1);assert.equal(saved[0].provider,'gemini');
+ assert(!JSON.stringify(out).includes('localtoken'),'session token appeared in diagnostics');
+ const takeout=[{header:'Gemini Apps',title:'질문 활동',description:'지난 기록 하나',time:'2024-01-01T00:00:00Z',products:['Gemini Apps']}];
+ const imported=main.SimanCore.geminiImport(takeout,'My Activity/Gemini Apps/MyActivity.json');
+ assert.equal(imported.length,1);assert.equal(imported[0].complete,false);
+ assert.equal(imported[0].messages[0].text,'지난 기록 하나');
+ const exporter={source:'gemini.google.com',conversations:[{url:origin+'/app/'+id,title:'내 기록',messages:[{role:'user',content:'사용자 원문'},{role:'assistant',content:'모델 원문'}]}]};
+ assert.equal(main.SimanCore.geminiImport(exporter,'gemini-export.json')[0].messages.length,2);
+ console.log('PASS Gemini official web list/read RPC, chosen branch, chronological messages, Takeout + browser export, credentials not persisted');
+})().catch(e=>{console.error(e);process.exitCode=1});
