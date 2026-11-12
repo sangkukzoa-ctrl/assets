@@ -61,7 +61,7 @@ async function loadRecords(){const arr=await SimanStore.all();cache=new Map(arr.
 function timeLabel(ms){if(!ms)return '';const diff=Number(ms)-Date.now();if(diff<=0)return '재시도 가능';const sec=Math.ceil(diff/1000);return '재시도까지 '+(sec>=3600?Math.floor(sec/3600)+'시간 ':'')+(sec>=60?Math.floor(sec%3600/60)+'분 ':'')+(sec%60)+'초'}
 async function renderStatus(){try{const state=await SimanStore.getStatus(),lines=[];
  for(const [p,s] of Object.entries(state.active)){lines.push(`${PROVIDERS[p]||p} · ${s.stage||'수집 중'}`);lines.push(`처리 ${s.done||0}건 · 발견 ${s.total||0}건 · 신규 완료 ${s.read||0}건 · 기존 완료 ${s.skipped||0}건 · 실패 ${s.failed||0}건`);if(s.retryAt)lines.push(timeLabel(s.retryAt));if(s.details)lines.push(s.details)}
- for(const [p,s] of Object.entries(state.last)){if(s.error){lines.push(`${PROVIDERS[p]||p}: ${s.error}`);continue}lines.push(`${PROVIDERS[p]||p} 마지막 수집: 발견 ${s.found||0}건 · 이번 원문 저장 ${s.read||0}건 · 기존 완료 ${s.skipped||0}건 · 실패 ${s.errors||0}건 · 남음 ${s.remaining||0}건${s.complete?' · 목록·원문 완료':' · 전체 목록 확인 중'}`);if(p==='chatllm'&&s.observedComplete)lines.push('ChatLLM 발견된 세션 원문 수집 완료 · 전체 계정 목록 완결은 별도 미확인');if(p==='chatllm'&&s.detailVerified!=null)lines.push(`ChatLLM 상세 응답: 완결 ${s.detailVerified}건 · 추가 페이지 필요 ${s.detailPartial||0}건 · 전체 계정 목록 완결은 별도 미확인`);if(s.retryAt)lines.push(timeLabel(s.retryAt));if(s.paused)lines.push('HTTP 429 제한으로 추가 요청을 중단했습니다. 재시도 가능 시각 이후 수집·재개를 실행하세요.')}
+ for(const [p,s] of Object.entries(state.last)){if(s.error){lines.push(`${PROVIDERS[p]||p}: ${s.error}`);continue}if(s.authRequired){lines.push(`${PROVIDERS[p]||p}: 공식 웹 로그인 필요 (HTTP ${s.authStatus||401}) · 대화가 0건인지 아직 확인되지 않았습니다.`);continue}lines.push(`${PROVIDERS[p]||p} 마지막 수집: 발견 ${s.found||0}건 · 이번 원문 저장 ${s.read||0}건 · 기존 완료 ${s.skipped||0}건 · 실패 ${s.errors||0}건 · 남음 ${s.remaining||0}건${s.complete?' · 목록·원문 완료':' · 전체 목록 확인 중'}`);if(p==='chatllm'&&s.observedComplete)lines.push('ChatLLM 발견된 세션 원문 수집 완료 · 전체 계정 목록 완결은 별도 미확인');if(p==='chatllm'&&s.detailVerified!=null)lines.push(`ChatLLM 상세 응답: 완결 ${s.detailVerified}건 · 추가 페이지 필요 ${s.detailPartial||0}건 · 전체 계정 목록 완결은 별도 미확인`);if(s.retryAt)lines.push(timeLabel(s.retryAt));if(s.paused)lines.push('HTTP 429 제한으로 추가 요청을 중단했습니다. 재시도 가능 시각 이후 수집·재개를 실행하세요.')}
  const text=lines.join('\n');if(text!==lastStatus){$('progress').textContent=text;lastStatus=text}
  $('diagnostic').textContent=(state.warnings||[]).slice(-3).join('\n');}catch(e){$('diagnostic').textContent='수집 상태 읽기 실패: '+e.message}}
 function doSearch(){const q=$('query').value.trim();lastQ=q;const h=$('hits');const id=++searchId;
@@ -195,7 +195,7 @@ async function prepareConnection(p){
  if(!live?.ok)throw Error('수집기 자동 재연결 실패');
  return {tab,ping:live};
 }
-async function runSync(p){
+async function runSync(p,{resumeOnly=false}={}){
  if(!BASE[p]){toast('지원하지 않는 서비스입니다.');return {ok:false,error:'unsupported provider'}}
  const startedAt=Date.now();
  await debug('INIT',PROVIDERS[p]+' 수집 준비','INFO',p);
@@ -209,7 +209,7 @@ async function runSync(p){
   }
   // Reset an orphaned active flag, without clearing the archive.
   await SimanStore.begin(p);
-  const r=await chrome.scripting.executeScript({target:{tabId:tab.id},world:'MAIN',func:()=>window.__SimanRunnerV155?.start()||{ok:false}});
+  const r=await chrome.scripting.executeScript({target:{tabId:tab.id},world:'MAIN',func:(options)=>window.__SimanRunnerV155?.start(options)||{ok:false},args:[{resumeOnly:p==='chatgpt'&&resumeOnly}]});
   if(!r[0]?.result?.ok)throw Error('수집기 시작 명령에 응답 없음');
   await debug('START',PROVIDERS[p]+' 수집기 시작: tabId='+tab.id,'INFO',p);
   toast(PROVIDERS[p]+' 수집을 시작했습니다.');
@@ -289,6 +289,7 @@ async function runBatch(){
   }
   if(batchStop)break;
   if(startError)failures.push(PROVIDERS[p]+': '+startError);
+  else if(done?.summary?.authRequired){batchCompleted.push(PROVIDERS[p]+' (로그인 필요 · 기록 확인 보류)');await debug('AUTH_REQUIRED',PROVIDERS[p]+' 서버 인증이 필요합니다. 0건 수집 성공으로 계산하지 않습니다.','WARN',p)}
   else if(done?.ok)batchCompleted.push(PROVIDERS[p]+(p==='chatllm'&&done.summary?.observedComplete?' (발견 목록 완료)':''));
   else failures.push(PROVIDERS[p]+': '+(done?.summary?.error||done?.error||(done?.summary?.paused?'서버 제한 대기':'미완료')));
  }
@@ -321,7 +322,7 @@ async function maybeAutoResumeChatGPT(){
  autoResumeInFlight=true;autoLastAttemptAt=Date.now();
  try{
   await debug('AUTO_RESUME','ChatGPT 요청 제한 대기 종료 · 저장된 원문부터 수집 재개','INFO','chatgpt');
-  await runSync('chatgpt');
+  await runSync('chatgpt',{resumeOnly:true});
  }catch(e){await debug('AUTO_RESUME_ERROR',String(e?.message||e),'WARN','chatgpt')}
  finally{autoResumeInFlight=false}
 }
