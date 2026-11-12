@@ -44,6 +44,20 @@ assert meta[0]["human_verified"] is False
 assert len(items)==2 and items[0]["box"][0]>im.width//2
 assert observations and observations[0][0]<im.width*.52,observations
 
+# Product-detail OCR may be completely blank: pixel geometry must still
+# prevent the five gallery thumbnails from becoming five fake products.
+# The catalog fallback is forbidden once the single-product layout is known.
+from unittest.mock import patch
+with patch("shop_grid_v0374.card_boxes",
+           side_effect=AssertionError("gallery incorrectly parsed as catalog")):
+    blank=analyze(im,reader=lambda *args:("",[],0))
+assert blank is not None
+blank_mode,blank_text,_,blank_meta,blank_items=blank
+assert blank_mode=="쇼핑몰" and blank_text=="" and blank_items==[]
+assert blank_meta[0]["product_count"]==1
+assert blank_meta[0]["needs_review"] is True
+assert blank_meta[0]["reason"]=="detail_text_unreadable"
+
 # OCR cannot fabricate a product count if the evidence is insufficient.
 no_gallery=im.crop((0,0,im.width,455))
 assert not is_single_product_detail(no_gallery)
