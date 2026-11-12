@@ -13,6 +13,7 @@ function key(r){return PREFIX+r.provider+':'+r.id}
 function merge(old={},next={}){
  const o={...old,...next};
  if(!next.messages?.length && old.messages?.length)o.messages=old.messages;
+ else if(old.messages?.length && next.source==='deepseek-web-api' && next.complete && next.messages?.length) o.messages=next.messages;
  else if(old.messages?.length && (old.complete&&!next.complete || old.messages.length>next.messages.length))o.messages=old.messages;
  for(const x of ['url','projectName','projectId','title'])if(!next[x]&&old[x])o[x]=old[x];
  // A newly verified unpaginated transcript supersedes legacy totalEvents-based expectations.
