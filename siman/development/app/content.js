@@ -23,7 +23,7 @@ let disposed=false,observer=null,periodic=null,timer=null;
 function alive(){try{return !disposed&&!!chrome.runtime?.id}catch{return false}}
 function shutdown(){
  if(disposed)return;disposed=true;clearTimeout(timer);
- if(observer)observer.disconnect();if(periodic)clearInterval(periodic);
+ if(observer?.disconnect)observer.disconnect();if(periodic&&typeof clearInterval==='function')clearInterval(periodic);
  try{window.removeEventListener('message',handleBridgeMessage)}catch{}
  try{chrome.runtime.onMessage.removeListener(handleRuntimeMessage)}catch{}
 }
