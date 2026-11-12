@@ -11,6 +11,7 @@ function sourceUrl(p,id,proposed=''){if(proposed){try{let u=new URL(proposed);if
  if(p==='chatgpt'&&/^[a-f0-9-]{8,80}$/i.test(id))return 'https://chatgpt.com/c/'+id;
  if(p==='claude'&&/^[a-f0-9-]{8,80}$/i.test(id))return 'https://claude.ai/chat/'+id;
  if(p==='deepseek'&&/^[a-z0-9-]{8,100}$/i.test(id))return 'https://chat.deepseek.com/a/chat/s/'+id;
+ if(p==='grok'&&/^[a-f0-9-]{36}$/i.test(id))return 'https://grok.com/c/'+id;
  return '';
 }
 function textFrom(obj,d=0){if(d>12||obj==null)return '';if(typeof obj==='string')return obj;if(Array.isArray(obj))return obj.map(x=>textFrom(x,d+1)).filter(Boolean).join('\n');if(typeof obj!=='object')return '';
