@@ -270,6 +270,7 @@ async function runBatch(){
    const existing=Object.values(catalogs.chatllm||{});
    if(existing.length>=10&&existing.every(x=>x.status==='complete')){
     batchCompleted.push('ChatLLM (기존 '+existing.length+'건 보존)');
+    await SimanStore.updateEvent({provider:'chatllm',kind:'DONE',result:{found:existing.length,read:0,skipped:existing.length,completed:existing.length,processed:existing.length,remaining:0,errors:0,complete:false,listComplete:false,observedComplete:true}});
     await debug('CHATLLM_CACHE_SKIP','발견된 '+existing.length+'건 원문 모두 완료 · 새 대화 탐색은 ChatLLM 개별 수집 사용','INFO','chatllm');
     continue;
    }
