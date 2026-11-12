@@ -45,3 +45,33 @@ def is_repeated_icon_grid(image):
 
     return (has_regular_spacing(xs,5) and
             has_regular_spacing(ys,3))
+
+
+def icon_grid_title_crop_bottom(image):
+    """Find first true horizontal slot border, preserving a separate title.
+
+    The icon grid must already pass the strict repeated x/y border test.
+    Text in the grid region is not promoted to OCR evidence when the only
+    visible item marks are images rather than letters.
+    """
+    if not is_repeated_icon_grid(image):
+        return None
+    mono=np.asarray(image.convert("L"),dtype=np.uint8)
+    h,w=mono.shape
+    coverage=(mono[:,int(w*.05):int(w*.94)]<120).mean(axis=1)
+    hits=np.flatnonzero((coverage>.80)&
+                        (np.arange(h)>=int(h*.09))&
+                        (np.arange(h)<int(h*.46)))
+    starts=[]
+    last=-5
+    for y in hits:
+        y=int(y)
+        if y-last>4:starts.append(y)
+        last=y
+    if len(starts)<3:return None
+    # At least three parallel borders at an identical row pitch, not
+    # coincidental ink-heavy text rows or unrelated decorative lines.
+    pitch=starts[1]-starts[0]
+    if not (28<=pitch<=115 and abs(starts[2]-starts[1]-pitch)<=3):
+        return None
+    return max(8,starts[0]-2)
