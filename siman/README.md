@@ -1,12 +1,12 @@
 # 심안(心眼) / Siman — AI 대화 원문 통합 검색
 
-> **2026-11-12 검증 완료:** v1.5.8 Chrome for Testing 실브라우저 E2E 통과, 원본 확장 ID·설치 경로 유지, 새 확장 백그라운드 ACK 확인 후 영구 Beta URL 자동 배포. Chrome 테스트는 개발자 모드를 켠 압축해제 확장 환경이며 Edge와 일부 환경은 별도 실사용 검증 대상. [3차 인수인계와 검증 상세](HANDOFF_SIMAN_3_2026-11-12.md).
+> **2026-11-12 현재:** v1.5.9 Windows CI 및 Chrome for Testing v1.5.8→v1.5.9 실브라우저 E2E 성공, 기존 확장 ID·설치 경로·검색 데이터 유지 및 ACK 확인. DeepSeek 공식 웹 전체 대화 목록·원문 수집기를 추가했습니다. DeepSeek 실제 로그인 계정에서의 수집은 추가 검증 대상입니다. [인수인계·검증 상세](HANDOFF_SIMAN_3_2026-11-12.md).
 
 **개발자:** 2bornot  
-**최신 공개 테스트판:** v1.5.8 Beta (2026-11-12)  
+**최신 공개 테스트판:** v1.5.9 Beta (2026-11-12)  
 **환경:** Windows 설치 관리자 `SimanSetup.exe` + Chrome/Edge Manifest V3 확장프로그램
 
-**[최신 Beta 고정 다운로드](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta)** · [고정 설치 ZIP](https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip) · [v1.5.8 개별 버전 기록](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.8)
+**[최신 Beta 고정 다운로드](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta)** · [고정 설치 ZIP](https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip) · [v1.5.9 개별 버전 기록](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.9)
 
 GitHub Actions가 [`siman/development/`](development/)의 소스 변경을 감지하면 Windows 회귀 테스트·실제 EXE 설치 검사·ZIP/SHA-256 검증을 진행한 다음, 성공 시 **`siman-beta`의 동일한 URL에 최신 파일을 자동 배포**합니다. 블로그는 이 고정 주소만 안내하면 되며, 업데이트된 파일을 직접 설치할 때에는 기존 확장프로그램을 삭제하지 않습니다.
 
@@ -22,7 +22,7 @@ GitHub Actions가 [`siman/development/`](development/)의 소스 변경을 감�
 | Claude | 과거 목록·원문 일괄수집 | 로그인·서비스 응답 구조에 따라 결과 변경 가능 |
 | ChatGPT | 과거 목록·원문 일괄수집 | HTTP 429 제한 시 보호 중단, 이후 미완료분 재개 |
 | Gemini | 방문한 대화 화면 저장 | 전체 과거 기록 일괄수집 미지원 |
-| DeepSeek | 방문한 대화 화면 저장 | 긴 대화의 화면 미표시 부분 누락 가능 |
+| DeepSeek (공식 웹) | 로그인한 chat.deepseek.com 계정 목록·원문 수집 + 방문 저장 | 내부 웹 API 사용. 페이지 커서가 없으면 일부 목록만 확인될 수 있음; 실제 계정 검증 필요 |
 | Grok | 방문한 대화 화면 저장 | 전체 과거 기록 일괄수집 미지원 |
 
 일괄수집은 **ChatLLM → Claude → ChatGPT** 순서입니다. 방문 저장 서비스는 사용자가 해당 대화를 화면에 열면 저장을 시도합니다.
@@ -31,9 +31,18 @@ GitHub Actions가 [`siman/development/`](development/)의 소스 변경을 감�
 
 **신규 설치:** 최신 `SimanSetup.exe`를 실행하면 필요한 확장프로그램 파일이 자동 설치됩니다. 이후 한 번만 Chrome 또는 Edge 확장프로그램 관리 화면에서 개발자 모드 → 압축해제된 확장프로그램 로드 → 설치 폴더 선택으로 등록합니다.
 
-**기존 사용자:** 고정 GitHub 다운로드의 최신 `SimanSetup.exe`를 실행하면 **기존 설치 위치에 자동으로 덮어쓰기 업데이트하고 기존 확장 ID를 Chrome·Edge 관리 화면에서 찾아 새 코드를 적용**합니다. Chrome 개발자 모드가 켜진 압축해제 확장 환경에서는 실제 Chrome v1.5.7→v1.5.8 무인 업데이트 및 ACK 수신까지 검증했습니다. 수동 재등록과 JSON 원문 백업/복원은 요구하지 않습니다. 브라우저가 ACK를 보내지 않으면 파일 설치만 완료된 것으로 구분하고 `%LOCALAPPDATA%\\2bornot\\Siman\\setup.log`에 이유를 기록합니다. 사용자 검색 색인·대화 원문은 확장프로그램 저장소에 남습니다.
+**기존 사용자:** 고정 GitHub 다운로드의 최신 `SimanSetup.exe`를 실행하면 **기존 설치 위치에 자동으로 덮어쓰기 업데이트하고 기존 확장 ID를 Chrome·Edge 관리 화면에서 찾아 새 코드를 적용**합니다. Chrome 개발자 모드가 켜진 압축해제 확장 환경에서 실제 Chrome v1.5.8→v1.5.9 무인 업데이트 및 ACK 수신까지 검증했습니다. 수동 재등록과 JSON 원문 백업/복원은 요구하지 않습니다. 브라우저가 ACK를 보내지 않으면 파일 설치만 완료된 것으로 구분하고 `%LOCALAPPDATA%\\2bornot\\Siman\\setup.log`에 이유를 기록합니다. 사용자 검색 색인·대화 원문은 확장프로그램 저장소에 남습니다.
 
 설치 실패 시 이전 설치 코드 롤백을 시도하며 로그는 `%LOCALAPPDATA%\\2bornot\\Siman\\setup.log`에 기록됩니다.
+
+## v1.5.9 변경 사항 (2026-11-12 검증 배포)
+
+- ChatLLM에 포함된 DeepSeek 모델과 무관한 **DeepSeek 공식 웹(chat.deepseek.com)** 독립 수집기 추가. 로그인된 웹의 세션 목록 및 원문 조회로 이전의 방문 저장 0건 문제 대응
+- 세션별 원문, 편집/재생성 분기 중 활성 대화, 재시도 상태를 브라우저 로컬 저장소에 저장; API 호출 인증 토큰을 로그·원문 저장소에 보관하지 않음
+- 전체 일괄수집 순서: ChatLLM → Claude → DeepSeek 공식 웹 → ChatGPT. 서비스별 DeepSeek 웹 수집·재개 버튼과 로그인/수집 진단 제공
+- ChatLLM 발견 목록의 원문 301/301 저장과 전체 계정 목록 완결 미확인을 별도 표시
+- Windows EXE 컴파일, 기존 설치 경로 덮어쓰기, Node 9개 회귀 테스트, Chrome v1.5.8→v1.5.9 동일 ID 무인 업데이트·ACK E2E 성공
+- 실제 DeepSeek 계정에서의 로그인 토큰 응답 및 100개 초과 목록 페이지는 추가 실사용 검증 대상. Gemini/Grok은 여전히 방문 저장 지원
 
 ## v1.5.8 변경 사항 (2026-11-12 검증 배포)
 
