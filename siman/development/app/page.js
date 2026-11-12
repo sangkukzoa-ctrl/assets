@@ -16,6 +16,7 @@ let lastProgress={stage:'연결 검증',done:0,total:0},lastProgressAt=Date.now(
 function progress(stage,done,total,extra={}){lastProgress={stage,done,total,...extra};lastProgressAt=Date.now();emit('PROGRESS',lastProgress)}
 function parseDelay(value){if(value==null||value==='')return 0;const raw=String(value).trim(),number=Number(raw);if(Number.isFinite(number)&&number>=0)return Math.round(number*1000);const unit=raw.match(/^(\d+(?:\.\d+)?)\s*(ms|s|sec|m|min|h)$/i);if(unit){let scale=/^ms$/i.test(unit[2])?1:/^h$/i.test(unit[2])?3600000:/^m(in)?$/i.test(unit[2])?60000:1000;return Math.round(Number(unit[1])*scale)}const ts=Date.parse(raw);return Number.isFinite(ts)?Math.max(0,ts-Date.now()):0}
 async function request(path){const url=new URL(path,origin);if(url.origin!==origin)throw Error('교차 출처 요청 차단');const headers={Accept:'application/json'};if(auth&&provider==='chatgpt')headers.Authorization='Bearer '+auth;
+ if(provider==='deepseek'){const token=window.SimanDeepSeekWeb?.readToken();if(!token)throw Error('DeepSeek 웹 로그인 토큰을 찾지 못했습니다. chat.deepseek.com에서 로그인한 후 다시 수집하세요.');headers.Authorization='Bearer '+token;}
  const controller=new AbortController();activeController=controller;
  // Covers BOTH the HTTP headers and the full JSON response body. Previously the
  // timer was cleared before response.json(), allowing an indefinite 200-response stall.
@@ -41,9 +42,9 @@ async function pacedRequest(path,counts={}){
   if(err.status!==429)throw err;
   const delay=Math.max(err.retryAfterMs||0,MIN_RETRY_MS);
   const retryAt=Date.now()+delay;
-  trace('RATE_LIMIT','ChatGPT HTTP 429 · 요청 중단 · '+Math.ceil(delay/60000)+'분 뒤 재개 가능','WARN');
+  trace('RATE_LIMIT',(provider==='deepseek'?'DeepSeek 웹':'ChatGPT')+' HTTP 429 · 요청 중단 · '+Math.ceil(delay/60000)+'분 뒤 재개 가능','WARN');
   progress('429 제한 · 요청 중단 · 재개 대기',counts.done||0,counts.total||0,{...counts,retryAt,details:'서버 제한이 발생해 추가 요청을 중단했습니다. 이전에 확보한 원문은 유지됩니다. 표시된 시간이 지난 후 수집·재개를 다시 실행하세요.'});
-  const paused=Error('ChatGPT 서버 요청 제한 · '+new Date(retryAt).toLocaleString()+' 이후 재개');
+  const paused=Error((provider==='deepseek'?'DeepSeek 웹':'ChatGPT')+' 서버 요청 제한 · '+new Date(retryAt).toLocaleString()+' 이후 재개');
   paused.ratePaused=true;paused.retryAt=retryAt;throw paused;
  }
 }
@@ -71,6 +72,68 @@ async function mark(providerName,id,status,reason=''){await bridge('MARK',{provi
 async function markMany(providerName,ids,status){if(!ids.length)return;for(let i=0;i<ids.length;i+=250)await bridge('MARK_MANY',{providerName,ids:ids.slice(i,i+250),status},60000)}
 async function saveRecord(c){if(!c?.id||!c.messages?.length)return false;const reply=await bridge('SAVE',{record:c},60000);return !!reply.ok}
 function report(found,read,skipped,failed,processed,complete,extra={}){return {found,read,skipped,completed:read+skipped,errors:failed,processed,remaining:Math.max(0,found-processed),complete:!!complete,...extra}}
+// DeepSeek official web archive, NOT ChatLLM's DeepSeek model. Independent IDs and host.
+// Fetches existing chats using the site's read-only authenticated REST endpoints.
+async function scanDeepSeek(){
+ const ds=window.SimanDeepSeekWeb;
+ if(!ds||provider!=='deepseek')throw Error('DeepSeek 웹 수집기 초기화 실패');
+ if(!ds.readToken())throw Error('DeepSeek 웹 로그인 정보가 없습니다. https://chat.deepseek.com/ 에 로그인하세요.');
+ const sessions=new Map();let cursor='',listComplete=false,pausedError=null;
+ const usedCursors=new Set();
+ for(let page=0;page<80&&!cancelled;page++){
+  let path='/api/v0/chat_session/fetch_page?count=100';
+  if(cursor)path+='&cursor='+encodeURIComponent(cursor);
+  let response;
+  try{response=await pacedRequest(path,{done:sessions.size,total:0})}
+  catch(e){if(e.ratePaused){pausedError=e;break}throw e}
+  const parsed=ds.list(response);
+  for(const item of parsed.rows)sessions.set(item.id,item);
+  progress('DeepSeek 웹 대화 목록 확인',sessions.size,sessions.size,{
+   details:'chat.deepseek.com 웹 세션 '+sessions.size+'건'});
+  trace('DEEPSEEK_LIST','목록 페이지 '+(page+1)+' · 누적 '+sessions.size+'건'+(parsed.hasMore?' · 추가 페이지 존재':''));
+  if(!parsed.hasMore){listComplete=true;break}
+  if(!parsed.cursor||usedCursors.has(parsed.cursor)){
+   emit('WARN',{text:'DeepSeek 웹에서 추가 목록은 있으나 페이지 커서를 제공하지 않았습니다. 확인된 대화를 우선 저장합니다.'});
+   break;
+  }
+  usedCursors.add(parsed.cursor);cursor=parsed.cursor;
+ }
+ const rows=[...sessions.values()];
+ if(!rows.length&&!pausedError)throw Error('DeepSeek 웹 대화 목록이 비어 있습니다. 로그인 상태 및 API 응답을 확인하세요.');
+ await register('deepseek',rows);
+ const cached=await completeIds('deepseek',rows.map(x=>x.id));
+ await markMany('deepseek',[...cached],'complete');
+ let read=0,skipped=0,failed=0,processed=0;
+ const totals=()=>({read,skipped,failed,done:processed,total:rows.length});
+ for(const x of rows){
+  if(cancelled||pausedError)break;
+  const id=x.id;
+  if(cached.has(id)){skipped++;processed++;continue}
+  progress('DeepSeek 웹 대화 원문 조회',processed,rows.length,{...totals(),details:'세션 '+(processed+1)+' / '+rows.length});
+  try{
+   // Zero cache parameters request the authoritative full transcript rather than
+   // the site's incremental empty MERGE response.
+   const payload=await pacedRequest('/api/v0/chat/history_messages?chat_session_id='+encodeURIComponent(id)+
+      '&cache_version=0&cache_reset_at=0',totals());
+   const record=ds.history(payload,id,x.title);
+   if(record.messages?.length){
+    if(await saveRecord(record))read++;
+    else{failed++;await mark('deepseek',id,'failed','원문 저장 실패')}
+   }else{failed++;await mark('deepseek',id,'failed','반환된 대화에 텍스트 없음')}
+  }catch(e){
+   if(e.ratePaused){pausedError=e;await mark('deepseek',id,'retry','429 제한');break}
+   if(e.cancelled){cancelled=true;break}
+   failed++;await mark('deepseek',id,'failed',String(e.message||e).slice(0,120));
+   trace('DEEPSEEK_DETAIL_ERROR','원문 조회 실패 · '+String(e.message||e).slice(0,130),'WARN');
+  }
+  processed++;
+  if(processed%10===0)progress('DeepSeek 웹 원문 누적',processed,rows.length,totals());
+ }
+ progress(pausedError?'429 제한 · 재개 대기':'수집 종료',processed,rows.length,{...totals(),retryAt:pausedError?.retryAt||0});
+ return report(rows.length,read,skipped,failed,processed,
+  listComplete&&!pausedError&&!cancelled&&!failed&&processed===rows.length,
+  {listComplete,paused:!!pausedError,retryAt:pausedError?.retryAt||0,cancelled});
+}
 async function scanChatGPT(){let session=await pacedRequest('/api/auth/session');auth=session.accessToken||session.access_token||null;
  const items=new Map(),limit=100;let offset=0,lastSig='',listComplete=false,pausedError=null;
  for(let page=0;page<1000&&!cancelled;page++){
@@ -221,7 +284,7 @@ async function run(){if(running)return;running=true;cancelled=false;auth=null;la
  try{await bridge('TEST',{},7000);trace('BRIDGE_OK','수집기↔로컬 저장소 왕복 통신 확인');progress('수집 시작',0,0);
  heartbeat=setInterval(()=>{if(running&&Date.now()-lastProgressAt>8000)emit('PROGRESS',{...lastProgress,details:'응답 대기 중 · 마지막 단계: '+lastProgress.stage})},10000);
  let result;
- if(provider==='chatgpt')result=await scanChatGPT();else if(provider==='claude')result=await scanClaude();else if(provider==='chatllm')result=await scanChatLLM();else throw Error('해당 서비스는 방문 대화 자동 저장만 지원합니다.');emit('DONE',{result});trace('DONE','발견 '+(result.found||0)+' / 저장 '+(result.read||0)+' / 계정 목록 확인 '+!!result.listComplete)}
+ if(provider==='chatgpt')result=await scanChatGPT();else if(provider==='claude')result=await scanClaude();else if(provider==='chatllm')result=await scanChatLLM();else if(provider==='deepseek')result=await scanDeepSeek();else throw Error('해당 서비스는 방문 대화 자동 저장만 지원합니다.');emit('DONE',{result});trace('DONE','발견 '+(result.found||0)+' / 저장 '+(result.read||0)+' / 계정 목록 확인 '+!!result.listComplete)}
  catch(e){if(e.cancelled)emit('DONE',{result:report(0,0,0,0,0,false,{cancelled:true})});else if(e.ratePaused){emit('DONE',{result:report(0,0,0,0,0,false,{paused:true,retryAt:e.retryAt||0})});emit('WARN',{text:'서버 429 요청 제한으로 수집 일시 중지'});}else {trace('FAIL',String(e?.message||e),'ERROR');emit('ERROR',{text:String(e?.message||e)})}}finally{clearInterval(heartbeat);running=false;auth=null}}
 window.__SimanRunnerV155={start:()=>{if(running)return {ok:true,already:true};run();return {ok:true}},stop:()=>{cancelled=true;activeController?.abort();return {ok:true}},ping:()=>({ok:true,provider,version:'1.5.8',running,stage:lastProgress.stage,lastProgressAt}),pingStorage:async()=>{const started=Date.now();const r=await bridge('TEST',{},6500);return {ok:!!r.ok&&!!r.storageReady,latencyMs:Date.now()-started}}};
 window.addEventListener('message',ev=>{if(ev.source!==window||ev.origin!==origin||ev.data?.tag!==TAG)return;const d=ev.data;if(d.kind==='BRIDGE_REPLY'){pending.get(d.seqId)?.(d);pending.delete(d.seqId)}if(d.kind==='COMMAND'){if(d.action==='START')run();if(d.action==='STOP')cancelled=true}});
