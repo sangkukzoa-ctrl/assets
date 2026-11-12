@@ -501,6 +501,20 @@ def generic(img,language,precise):
     """Text-page OCR: recover visible lines and paragraph gaps before recognition.
     This avoids whole-page OCR dropping bold numbered headings and bullets.
     """
+    # Image icons arranged as a full-screen inventory are not actual prose.
+    # Recognize only the pixel-evidenced title above the first slot border,
+    # preserving the exact OCR output without running OCR on the icon rows.
+    from ocr_hallucination_guard_v0414 import icon_grid_title_crop_bottom
+    title_bottom=icon_grid_title_crop_bottom(img)
+    if title_bottom is not None:
+        from app import recognize,merge_rows
+        items=recognize(img.crop((0,0,img.width,title_bottom)),
+                        language,precise)
+        rows=merge_rows(items)
+        return ("범용","\n".join(row["text"] for row in rows),[],
+                [{"type":"icon_grid_title_only","box":(0,0,img.width,title_bottom),
+                  "human_verified":False,"reason":"repetitive_nontext_tiles"}],
+                items)
     a=np.asarray(img.convert("RGB"))
     med=np.median(a.reshape(-1,3),axis=0)
     if (med>184).all():
