@@ -24,10 +24,10 @@ if(applyParams.get('siman_auto_apply')==='1'){
 }
 const $=id=>document.getElementById(id);
 const PROVIDERS=SimanCore.PROVIDERS;
-const BASE={chatllm:'https://apps.abacus.ai/chatllm/',chatgpt:'https://chatgpt.com/',claude:'https://claude.ai/',deepseek:'https://chat.deepseek.com/',gemini:'https://gemini.google.com/app'};
+const BASE={chatllm:'https://apps.abacus.ai/chatllm/',chatgpt:'https://chatgpt.com/',claude:'https://claude.ai/',deepseek:'https://chat.deepseek.com/',gemini:'https://gemini.google.com/app',grok:'https://grok.com/'};
 let cache=new Map(),hits=[],selected=null,record=null,lastQ='',searchId=0,lastStatus='',refreshTimer=0;
 let batchRunning=false,batchStop=false,batchCurrent='',batchCompleted=[];
-const BULK=['chatllm','claude','deepseek','gemini','chatgpt'];
+const BULK=['chatllm','claude','deepseek','gemini','grok','chatgpt'];
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const debug=(stage,message,level='INFO',provider='system')=>SimanStore.appendDebug({stage,message,level,provider}).catch(()=>{});
 
@@ -152,7 +152,7 @@ async function installBridge(tabId){const target={tabId};
  if(!iso[0]?.result)await chrome.scripting.executeScript({target,world:'ISOLATED',files:['core.js','store.js','content.js']});
  const existing=await chrome.scripting.executeScript({target,world:'MAIN',func:()=>globalThis.__SimanRunnerV155?.ping()?.version||''});
  if(existing[0]?.result!=='1.5.10')
-  await chrome.scripting.executeScript({target,world:'MAIN',files:['core.js','network.js','deepseek-web.js','gemini-web.js','page.js']});
+  await chrome.scripting.executeScript({target,world:'MAIN',files:['core.js','network.js','deepseek-web.js','gemini-web.js','grok-web.js','page.js']});
  let isolated;
  for(let attempt=0;attempt<8;attempt++){
   isolated=await chrome.scripting.executeScript({target,world:'ISOLATED',func:()=>({ready:!!globalThis.__simanContentV155,storage:!!chrome.storage?.local})});
@@ -259,7 +259,7 @@ async function runBatch(){
  if(batchRunning)return;
  batchRunning=true;batchStop=false;batchCompleted=[];
  $('bulkStart').disabled=true;$('bulkStop').disabled=false;
- await debug('BULK_START','전체 일괄수집 시작 (ChatLLM → Claude → DeepSeek 웹 → Gemini 웹 → ChatGPT)');
+ await debug('BULK_START','전체 일괄수집 시작 (ChatLLM → Claude → DeepSeek 웹 → Gemini 웹 → Grok 웹 → ChatGPT)');
  let failures=[];
  try{for(const p of BULK){
   if(batchStop)break;
@@ -340,7 +340,7 @@ $('repair').onclick=async()=>{
   }
  }
  // Previously the repair button ignored all visit-only providers.
- for(const p of ['grok']){
+ for(const p of []){
   const list=await chrome.tabs.query({}),existing=list.find(t=>tabMatches(p,t.url));
   if(!existing)continue;
   try{
