@@ -1,4 +1,4 @@
-/* 心眼 v1.5.8: local archive with explicit crawl counters. */
+/* 心眼 v1.5.9: local archive with explicit crawl counters. */
 (()=>{'use strict';
 // Installer-controlled one-shot reload, initiated from an extension-owned options page.
 // The previous unpacked manifest may still be in Chrome memory while this updated
@@ -9,7 +9,7 @@ if(applyParams.get('siman_auto_apply')==='1'){
   const version=String(applyParams.get('version')||'');
   const token=String(applyParams.get('token')||'');
   const port=Number(applyParams.get('port')||0);
-  if(version!=='1.5.8'||!/^[a-f0-9]{32}$/i.test(token)||
+  if(version!=='1.5.9'||!/^[a-f0-9]{32}$/i.test(token)||
      !Number.isInteger(port)||port<1024||port>65535)return;
   const pending={port,token,version,at:Date.now()};
   await chrome.storage.local.set({'siman:updater:pending':pending});
@@ -80,7 +80,7 @@ async function copy(value){try{await navigator.clipboard.writeText(value);toast(
 const formatted=m=>`${label(m.role)} (#${Number(m.index)+1})\n${m.text||''}`;
 $('copyDiagnostics').onclick=async()=>{
  try{const s=await SimanStore.getStatus(),cats=await SimanStore.getCatalogs();const out=[];
- out.push('심안 v1.5.8 · 수집 진단 (원문 및 로그인 정보 미포함)',new Date().toISOString());
+ out.push('심안 v1.5.9 · 수집 진단 (원문 및 로그인 정보 미포함)',new Date().toISOString());
  for(const p of Object.keys(PROVIDERS)){const c=cats[p]||{};const statuses={};for(const x of Object.values(c))statuses[x.status||'pending']=(statuses[x.status||'pending']||0)+1;
  out.push(`${PROVIDERS[p]}: 발견 ${Object.keys(c).length}, ${JSON.stringify(statuses)}`);}
  for(const [p,v] of Object.entries(s.active||{}))out.push(`${p} 진행: ${v.stage||''} · 처리 ${v.done||0}/${v.total||0} · 429 재개 ${v.retryAt?new Date(v.retryAt).toISOString():'-'}`);
@@ -92,7 +92,7 @@ $('saveDebug').onclick=async()=>{
  const button=$('saveDebug');button.disabled=true;
  try{
   const state=await SimanStore.getStatus(),cats=await SimanStore.getCatalogs(),logs=await SimanStore.getDebug();
-  const lines=['심안(心眼) v1.5.8 상세 디버그 로그',
+  const lines=['심안(心眼) v1.5.9 상세 디버그 로그',
     '생성: '+new Date().toISOString(),
     '브라우저: '+navigator.userAgent.replace(/\d{3,}/g,'[숫자]'),
     '확장 컨텍스트 정상: '+Boolean(chrome.runtime?.id),
@@ -133,7 +133,7 @@ $('saveDebug').onclick=async()=>{
   const text=lines.join('\n');
   const blob=new Blob([text],{type:'text/plain;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
   const now=new Date(),stamp=now.getFullYear()+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0')+'_'+String(now.getHours()).padStart(2,'0')+String(now.getMinutes()).padStart(2,'0')+String(now.getSeconds()).padStart(2,'0');
-  a.href=url;a.download='Siman_v1.5.8_Debug_'+stamp+'.txt';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
+  a.href=url;a.download='Siman_v1.5.9_Debug_'+stamp+'.txt';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
   toast('진단 TXT를 저장했습니다.');
  }catch(e){toast('진단 로그 저장 실패: '+e.message);await debug('EXPORT_ERROR',e.message,'ERROR')}
  finally{button.disabled=false}
@@ -157,7 +157,7 @@ async function installBridge(tabId){const target={tabId};
  if(!isolated?.[0]?.result?.ready||!isolated?.[0]?.result?.storage)throw Error('로컬 저장용 스크립트 초기화 실패 · 저장소 의존성 또는 확장 프로그램 재로드 상태 확인');
  const main=await chrome.scripting.executeScript({target,world:'MAIN',func:()=>window.__SimanRunnerV155?.ping()||{ok:false,error:'runner missing'}});
  const ping=main[0]?.result;
- if(!ping?.ok||ping.version!=='1.5.8')throw Error('수집기 버전 연결 실패: '+(ping?.error||'다른 버전 실행 중'));
+ if(!ping?.ok||ping.version!=='1.5.9')throw Error('수집기 버전 연결 실패: '+(ping?.error||'다른 버전 실행 중'));
  // A marker means nothing unless main-world collector can exchange a message with isolated storage.
  const echo=await chrome.scripting.executeScript({target,world:'MAIN',func:async()=>{try{return await window.__SimanRunnerV155.pingStorage()}catch(e){return {ok:false,error:String(e.message||e)}}}});
  const bridge=echo[0]?.result;
@@ -169,7 +169,7 @@ async function probeVersion(tabId){try{const r=await chrome.scripting.executeScr
 async function prepareConnection(p){
  let tab=await tabFor(p);let ping=await probeVersion(tab.id),reloaded=false;
  // Old extension contexts retain stale message handlers. Reload ONCE if a mismatched/no runner exists.
- if(ping?.version!=='1.5.8'){
+ if(ping?.version!=='1.5.9'){
   await debug('REFRESH',PROVIDERS[p]+' 이전 버전 또는 수집기 없음 — 서비스 탭 자동 새로고침');
   await chrome.tabs.reload(tab.id);await waitTab(tab.id);reloaded=true;
  }
@@ -338,6 +338,6 @@ chrome.storage.onChanged.addListener((changes,area)=>{if(area!=='local')return;l
  if(changed){renderStats().catch(()=>{});if($('query').value.trim()){clearTimeout(window.__simanReloadTimer);window.__simanReloadTimer=setTimeout(doSearch,250)}}if(Object.keys(changes).some(k=>k.startsWith(SimanStore.CATALOG)))renderStats().catch(()=>{});if(changes[SimanStore.META])renderStatus()});
 window.addEventListener('error',e=>{debug('UI_ERROR',String(e.message||'알 수 없는 UI 오류'),'ERROR')});
 window.addEventListener('unhandledrejection',e=>{debug('UNHANDLED_PROMISE',String(e.reason?.message||e.reason||'비동기 오류'),'ERROR')});
-debug('UI_BOOT','심안 v1.5.8 검색 화면 시작');
+debug('UI_BOOT','심안 v1.5.9 검색 화면 시작');
 setInterval(()=>{if(!chrome.runtime?.id){batchLabel('확장프로그램이 갱신되었습니다. 연결을 복구하기 위해 검색 화면을 다시 엽니다.');location.reload();return}renderStatus()},3000);(async()=>{try{await SimanStore.migrate();await loadRecords();await renderStatus()}catch(e){toast('초기 기록 읽기 실패: '+e.message);$('progress').textContent=e.message}})();
 })();
