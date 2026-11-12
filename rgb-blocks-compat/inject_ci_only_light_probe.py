@@ -179,7 +179,7 @@ if TARGET=="forge1201":
           }catch(Throwable e){System.out.println("RGB_PORT_CNB_AFTER_REFRESH_ERROR "+e);}
        }
 '''
-    logic=logic.replace(probe_line,probe_line+"\\n"+post,1)
+    logic=logic.replace(probe_line,probe_line+"\n"+post,1)
 
 if TARGET=="fabric1211":
     probe.write_text('''package com.rgbblocks.ci;
