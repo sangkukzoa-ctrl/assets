@@ -31,7 +31,7 @@ with patch("tess_backend.read",side_effect=[
 comma="단어 하나, 둘 셋 입니다"
 with patch("tess_backend.read",side_effect=[
         (comma,[],86),("",[],0),
-        ("단어 하나. 둘 셋",[],92),(comma,[],87)]):
+        ("단어 하나. 둘 셋 입니다",[],92),(comma,[],87)]):
     assert recover_empty_caption(photo,"","한국어")==comma
 
 # Literal spacing matters. A low-confidence raw vote cannot outvote a
