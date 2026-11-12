@@ -1,3 +1,36 @@
+# 심안(心眼) 3차 — 2026-11-12 실개발 결과 (최신)
+
+> **아래의 원본 2차→3차 인수인계는 당시 기록으로 유지합니다. 현재 상태 판단에는 이 3차 결과를 우선 적용하십시오.**
+
+## 공개 및 검증 완료
+
+- **v1.5.8 Beta 공개 완료.** Chrome for Testing의 v1.5.7 압축해제 확장프로그램을 등록하고 실행 중인 상태에서 같은 경로 덮어쓰기→기존 ID 재로드→새 백그라운드 ACK 확인 **실제 E2E 통과**.
+- 통과 run: https://github.com/sangkukzoa-ctrl/assets/actions/runs/43166165509 (결론 success)
+- 이 run에서 Windows EXE 컴파일, 실제 최초 설치/제자리 업데이트/반복 업데이트/사용자 관리 외 파일 보존, Node 회귀 테스트 8종, 실브라우저 Chrome E2E, 버전별/고정 릴리스 갱신이 모두 성공.
+- 개별 릴리스: https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.8
+- 블로그 유지 고정 릴리스: https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta
+- 고정 설치 EXE: https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/SimanSetup.exe
+- 고정 배포 ZIP: https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip
+- 영구 배포 파일은 공개 검사 `.github/workflows/siman-public-download-check.yml`에서도 SHA-256 및 공개 다운로드를 확인. v1.5.8 성공 workflow_run을 검사 트리거 목록에 추가함.
+
+## 3차 개발에서 실제 해결한 문제
+
+1. C# 설치 관리자 `InstallerRevision=6`. 단순히 기존 `chrome-extension://...` 옵션 페이지를 다시 여는 대신 Chrome/Edge 자체 관리 UI의 **확장 ID 일치 항목**에만 재로드를 요청. ID/폴더/대화 원문·색인 보존, ACK를 받아야 설치 관리자 전체 적용 완료 처리.
+2. 기존 실패 상태를 CDP **읽기 전용** 검사로 분리: 테스트 Chrome의 개발자 모드 OFF에서는 덮어쓰기 뒤 해당 확장 카드가 `ENABLED → DISABLED`, 새 확장 URL은 `ERR_BLOCKED_BY_CLIENT`, ACK 0/1이 재현되었음. v1.5.7과 v1.5.8의 manifest 권한은 동일해서 새 권한 승인을 원인으로 보지 않음.
+3. 실 E2E fixture에서 `chrome://extensions`의 개발자 모드를 **테스트용 임시 프로필에서만** ON (nested Shadow DOM 토글을 찾아 클릭). 이 압축해제 확장 환경에서 실제 Windows 설치·확장 재로드·ACK E2E 성공. 사용자의 프로필 설정 파일을 직접 수정하지 않음.
+4. Chrome UI 관리·CDP 검증용 스크립트: `siman/development/tests/v158_browser_manager_probe.cjs` (test-only). 실브라우저 진단 URL의 일회용 token 로그 출력 최소화.
+5. Windows .NET Framework 4.8 UI Automation 컴파일에 `WindowsBase.dll` 추가. 실행 가능 EXE 및 ZIP 생성 성공.
+
+## 여전히 확인할 부분
+
+- **성공을 실증한 환경은 Chrome for Testing 157 및 개발자 모드 ON 압축해제 확장.** Edge 실브라우저, 개발자 모드 OFF, 사용자 계정의 특수 프로필 등에 동일 결과를 확인하는 후속 E2E가 필요.
+- 기존 대화 수집량 및 일부 서비스 수집기 관련 미완료 항목은 원전 2차 인수인계의 기록을 그대로 유지한다.
+- 사용자가 `진행`이라고 하면 **v1.5.8에서 출발**해 추가 브라우저 호환성과 실사용 재현을 확인. v1.5.7로 후퇴하거나 기존 소스를 재구성하지 말 것.
+
+---
+
+# 원본: 2차→3차 인수인계 (2026-11-12 당시 기록)
+
 # 심안(心眼) 3차 — 즉시 개발 재개 인수인계 (2026-11-12 KST)
 
 이 파일은 「유틸 프로그램 개발」 프로젝트의 「심안(PC 유틸) 2차」에서 진행 중이던 실제 GitHub 코드 변경·실브라우저 검증·빌드·사용자 지시를 3차 세션으로 넘기기 위한 문서입니다.
