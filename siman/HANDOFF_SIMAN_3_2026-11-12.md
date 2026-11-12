@@ -21,7 +21,8 @@
 
 ## 빌드·배포 실적
 
-- **Windows CI 성공:** https://github.com/sangkukzoa-ctrl/assets/actions/runs/43190906315
+- **최종 Windows CI 성공 (ChatLLM 상태 수정 포함):** https://github.com/sangkukzoa-ctrl/assets/actions/runs/43191539832
+- 고정 Beta 공개 다운로드·SHA-256 검사 성공: https://github.com/sangkukzoa-ctrl/assets/actions/runs/43192089866
 - Node 회귀 **10종 통과**, Windows EXE 실제 신규 설치·제자리 덮어쓰기·반복 실행/사용자 파일 보존 검사 통과.
 - Chrome for Testing에서 이전 **v1.5.9 → v1.5.10** 자동 갱신, 동일 확장 ID 유지·실제 백그라운드 ACK 검증 성공.
 - 최신 버전 릴리스 https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.10
