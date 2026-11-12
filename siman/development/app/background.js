@@ -1,4 +1,4 @@
-/* Siman v1.5.10 — one-shot self-update handshake. Never touches chat archives. */
+/* Siman v1.5.11 — one-shot self-update handshake. Never touches chat archives. */
 'use strict';
 const KEY='siman:updater:pending';
 const PROVIDERS=['https://apps.abacus.ai/*','https://*.abacus.ai/*',
