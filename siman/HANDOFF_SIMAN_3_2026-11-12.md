@@ -1,3 +1,48 @@
+# 심안(心眼) v1.5.12 — 실제 사용자 오류 검증 및 배포 완료 (2026-11-12 KST)
+
+> **현재 최신 공개 Beta는 v1.5.12입니다.** 이 문서 아래의 v1.5.11, v1.5.10, v1.5.9 및 이전 기록은 당시 상태로 보존합니다. 후속 세션 '진행'은 반드시 이 최신 상태에서 이어가십시오.
+
+## 사용자 요구/실측 근거
+
+사용자 제공 두 TXT:
+- `/mnt/data/Siman_v1.5.11_Debug_20261112_202625.txt` — 2026-11-12 20:26 KST. ChatLLM 301/301 완료, Claude 112/112, DeepSeek 39/39. Gemini 100건 발견, 97 완료, 3건 hNvQHb 웹 RPC 응답 프레임 분석 실패. Grok 0건 · **GET /rest/app-chat/conversations → HTTP 401**. ChatGPT 647 발견 / 532 완료 / 114 pending + 1 retry. 당시 ChatGPT 세션 수집 재개가 진행되고 있었음.
+- `/mnt/data/심안 1.5.11 크롬확장프로그램 오류.txt` — 총 4,975줄. `content.js` 동일 코드가 Chrome 관리 UI 복사 형태로 약 13회 반복되지만, **예외 문구 및 stack trace 자체가 없음**. Chrome 오류 카드의 정확한 메시지를 이 파일만으로 특정하면 안 됨.
+- 실제 Grok 401은 계정 로그인 상태가 유효하지 않거나 웹 API 인증이 거절됐다는 뜻. 사용자가 Grok을 사용하지 않았으므로 진단 결과를 '대화 0건 성공'으로 오판하면 안 됨. 실제 HTTP 200 응답의 빈 목록과 구분 필요.
+- Gemini 100건은 전체 계정 목록을 뜻하지 않음. `MaZiqc` 웹 API가 최대 100건/페이지를 반환하고 응답 `payload[1]`에 다음 페이지 커서를 준다는 공개 오픈소스 교차검증 결과를 확인 (egroup-labs/kept). 구버전은 `[1000]` 단발 요청으로 첫 페이지를 전체 목록으로 오판했음.
+- ChatGPT 추가 73건 완료/429 이후 남은 115건: 원문 재개는 작동했으나, 매번 7페이지 전부 다시 조회하는 비용이 있음.
+
+## v1.5.12 수정 요지
+
+1. **Grok HTTP 401/403:** `grok-web.js`에서 `authRequired` 식별, `page.js` `GROK_AUTH` 단계. 상태 `authRequired=true` `checked=false` `complete=false`로 표시; 로그인된 웹에서 HTTP 200 정상 빈 목록이면 별도로 `found=0`, `complete=true`. 화면에는 '로그인 확인 대기'를 일괄수집 결과에 분리 표기. 인증 중 만료 시 기존 원문 보존, 재시도.
+2. **Gemini 목록 전체 탐색:** `gemini-web.js` `page()`와 `page.js`에서 `[100,cursor,[0,null,1]]` 최대 200페이지, cursor 중복 감지, 실제 마지막 커서 없는 경우에만 `listComplete=true`. 기존 Gemini 97건 원문 및 새로 발견되는 오래된 계정 기록 유지.
+3. **Gemini 원문 3건 재시도:** `hNvQHb` 프레임을 읽지 못한 경우 `GEMINI_EMPTY_FRAME`으로 분리. 개별 대화 최대 2회 재시도, 인증 오류 발생 시 웹 세션 토큰만 해당 MAIN 세계에서 다시 확보, 429시 중단. 실패 기록은 완료라 표시하지 않음.
+4. **ChatGPT 자동 재개 비용 최적화:** `content.js` 저장소 통신 `CATALOG_GET` (로컬 세션 id/title만), `page.js` `scanChatGPT({resumeOnly:true})`, `search.js` 자동 재개에서 옵션 전달. 인증 세션 호출 후 목록 647건을 재조회하지 않고 기존 저장된 카탈로그로 건너뛰며 미수집 원문을 조회. *사용자가 수동 전체 수집* 시에는 새 대화를 찾기 위한 서버 목록 갱신 유지. 기존 서버 429 15분 보호 대기 우회 없음.
+5. **Chrome 확장 구 컨텍스트 정리:** `content.js`가 등록한 메시지/크롬 런타임 리스너, MutationObserver, 주기/디바운스 타이머는 확장프로그램 컨텍스트가 만료되면 해제. 이미 주입된 코드의 중복 부트스트랩 방지 유지. Chrome 관리 UI의 기존 오류 카드 기록 자체를 프로그램이 삭제하는 것은 아님. 새 오류 재발 여부는 실제 사용자 브라우저에서 재확인 필요.
+6. **설치·배포 유지:** `SimanSetup.cs` v1.5.12, InstallerRevision=10, 새 `siman-update-1512.html/.js`. 기존 확장 ID, 사용자 브라우저 내 검색 색인, 설치 폴더, 대화 원문, 블로그 고정 릴리스 URL 보존.
+
+## 추가 회귀/릴리스 증거
+
+- **Windows 빌드 성공:** https://github.com/sangkukzoa-ctrl/assets/actions/runs/43211548182
+- Node 회귀 **총 14종**. 새 `v1512_grok_auth.test.cjs` (401 vs 빈 200), `v1512_gemini_web.test.cjs` (다음 페이지·빈 프레임 재시도), `v1512_chatgpt_resume.test.cjs` (로컬 목록 재개·중복 목록 조회 없음), `v1512_chrome_lifecycle.test.cjs` (만료된 content 스크립트 종료) 통과. 기존 Grok·Gemini·DeepSeek 및 데이터·429 테스트 유지.
+- Windows EXE 실제 설치 및 v1.5.11→v1.5.12 제자리 갱신·사용자 파일 보존·반복 설치/롤백, Chrome for Testing 압축해제 확장 버전 변경, 동일 ID·백그라운드 ACK 모두 성공.
+- 버전별 릴리스: https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.12
+- 블로그 고정 Beta: https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta
+- 고정 EXE: https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/SimanSetup.exe
+- 고정 ZIP: https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip
+- 공개 다운로드/해시 검증 성공: https://github.com/sangkukzoa-ctrl/assets/actions/runs/43211759908
+- 이전 v1511 출시는 workflow_dispatch 전용으로 동결, 새 `.github/workflows/siman-v1512-release.yml`이 최신 배포 담당.
+- `siman/development/RELEASE_NOTES_v1.5.12.md` 생성. 네이버 블로그용 TXT·Windows 설치 안내 업데이트.
+
+## 다음 실제 계정 확인 항목
+
+- 새로운 v1.5.12에서 Gemini **100건을 초과하는지** / 3건의 빈 응답이 재시도 후 수집됐는지. 목록 cursor는 공개 웹 구현에 근거하며 실사용 결과는 별도로 확인해야 함.
+- Grok은 사용자 계정의 HTTP 401 상태가 인증 관련임을 확인. 실제 Grok 대화를 나눈 적 없는 사용자에 대하여 강제 로그인/테스트 대화 생성은 하지 않음. 나중에 로그인 상태에서 200+빈 배열이 반환되면 그때 실제 0건으로 기록.
+- Chrome 관리 UI의 기존 오류 복사 TXT에 실제 예외 메시지는 없으므로, 새 버전에서 신규 오류 재발을 객관적으로 비교. 가능하면 오류 상세 텍스트·서비스 페이지/재현 단계도 확인.
+- ChatGPT 115건 잔여: 서버 HTTP 429 이후 같은 검색 페이지와 사이트 탭을 열어둔 자동 이어받기 추적. 잔여 세션은 로컬에 보존. 완전한 서버 요청 제한 해제를 주장하지 말 것.
+- 현재 수집은 각 AI 공식 사이트 탭 안에서 실행되므로 **수집 중 사이트 탭을 닫으면 중단**됨. 화면 최소화/다른 탭 이동은 가능. 사용자가 나중에 탭 독립 수집을 요구하면 별도의 설계/검증 필요.
+
+---
+
 # 심안(心眼) v1.5.11 — Grok 공식 웹 수집기 구현·배포 인수인계 (2026-11-12 KST)
 
 > **현재 최신 고정 Beta = v1.5.11.** 이 문서 아래의 v1.5.10 및 이전 버전 내역은 과거 작업 기록으로 보존합니다. 다음 세션의 '진행'은 v1.5.11 기준으로 이어갑니다.
