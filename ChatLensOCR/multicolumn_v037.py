@@ -24,10 +24,24 @@ def _read(region,language,precise):
     big=region.resize((region.width*scale,region.height*scale),
                       Image.Resampling.LANCZOS) if scale>1 else region
     text,boxes,confidence=read(big,"범용",language,psm=6)
-    if not text.strip() or confidence<32:
+    if not text.strip():
+        # A longer OCR response is NOT more accurate. In particular, item
+        # icons, photographs and box borders can generate many imaginary
+        # words. Preserve every nonempty Tesseract transcription instead of
+        # replacing it on string-length or grammar-likelihood grounds.
         items=recognize(big,language,False)
-        candidate="\n".join(r["text"] for r in merge_rows(items))
-        if len(candidate)>len(text):text=candidate
+        verified_boxes=[
+            item for item in items
+            if float(item.get("score",0))>=.85
+            and len(str(item.get("text","")).strip())>=2
+            and (item["box"][3]-item["box"][1])<max(60,big.height*.15)
+        ]
+        if len(verified_boxes)>=2:
+            candidate="\n".join(r["text"] for r in merge_rows(verified_boxes))
+            if candidate.strip():
+                text=candidate
+                boxes=verified_boxes
+                confidence=100*sum(x["score"] for x in verified_boxes)/len(verified_boxes)
     mapped=[]
     for item in boxes:
         x0,y0,x1,y1=item["box"]
