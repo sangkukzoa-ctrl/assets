@@ -29,6 +29,7 @@ window.addEventListener('message',ev=>{void (async()=>{if(ev.source!==window||ev
    else if(d.action==='SAVE'){await SimanStore.save(d.record);out.ok=true}
    else if(d.action==='CATALOG'){await SimanStore.discover(p,d.entries||[]);out.ok=true}
    else if(d.action==='LOOKUP'){out.completeIds=await SimanStore.completeIds(p,d.ids||[]);out.ok=true}
+   else if(d.action==='CATALOG_GET'){const dict=(await SimanStore.getCatalogs())[p]||{};out.entries=Object.entries(dict).map(([id,item])=>({id,title:item.title||'',projectName:item.projectName||''}));out.ok=true}
    else if(d.action==='MARK'){await SimanStore.mark(p,d.id,d.status,d.reason);out.ok=true}
    else if(d.action==='MARK_MANY'){await SimanStore.markMany(p,d.ids||[],d.status);out.ok=true}
   }catch(e){out.error=e.message;await storeEvent('WARN',{provider,text:'저장소 작업 실패: '+e.message}).catch(()=>{})}
