@@ -51,6 +51,7 @@ for text in ("restore_white_subtitle","recover_empty_caption",
              "detect_mode(img)"):
     assert text in layout,text
 assert "detail_evidence(image)" in shop
+assert "from table_v0419 import analyze as table_read" in layout
 assert "icon_grid_title_crop_bottom" in guard
 assert 'VERSION = "0.4.19"' in version
 print("v0.4.19 requirements contract: %d UI/storage/review/offline "
