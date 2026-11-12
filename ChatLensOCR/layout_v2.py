@@ -79,7 +79,15 @@ def detect_mode(img):
     bg=np.median(sample.reshape(-1,3),axis=0)
     yellow=((rgb[:,:,0]>225)&(rgb[:,:,1]>165)&(rgb[:,:,2]<145)).sum()
     if yellow>140 and bg[2]>bg[0]+12 and bg[1]>bg[0]+8 and bg[2]<245:
-        return "카카오톡"
+        # Pastel KakaoTalk conversation backgrounds are flat around their
+        # modal color. Vivid full-screen games can have the very same blue
+        # median and many yellow effects, but their background is textured.
+        # Five real Kakao screenshots vs two actual FF14 game screenshots
+        # measured background matches of 65-86% vs 2-5% at +/-12 RGB.
+        flat=float((np.max(np.abs(rgb.astype(np.int16)-bg),
+                           axis=2)<12).mean())
+        if flat>=.25:
+            return "카카오톡"
     # A dark panel with pale labels is not necessarily FFXIV. In the
     # 166-image offline field set, Unity/PlayMaker inspector panes, product
     # cards, and movie subtitles all matched the old black+light shortcut.
