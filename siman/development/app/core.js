@@ -49,10 +49,46 @@ function htmlMessages(html){if(!html||typeof html!=='string'||typeof DOMParser==
  if(!out.length){let text=(d.body?.textContent||'').trim();if(text)out.push({index:0,role:'unknown',text})}
  return out;
 }
-function parseImport(data,filename=''){let files=[];if(Array.isArray(data)){for(const x of data){let c=x?.mapping?chatgpt(x):x?.chat_messages?claude(x):x?.deploymentConversationId?chatllm(x):null;if(c&&c.messages.length)files.push(c)}}else if(typeof data==='object'&&data){let arr=data.conversations||data.chats||data.items||data.data;if(Array.isArray(arr))files=parseImport(arr,filename);else{const c=data.mapping?chatgpt(data):data.chat_messages?claude(data):data.deploymentConversationId?chatllm(data):null;if(c?.messages.length)files.push(c)}}return files}
+// Gemini browser-export JSON and official Google Takeout My Activity (Gemini Apps).
+// Activity data can contain only user-visible prompts; those records stay partial.
+function geminiImport(data,filename=''){
+ const result=[];
+ if(data?.source==='gemini.google.com'&&Array.isArray(data.conversations)){
+  for(const row of data.conversations){
+   const raw=String(row.url||'').match(/gemini\.google\.com\/app\/([\w-]+)/);
+   const id=raw?.[1]||String(row.id||'');
+   if(!/^[\w-]{8,128}$/.test(id))continue;
+   const messages=(row.messages||[]).map((m,i)=>msg({role:m.role||m.author||'unknown',text:m.content||m.text||'',index:i},i)).filter(Boolean);
+   if(!messages.length)continue;
+   result.push(record('gemini',id,row.title,messages,{url:row.url,complete:false,source:'gemini-web-export'}));
+  }
+  return result;
+ }
+ const items=Array.isArray(data)?data:Array.isArray(data?.activities)?data.activities:[];
+ if(!/gemini|myactivity/i.test(filename)||!items.length)return [];
+ for(const [index,row] of items.entries()){
+  if(!row||typeof row!=='object')continue;
+  const product=String([row.header,...(row.products||[])].join(' '));
+  if(!/gemini/i.test(product) && !/gemini/i.test(String(row.titleUrl||'')))continue;
+  const details=Array.isArray(row.details)?row.details.map(x=>typeof x.value==='string'?x.value:'').filter(Boolean):[];
+  const value=String(row.description||details.join('\n')||row.title||'').trim();
+  if(!value)continue;
+  const existing=String(row.titleUrl||'').match(/gemini\.google\.com\/app\/([\w-]+)/)?.[1];
+  // Stable local id for activity items without a reusable Gemini conversation URL.
+  const signature=String(row.time||'')+'|'+index+'|'+value;
+  let hash=2166136261;for(let i=0;i<signature.length;i++)hash=Math.imul(hash^signature.charCodeAt(i),16777619);
+  const id=existing||'activity-'+(hash>>>0).toString(16).padStart(8,'0');
+  result.push(record('gemini',id,String(row.title||'Gemini 과거 활동'),[{role:'user',text:value}],{
+   url:existing?'https://gemini.google.com/app/'+existing:'',
+   complete:false,source:'gemini-takeout-activity',updated:row.time||''}));
+ }
+ return result;
+}
+function parseImport(data,filename=''){
+ const gemini=geminiImport(data,filename);if(gemini.length)return gemini;let files=[];if(Array.isArray(data)){for(const x of data){let c=x?.mapping?chatgpt(x):x?.chat_messages?claude(x):x?.deploymentConversationId?chatllm(x):null;if(c&&c.messages.length)files.push(c)}}else if(typeof data==='object'&&data){let arr=data.conversations||data.chats||data.items||data.data;if(Array.isArray(arr))files=parseImport(arr,filename);else{const c=data.mapping?chatgpt(data):data.chat_messages?claude(data):data.deploymentConversationId?chatllm(data):null;if(c?.messages.length)files.push(c)}}return files}
 function snippet(str,q,around=115){let norm=clean(str),at=norm.indexOf(clean(q));if(at<0)return str.slice(0,around*2);return (at>around?'…':'')+str.slice(Math.max(0,at-around),Math.min(str.length,at+q.length+around))+(at+q.length+around<str.length?'…':'')}
 function find(records,query,filters={},limit=300){const q=clean(query.trim());if(!q)return [];let out=[];for(const r of records){if(filters.provider&&r.provider!==filters.provider)continue;const title=clean(r.title),titleAt=title.indexOf(q);if(titleAt>=0)out.push({key:r.key,provider:r.provider,title:r.title,projectName:r.projectName||'',index:-1,role:'제목',snippet:r.title,url:r.url});
  for(const m of r.messages||[]){if(filters.role&&filters.role!=='all'&&m.role!==filters.role)continue;let t=clean(m.text),at=t.indexOf(q);if(at<0)continue;out.push({key:r.key,provider:r.provider,title:r.title,projectName:r.projectName||'',index:m.index,role:m.role,snippet:snippet(m.text,q),url:r.url,uid:m.uid});if(out.length>=limit)return out}}
  return out}
-G.SimanCore={PROVIDERS,clean,providerFromUrl,sourceUrl,textFrom,record,msg,chatgpt,claude,chatllm,htmlMessages,parseImport,find,pickArray};
+G.SimanCore={PROVIDERS,clean,providerFromUrl,sourceUrl,textFrom,record,msg,chatgpt,claude,chatllm,htmlMessages,parseImport,geminiImport,find,pickArray};
 })(globalThis);
