@@ -3,7 +3,7 @@
 심안은 공식 GitHub의 고정 다운로드 주소에서 최신 버전을 제공합니다.
 개발자: 2bornot
 
-■ 최신 버전: v1.5.10 Beta
+■ 최신 버전: v1.5.11 Beta
 
 기존 사용자는 SimanSetup.exe를 실행하기만 하면 동일한 설치 경로에서 기존 코드를 자동으로 덮어씁니다.
 이전처럼 확장프로그램 삭제·재등록, JSON 원문 백업·복원, 설치 폴더 재선택을 반복하지 않아도 됩니다.
@@ -19,9 +19,9 @@ https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta
 고정 ZIP 주소
 https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip
 
-■ v1.5.10 변경: ChatGPT HTTP 429 자동 재개 · Gemini 과거기록 수집 · ChatLLM 불필요한 재조회/크롬 확장 오류 대응
+■ v1.5.11 변경: Grok 공식 웹 계정 과거 대화 전체 수집 추가 · ChatGPT/Claude/DeepSeek/Gemini/ChatLLM 기존 기능 유지
 
 ■ 문의 및 오류 재현
 심안 메뉴의 「진단 로그 TXT 저장」으로 오류를 기록하여 전달해 주세요.
-현재 공개 테스트판으로, ChatLLM·Claude·ChatGPT·DeepSeek 공식 웹·Gemini 공식 웹의 계정 대화 수집을 지원합니다. Gemini Google Takeout JSON 활동 가져오기 또한 가능합니다. Gemini·Grok은 방문한 대화 화면을 저장합니다.
+현재 공개 테스트판으로, ChatLLM·Claude·ChatGPT·DeepSeek 공식 웹·Gemini 공식 웹·Grok 공식 웹의 계정 대화 수집을 지원합니다. Gemini Google Takeout JSON 활동 가져오기 또한 가능합니다. Gemini·Grok은 방문한 대화 화면을 저장합니다.
 Chrome 웹스토어 및 Windows 공인 코드서명은 아직 미완료입니다.
