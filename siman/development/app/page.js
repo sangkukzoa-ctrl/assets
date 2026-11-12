@@ -85,6 +85,11 @@ async function scanGrok(){
   try{body=await g.getJson('/rest/app-chat/conversations?'+params)}
   catch(e){
    if(e.status===429){pausedError={retryAt:Date.now()+Math.max(MIN_RETRY_MS,e.retryAfterMs||0)};break}
+   if(e.status===401||e.status===403){
+    trace('GROK_AUTH','Grok 웹 HTTP '+e.status+' · 계정 인증 필요, 대화 존재 여부 미확인','WARN');
+    progress('Grok 계정 로그인 필요 · 대화 수 확인 불가',0,0);
+    return report(0,0,0,0,0,false,{listComplete:false,authRequired:true,authStatus:e.status,checked:false});
+   }
    throw e;
   }
   const list=g.validList(body);
@@ -99,7 +104,7 @@ async function scanGrok(){
  await register('grok',rows);
  const cached=await completeIds('grok',rows.map(x=>x.id));
  await markMany('grok',[...cached],'complete');
- let read=0,skipped=0,failed=0,processed=0;
+ let read=0,skipped=0,failed=0,processed=0,authRequired=false;
  const counts=()=>({read,skipped,failed,done:processed,total:rows.length});
  for(const item of rows){
   if(cancelled||pausedError)break;
@@ -113,6 +118,12 @@ async function scanGrok(){
     else{failed++;await mark('grok',item.id,'failed','저장 실패')}}
    else{failed++;await mark('grok',item.id,'failed','빈 원문')}
   }catch(e){
+   if(e.status===401||e.status===403){
+    authRequired=true;
+    await mark('grok',item.id,'retry','Grok 로그인 세션 만료');
+    trace('GROK_AUTH','Grok 수집 중 인증 만료 · 다음 로그인 시 재개','WARN');
+    break;
+   }
    if(e.status===429){
     pausedError={retryAt:Date.now()+Math.max(MIN_RETRY_MS,e.retryAfterMs||0)};
     await mark('grok',item.id,'retry','HTTP 429');
@@ -130,8 +141,8 @@ async function scanGrok(){
  }
  progress(pausedError?'429 제한 · 재개 대기':'Grok 수집 종료',processed,rows.length,{...counts(),retryAt:pausedError?.retryAt||0});
  return report(rows.length,read,skipped,failed,processed,
-  listComplete&&!pausedError&&!cancelled&&!failed&&processed===rows.length,
-  {listComplete,paused:!!pausedError,retryAt:pausedError?.retryAt||0,cancelled});
+  listComplete&&!pausedError&&!authRequired&&!cancelled&&!failed&&processed===rows.length,
+  {listComplete,authRequired,paused:!!pausedError,retryAt:pausedError?.retryAt||0,cancelled});
 }
 // Gemini official web history, separate from its previously visit-only DOM saving.
 async function scanGemini(){
