@@ -24,10 +24,10 @@ if(applyParams.get('siman_auto_apply')==='1'){
 }
 const $=id=>document.getElementById(id);
 const PROVIDERS=SimanCore.PROVIDERS;
-const BASE={chatllm:'https://apps.abacus.ai/chatllm/',chatgpt:'https://chatgpt.com/',claude:'https://claude.ai/'};
+const BASE={chatllm:'https://apps.abacus.ai/chatllm/',chatgpt:'https://chatgpt.com/',claude:'https://claude.ai/',deepseek:'https://chat.deepseek.com/'};
 let cache=new Map(),hits=[],selected=null,record=null,lastQ='',searchId=0,lastStatus='',refreshTimer=0;
 let batchRunning=false,batchStop=false,batchCurrent='',batchCompleted=[];
-const BULK=['chatllm','claude','chatgpt'];
+const BULK=['chatllm','claude','deepseek','chatgpt'];
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const debug=(stage,message,level='INFO',provider='system')=>SimanStore.appendDebug({stage,message,level,provider}).catch(()=>{});
 
@@ -61,7 +61,7 @@ async function loadRecords(){const arr=await SimanStore.all();cache=new Map(arr.
 function timeLabel(ms){if(!ms)return '';const diff=Number(ms)-Date.now();if(diff<=0)return '재시도 가능';const sec=Math.ceil(diff/1000);return '재시도까지 '+(sec>=3600?Math.floor(sec/3600)+'시간 ':'')+(sec>=60?Math.floor(sec%3600/60)+'분 ':'')+(sec%60)+'초'}
 async function renderStatus(){try{const state=await SimanStore.getStatus(),lines=[];
  for(const [p,s] of Object.entries(state.active)){lines.push(`${PROVIDERS[p]||p} · ${s.stage||'수집 중'}`);lines.push(`처리 ${s.done||0}건 · 발견 ${s.total||0}건 · 신규 완료 ${s.read||0}건 · 기존 완료 ${s.skipped||0}건 · 실패 ${s.failed||0}건`);if(s.retryAt)lines.push(timeLabel(s.retryAt));if(s.details)lines.push(s.details)}
- for(const [p,s] of Object.entries(state.last)){if(s.error){lines.push(`${PROVIDERS[p]||p}: ${s.error}`);continue}lines.push(`${PROVIDERS[p]||p} 마지막 수집: 발견 ${s.found||0}건 · 이번 원문 저장 ${s.read||0}건 · 기존 완료 ${s.skipped||0}건 · 실패 ${s.errors||0}건 · 남음 ${s.remaining||0}건${s.complete?' · 목록·원문 완료':' · 전체 목록 확인 중'}`);if(p==='chatllm'&&s.detailVerified!=null)lines.push(`ChatLLM 상세 응답: 완결 ${s.detailVerified}건 · 추가 페이지 필요 ${s.detailPartial||0}건 · 전체 계정 목록 완결은 별도 미확인`);if(s.retryAt)lines.push(timeLabel(s.retryAt));if(s.paused)lines.push('HTTP 429 제한으로 추가 요청을 중단했습니다. 재시도 가능 시각 이후 수집·재개를 실행하세요.')}
+ for(const [p,s] of Object.entries(state.last)){if(s.error){lines.push(`${PROVIDERS[p]||p}: ${s.error}`);continue}lines.push(`${PROVIDERS[p]||p} 마지막 수집: 발견 ${s.found||0}건 · 이번 원문 저장 ${s.read||0}건 · 기존 완료 ${s.skipped||0}건 · 실패 ${s.errors||0}건 · 남음 ${s.remaining||0}건${s.complete?' · 목록·원문 완료':' · 전체 목록 확인 중'}`);if(p==='chatllm'&&s.observedComplete)lines.push('ChatLLM 발견된 세션 원문 수집 완료 · 전체 계정 목록 완결은 별도 미확인');if(p==='chatllm'&&s.detailVerified!=null)lines.push(`ChatLLM 상세 응답: 완결 ${s.detailVerified}건 · 추가 페이지 필요 ${s.detailPartial||0}건 · 전체 계정 목록 완결은 별도 미확인`);if(s.retryAt)lines.push(timeLabel(s.retryAt));if(s.paused)lines.push('HTTP 429 제한으로 추가 요청을 중단했습니다. 재시도 가능 시각 이후 수집·재개를 실행하세요.')}
  const text=lines.join('\n');if(text!==lastStatus){$('progress').textContent=text;lastStatus=text}
  $('diagnostic').textContent=(state.warnings||[]).slice(-3).join('\n');}catch(e){$('diagnostic').textContent='수집 상태 읽기 실패: '+e.message}}
 function doSearch(){const q=$('query').value.trim();lastQ=q;const h=$('hits');const id=++searchId;
@@ -147,7 +147,7 @@ async function tabFor(p){const all=await chrome.tabs.query({});let t=all.find(x=
 async function installBridge(tabId){const target={tabId};
  // Inject into BOTH isolated and page worlds, and verify that the version matches.
  await chrome.scripting.executeScript({target,world:'ISOLATED',files:['core.js','store.js','content.js']});
- await chrome.scripting.executeScript({target,world:'MAIN',files:['core.js','network.js','page.js']});
+ await chrome.scripting.executeScript({target,world:'MAIN',files:['core.js','network.js','deepseek-web.js','page.js']});
  let isolated;
  for(let attempt=0;attempt<8;attempt++){
   isolated=await chrome.scripting.executeScript({target,world:'ISOLATED',func:()=>({ready:!!globalThis.__simanContentV155,storage:!!chrome.storage?.local})});
@@ -230,7 +230,7 @@ async function awaitSyncResult(p,startedAt){
  while(!batchStop){
   const state=await SimanStore.getStatus();
   const done=state.last[p];
-  if(!state.active[p]&&Number(done?.finishedAt||0)>=startedAt)return {ok:!!done.complete,summary:done};
+  if(!state.active[p]&&Number(done?.finishedAt||0)>=startedAt)return {ok:!!done.complete||(p==='chatllm'&&!!done.observedComplete),summary:done};
   if(Date.now()-lastUpdate>5000){
     const s=state.active[p];batchLabel('진행 중: '+PROVIDERS[p]+'\n'+(s?.stage||'서버 응답 대기')+' · '+(s?.done||0)+' / '+(s?.total||'조회 중')+'건\n완료한 서비스: '+(batchCompleted.join(', ')||'없음'));
     lastUpdate=Date.now();
@@ -254,7 +254,7 @@ async function runBatch(){
  if(batchRunning)return;
  batchRunning=true;batchStop=false;batchCompleted=[];
  $('bulkStart').disabled=true;$('bulkStop').disabled=false;
- await debug('BULK_START','전체 일괄수집 시작 (ChatLLM → Claude → ChatGPT)');
+ await debug('BULK_START','전체 일괄수집 시작 (ChatLLM → Claude → DeepSeek 웹 → ChatGPT)');
  let failures=[];
  try{for(const p of BULK){
   if(batchStop)break;
@@ -272,7 +272,7 @@ async function runBatch(){
   }
   if(batchStop)break;
   if(startError)failures.push(PROVIDERS[p]+': '+startError);
-  else if(done?.ok)batchCompleted.push(PROVIDERS[p]);
+  else if(done?.ok)batchCompleted.push(PROVIDERS[p]+(p==='chatllm'&&done.summary?.observedComplete?' (발견 목록 완료)':''));
   else failures.push(PROVIDERS[p]+': '+(done?.summary?.error||done?.error||(done?.summary?.paused?'서버 제한 대기':'미완료')));
  }
  const message=(batchStop?'사용자 중지':'일괄수집 단계 종료')+'\n완료: '+(batchCompleted.join(', ')||'없음')+'\n미완료: '+(failures.join(' / ')||'없음')+'\n자세한 내용은 「진단 로그 TXT 저장」에서 확인할 수 있습니다.';
@@ -294,7 +294,7 @@ $('repair').onclick=async()=>{
   }
  }
  // Previously the repair button ignored all visit-only providers.
- for(const p of ['gemini','deepseek','grok']){
+ for(const p of ['gemini','grok']){
   const list=await chrome.tabs.query({}),existing=list.find(t=>tabMatches(p,t.url));
   if(!existing)continue;
   try{
