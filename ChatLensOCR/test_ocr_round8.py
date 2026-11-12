@@ -49,9 +49,9 @@ assert text_or_unreadable(Image.new("RGB",(22,22),"white"),"") is None
 assert normalize_visible_punctuation("안녕하세요...")=="안녕하세요..."
 
 app=(Path(__file__).resolve().parent/"app.py").read_text(encoding="utf-8")
-assert 'root.title("ChatLens OCR v0.4.18' in app
+assert 'root.title("ChatLens OCR v0.4.19' in app
 assert 'by 2bornot' in app and 'Copyright © 2026 2bornot' in app
-assert 'v0.4.18  ·  오프라인 OCR' in app
+assert 'v0.4.19  ·  오프라인 OCR' in app
 assert '🔎 미인식 찾기' in app
 assert 'def go_unreadable():' in app
 assert 'view.tag_add("sel",' in app
