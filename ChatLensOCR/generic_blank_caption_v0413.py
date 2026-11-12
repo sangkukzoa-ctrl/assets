@@ -6,7 +6,7 @@ plot context, dialogue semantics, personal test data, or a language model.
 """
 import re
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageEnhance
 
 def _line(text):
     candidates=[]
@@ -68,18 +68,47 @@ def recover_empty_caption(image,original,language):
         if line:results.append((line,confidence))
     if len(results)<2:return original
     def confident(value):
-        # tess_backend supplies mean word confidence in 0..100, but
-        # legacy injected tests supply 0..1. Both scales are accepted.
+        # tess_backend returns 0..100; old synthetic tests may inject 0..1.
         normalized=value/100 if value>1 else value
         return normalized>=.65
-    for i,(a,ca) in enumerate(results):
-        for b,cb in results[i+1:]:
-            na,nb=_norm(a),_norm(b)
-            if len(na)<7 or na!=nb:continue
-            # 90% matching is not sufficient: even one different Hangul
-            # glyph can completely change what a speaker actually said.
-            if not (confident(ca) and confident(cb)):continue
-            # This is still OCR agreement, not human-confirmed ground truth.
-            # Preserve the exactly recognized character sequence.
-            return a if ca>=cb else b
+    def exact_vote(candidates):
+        # Preserve ALL literal punctuation and spacing. Normalized-text
+        # agreement can hide meaningful comma/dot or word-boundary errors.
+        for i,(value,certainty) in enumerate(candidates):
+            if len(_norm(value))<7 or not confident(certainty):continue
+            if any(value==alt and confident(score)
+                   for alt,score in candidates[i+1:]):
+                return value
+        return None
+    best=exact_vote(results)
+    if best is not None:
+        return best
+    credible=[(text,confidence) for text,confidence in results
+              if confident(confidence) and len(_norm(text))>=7]
+    if len(credible)<2:return original
+    def is_trailing_pixel_ambiguity(first,second):
+        a,b=_norm(first),_norm(second)
+        if a==b:return True  # punctuation or spacing only
+        # Only a single glyph extra at the VERY END can justify another
+        # pixel read. Never grant near-match permission to a different
+        # interior syllable, missing word or a grammatical paraphrase.
+        return (abs(len(a)-len(b))==1 and
+                (a.startswith(b) or b.startswith(a)))
+    if not any(is_trailing_pixel_ambiguity(a,b)
+               for i,(a,_) in enumerate(credible)
+               for b,_ in credible[i+1:]):
+        return original
+    # If the original three passes were nearly-but-not-exactly aligned,
+    # use additional image variants solely to corroborate an EXISTING
+    # exact literal candidate. New variants cannot contribute new words.
+    sharpened=ImageEnhance.Sharpness(contrast).enhance(1.5)
+    gamma=contrast.point(lambda p:int(((p/255)**.8)*255))
+    for variant in (sharpened,gamma):
+        raw,_,confidence=read(
+            enlarge(variant),"범용",language,psm=6,tess_lang="kor")
+        line=_line(raw)
+        if not line or not confident(confidence):continue
+        for prior,prior_confidence in credible:
+            if line==prior and confident(prior_confidence):
+                return prior
     return original
