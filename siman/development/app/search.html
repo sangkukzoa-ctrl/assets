@@ -1,12 +1,12 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><title>심안 心眼 — 모든 AI 대화 검색</title><link rel="stylesheet" href="style.css"></head><body>
-<header><div class="brand"><span class="emblem">心眼</span><div><h1>심안 <small>SIMAN</small></h1><p>AI 대화 통합 원문 검색 · 모든 데이터는 브라우저에 저장됩니다.</p></div></div><span class="version">v1.5.4</span></header>
+<header><div class="brand"><span class="emblem">心眼</span><div><h1>심안 <small>SIMAN</small></h1><p>AI 대화 통합 원문 검색 · 모든 데이터는 브라우저에 저장됩니다.</p></div></div><span class="version">v1.5.9</span></header>
 <div class="shell"><aside>
  <h2>전체 기록 수집</h2>
- <p class="sub">일괄수집: ChatLLM → Claude → ChatGPT (순차 진행). 기존 완료 기록은 건너뜁니다.</p>
+ <p class="sub">일괄수집: ChatLLM → Claude → DeepSeek 웹 → ChatGPT (순차 진행). 기존 완료 기록은 건너뜁니다.</p>
  <button id="bulkStart" class="primaryAction">▶ 전체 일괄수집 시작</button>
  <button id="bulkStop" class="secondaryAction" disabled>■ 전체 수집 중지</button>
  <div id="batchProgress" class="batchStatus" role="status" aria-live="polite">대기 중 · 아래에서 수집 현황을 확인하세요.</div>
- <p class="sub">Gemini · DeepSeek · Grok: 방문한 대화만 자동 저장하며, 현재 전체 과거 기록 일괄수집에는 포함되지 않습니다.</p>
+ <p class="sub">DeepSeek는 공식 웹(chat.deepseek.com)의 전체 대화 목록·원문 수집을 지원합니다. Gemini·Grok은 방문 대화 저장 방식입니다.</p>
  <h2>검색 데이터 현황</h2><div id="stats">기록 확인 중…</div>
  <div id="progress"></div>
  <div class="diagActions"><button id="saveDebug" class="diagPrimary">진단 로그 TXT 저장</button><button id="copyDiagnostics">요약 진단 복사</button></div>
@@ -15,9 +15,10 @@
   <p class="sub">특정 서비스만 다시 수집하거나 원문 백업을 가져올 때 사용합니다.</p>
   <div class="syncGroup"><button class="sync" data-p="chatllm">ChatLLM 수집·재개</button><button class="stopSync" data-p="chatllm">중지</button></div>
   <div class="syncGroup"><button class="sync" data-p="claude">Claude 수집·재개</button><button class="stopSync" data-p="claude">중지</button></div>
+   <div class="syncGroup"><button class="sync" data-p="deepseek">DeepSeek 공식 웹 수집·재개</button><button class="stopSync" data-p="deepseek">중지</button></div>
   <div class="syncGroup"><button class="sync" data-p="chatgpt">ChatGPT 수집·재개</button><button class="stopSync" data-p="chatgpt">중지</button></div>
   <button id="repair">↻ 열린 탭 연결 재설정</button>
-  <p class="sub">Gemini · DeepSeek · Grok은 방문한 대화만 자동 저장합니다.</p>
+  <p class="sub">Gemini·Grok은 방문 저장, DeepSeek 공식 웹은 목록·원문 수집과 방문 저장을 함께 지원합니다.</p>
   <hr><h2>백업 및 가져오기</h2>
   <label class="upload">ZIP / JSON 기록 가져오기<input type="file" id="importFile" accept=".zip,.json,.jsonl" multiple hidden></label>
   <button id="export">전체 원문 백업 저장</button>
