@@ -19,9 +19,17 @@ function boot(){
   return;
  }
  globalThis.__simanContentV155=true;
+let disposed=false,observer=null,periodic=null,timer=null;
+function alive(){try{return !disposed&&!!chrome.runtime?.id}catch{return false}}
+function shutdown(){
+ if(disposed)return;disposed=true;clearTimeout(timer);
+ if(observer)observer.disconnect();if(periodic)clearInterval(periodic);
+ try{window.removeEventListener('message',handleBridgeMessage)}catch{}
+ try{chrome.runtime.onMessage.removeListener(handleRuntimeMessage)}catch{}
+}
 
 let statusQueue=Promise.resolve();const storeEvent=(kind,d)=>{statusQueue=statusQueue.catch(()=>{}).then(()=>kind==='TRACE'?SimanStore.appendDebug({provider:d.provider||provider,level:d.level||'TRACE',stage:d.stage||'',message:d.text||''}):SimanStore.updateEvent({kind,provider:d.provider||provider,stage:d.stage,done:d.done,total:d.total,read:d.read,skipped:d.skipped,failed:d.failed,remaining:d.remaining,retryAt:d.retryAt,details:d.details,text:d.text,result:d.result}));return statusQueue};
-window.addEventListener('message',ev=>{void (async()=>{if(ev.source!==window||ev.origin!==location.origin||ev.data?.tag!==TAG)return;const d=ev.data;
+function handleBridgeMessage(ev){if(!alive()){shutdown();return}void (async()=>{if(ev.source!==window||ev.origin!==location.origin||ev.data?.tag!==TAG)return;const d=ev.data;
  if(d.kind==='BRIDGE'){
   let out={tag:TAG,kind:'BRIDGE_REPLY',seqId:d.seqId,ok:false};
   try{const p=d.providerName||provider;
@@ -39,9 +47,11 @@ window.addEventListener('message',ev=>{void (async()=>{if(ev.source!==window||ev
   // Chrome invalidates old content-script contexts after unpacked extension reload.
   // Expected late events must not become unhandled rejection cards in chrome://extensions.
   if(!globalThis.chrome?.runtime?.id)return;
-  console.warn('[Siman isolated bridge] ignored stale page event:',String(e?.name||'Error'));
+  if(!alive())shutdown();
+  else console.warn('[Siman bridge] storage event error: '+String(e?.name||'Error'));
  });
-});
+}
+window.addEventListener('message',handleBridgeMessage);
 const nodeSelectors={
  chatgpt:'[data-testid^="conversation-turn"]',
  claude:'[data-testid="user-message"], [data-testid="assistant-message"], .font-claude-response',
@@ -93,13 +103,14 @@ async function noteSkip(stage){
  await SimanStore.appendDebug({provider,level:'INFO',stage:'VISIT_SKIP',message:stage});
 }
 async function capture(){
+ if(!alive()){shutdown();return}
  if(captureBusy)return;
  captureBusy=true;
  try{await captureOnce()}
  catch(e){
   visitHealth={...visitHealth,ok:false,stage:'수집 오류',at:Date.now()};
   // Log only the error category, never a conversation title or message text.
-  await SimanStore.appendDebug({provider,level:'ERROR',stage:'VISIT_ERROR',message:String(e?.name||'Error')+': '+String(e?.message||'').slice(0,180)}).catch(()=>{});
+  if(alive())await SimanStore.appendDebug({provider,level:'ERROR',stage:'VISIT_ERROR',message:String(e?.name||'Error')+': '+String(e?.message||'').slice(0,180)}).catch(()=>{});
  }finally{captureBusy=false}
 }
 async function captureOnce(){
@@ -141,15 +152,17 @@ async function captureOnce(){
  }
 
 }
-let timer,firstQueuedAt=0;
+let firstQueuedAt=0;
 function schedule(force=false){
+ if(!alive()){shutdown();return}
  if(force||!firstQueuedAt)firstQueuedAt=Date.now();
  clearTimeout(timer);
  if(force||Date.now()-firstQueuedAt>=4500){
   firstQueuedAt=0;timer=setTimeout(capture,80);
  }else timer=setTimeout(()=>{firstQueuedAt=0;capture()},900);
 }
-chrome.runtime.onMessage.addListener((d,s,reply)=>{
+function handleRuntimeMessage(d,s,reply){
+ if(!alive()){shutdown();return}
  if(!d||typeof d!=='object')return;
  if(d.type==='CAPTURE_HEALTH'){reply({...visitHealth,route:currentId()?'conversation':'other'});return}
  if(d.type==='CAPTURE_NOW'){capture().then(()=>reply({...visitHealth,route:currentId()?'conversation':'other'})).catch(e=>reply({ok:false,error:String(e?.name||'Error')}));return true}
@@ -169,20 +182,24 @@ chrome.runtime.onMessage.addListener((d,s,reply)=>{
    for(const el of regions){let previous=el.scrollTop;el.scrollTop=0;for(let i=0;i<140;i++){t=locate();if(t)return t;let prev=el.scrollTop;el.scrollTop+=Math.max(el.clientHeight*.9,240);await new Promise(r=>setTimeout(r,65));if(el.scrollTop<=prev+2)break}el.scrollTop=previous}return null}
   let found=await explore();if(!found&&project){let plist=nodes().filter(e=>(e.innerText||e.textContent||'').trim()===project);if(plist.length===1){plist[0].click();await new Promise(r=>setTimeout(r,700));found=await explore()}}
   if(found){found.scrollIntoView({block:'center'});found.click();reply({ok:true})}else reply({ok:false})
- })().catch(e=>reply({ok:false,error:e.message}));return true}
+ })().catch(e=>{if(alive())reply({ok:false,error:e.message})});return true}
 
-});
+}
+chrome.runtime.onMessage.addListener(handleRuntimeMessage);
 let lastUrl=location.href;
 function init(){
+ if(!alive()){shutdown();return}
  if(!document.body){setTimeout(init,250);return}
  schedule(true);
- new MutationObserver(()=>{
+ observer=new MutationObserver(()=>{
+  if(!alive()){shutdown();return}
   if(location.href!==lastUrl){lastUrl=location.href;lastSig='';visitHealth={...visitHealth,stage:'대화 이동 감지',at:Date.now()};schedule(true)}
-  else schedule();
- }).observe(document.body,{subtree:true,childList:true,characterData:true});
+  else if(currentId())schedule();
+ });
+ observer.observe(document.body,{subtree:true,childList:true,characterData:true});
  // A permanently active SPA can mutate more often than the debounce interval.
  // Periodically capture independently so those chats are never starved.
- setInterval(()=>{if(location.href!==lastUrl){lastUrl=location.href;lastSig=''}schedule(true)},12000);
+ periodic=setInterval(()=>{if(!alive()){shutdown();return}if(location.href!==lastUrl){lastUrl=location.href;lastSig=''}if(currentId())schedule(true)},12000);
 }
 globalThis.__SimanVisitHealthV155=()=>({...visitHealth,route:currentId()?'conversation':'other'});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
