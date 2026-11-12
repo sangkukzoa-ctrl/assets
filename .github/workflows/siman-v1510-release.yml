@@ -49,7 +49,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          foreach($test in @('bridge.test.cjs','collectors.test.cjs','deepseek_dom.test.cjs','v154_regressions.test.cjs','v155_archive_integrity.test.cjs','v155_capture_recovery.test.cjs','v156_stall_recovery.test.cjs','v1510_autoapply.test.cjs','v1510_deepseek_web.test.cjs','v1510_gemini_web.test.cjs')){
+          foreach($test in @('bridge.test.cjs','collectors.test.cjs','deepseek_dom.test.cjs','v154_regressions.test.cjs','v155_archive_integrity.test.cjs','v155_capture_recovery.test.cjs','v1510_stall_recovery.test.cjs','v1510_autoapply.test.cjs','v1510_deepseek_web.test.cjs','v1510_gemini_web.test.cjs')){
             node (Join-Path 'source/tests' $test)
             if($LASTEXITCODE -ne 0){throw "Regression failed: $test"}
           }
