@@ -238,7 +238,7 @@ jobs:
             $probePort=Join-Path $root 'DevToolsActivePort'
             if(Test-Path $probePort){
               $devPort=(Get-Content $probePort -TotalCount 1).Trim()
-              node 'source/tests/v158_browser_manager_probe.cjs' $devPort $matches[0].Name
+              node 'source/tests/v158_browser_manager_probe.cjs' $devPort $matches[0].Name --dev-mode
             }
             $installer=(Resolve-Path 'dist/SimanSetup.exe').Path
             $upgrade=Start-Process -FilePath $installer -ArgumentList '--update' -PassThru -Wait
