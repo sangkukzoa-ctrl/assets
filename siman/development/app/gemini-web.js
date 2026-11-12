@@ -50,10 +50,15 @@ function list(payload){
 function history(payload,id,title){
  if(!Array.isArray(payload?.[0]))throw Error('Gemini 웹 원문 응답 구조를 확인할 수 없습니다.');
  const messages=[];
- for(const turn of payload[0]){
+ // Gemini's read RPC returns newest turn first; search results are chronological.
+ for(const turn of [...payload[0]].reverse()){
   if(!Array.isArray(turn))continue;
   const ask=turn[2]?.[0]?.[0];
-  const answer=turn[3]?.[0]?.[0]?.[1]?.[0];
+  const response=turn[3],candidates=Array.isArray(response?.[0])?response[0]:[];
+  const chosen=typeof response?.[3]==='string'?response[3]:'';
+  const candidate=chosen?candidates.find(x=>x?.[0]===chosen):candidates[0];
+  if(chosen&&!candidate)throw Error('Gemini 선택한 답변 분기 확인 실패');
+  const answer=candidate?.[1]?.[0];
   if(typeof ask==='string'&&ask.trim())messages.push({index:messages.length,role:'user',text:ask.trim()});
   if(typeof answer==='string'&&answer.trim())messages.push({index:messages.length,role:'assistant',text:answer.trim()});
  }
