@@ -23,7 +23,7 @@ with patch("tess_backend.read",side_effect=[
 
 # A period and a comma are not interchangeable even when punctuation-
 # stripped strings agree. Only an EXACT extra vote chooses the comma.
-comma="단어 하나, 둘 셋"
+comma="단어 하나, 둘 셋 입니다"
 with patch("tess_backend.read",side_effect=[
         (comma,[],86),("",[],0),
         ("단어 하나. 둘 셋",[],92),(comma,[],87)]):
