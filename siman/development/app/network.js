@@ -48,7 +48,7 @@ function withId(template,id){let url=new URL(template.url),body=template.body,ch
  return changed?{url:url.href,body}:null;
 }
 async function replay(template,{id}={}){const gap=Date.now()-replayedAt;if(replayedAt&&gap<1450)await new Promise(r=>setTimeout(r,1450-gap));replayedAt=Date.now();const arg=id?withId(template,String(id)):null;if(id&&!arg)throw Error('원문 요청 ID 치환 실패');const opts={method:template.method,credentials:'include',cache:'no-store',headers:new Headers(template.headers)};if(template.method==='POST'&&template.body!=null)opts.body=arg?.body??template.body;
- const u=arg?.url||template.url;if(!normUrl(u))throw Error('다른 사이트 요청 차단');const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),60000);opts.signal=ctrl.signal;let r;try{r=await nativeFetch(u,opts);if(!r.ok){const e=Error('HTTP '+r.status+' '+new URL(u).pathname);e.status=r.status;e.retryAfterMs=Math.max(0,Number(r.headers.get('Retry-After')||0)*1000);if(r.status===429){e.ratePaused=true;e.retryAt=Date.now()+Math.max(90000,e.retryAfterMs)}throw e}const d=await r.json();receive(d,new URL(u));return d}finally{clearTimeout(timer)}
+ const u=arg?.url||template.url;if(!normUrl(u))throw Error('다른 사이트 요청 차단');const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),provider==='chatllm'?20000:45000);opts.signal=ctrl.signal;let r;try{r=await nativeFetch(u,opts);if(!r.ok){const e=Error('HTTP '+r.status+' '+new URL(u).pathname);e.status=r.status;e.retryAfterMs=Math.max(0,Number(r.headers.get('Retry-After')||0)*1000);if(r.status===429){e.ratePaused=true;e.retryAt=Date.now()+Math.max(90000,e.retryAfterMs)}throw e}const d=await r.json();receive(d,new URL(u));return d}finally{clearTimeout(timer)}
 }
 function domList(){const records=[];if(provider!=='chatllm')return records;const seen=new Set();for(const a of document.querySelectorAll('a[href], [data-conversation-id], [data-deployment-conversation-id], [data-chat-session-id]')){
  let u=normUrl(a.href||location.href),id=a.getAttribute('data-conversation-id')||a.getAttribute('data-deployment-conversation-id')||a.getAttribute('data-chat-session-id')||'';
@@ -58,7 +58,7 @@ function domList(){const records=[];if(provider!=='chatllm')return records;const
 async function scrollLists(){const regions=[...document.querySelectorAll('nav, aside, [role="navigation"], main, section, div')].filter(e=>{try{const s=getComputedStyle(e);return ['scroll','auto'].includes(s.overflowY)&&e.scrollHeight>e.clientHeight+100&&e.clientWidth>120}catch{return false}}).sort((a,b)=>a.clientWidth-b.clientWidth).slice(0,9);
  for(const el of regions){let start=el.scrollTop,prev=-1;el.scrollTop=0;for(let i=0;i<85;i++){if(el.scrollTop===prev)break;prev=el.scrollTop;el.scrollTop+=Math.max(200,el.clientHeight*.8);await new Promise(r=>setTimeout(r,45))}el.scrollTop=start}return domList()}
 async function replayListPages(template,{projectIds=[]}={}){
- const requestsToTry=[template],totalMax=35,recognized=new Set();
+ const requestsToTry=[template],totalMax=12,recognized=new Set(),deadline=Date.now()+48000;
  // Reuse a project selector only if the site itself sent one in the observed request.
  if(projectIds.length){for(const id of projectIds.slice(0,300)){
   let u=new URL(template.url),body=template.body,changed=false;
@@ -68,8 +68,8 @@ async function replayListPages(template,{projectIds=[]}={}){
   if(changed)requestsToTry.push({...template,url:u.href,body});
  }}
  let count=0,errors=[],all=true;
- for(const base of requestsToTry){let current=base,lastSignature='',pages=0,rows=0;
-  while(pages++<totalMax){const response=await replay(current);count++;
+ for(const base of requestsToTry){if(Date.now()>deadline){all=false;break}let current=base,lastSignature='',pages=0,rows=0;
+  while(pages++<totalMax){if(Date.now()>deadline){all=false;break}const response=await replay(current);count++;
    const list=enumerate(response,isConv);rows+=list.length;
    const signature=list.slice(0,6).map(cid).join('|');if(signature===lastSignature)break;lastSignature=signature;
    const root=response?.result||response?.data||response;
