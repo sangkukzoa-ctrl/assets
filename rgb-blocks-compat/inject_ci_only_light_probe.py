@@ -134,6 +134,52 @@ if TARGET=="forge1201":
        }
 '''
     logic=logic.replace(probe_line,debug+probe_line,1)
+    post=r'''       if(ticks%120==0 && ticks<=360){
+          Object tile=mc.level.getBlockEntity(cnb);
+          try{
+            Class<?> engine=com.rgbblocks.client.lighting.RGBRealLightEngine.class;
+            Object directPos=tile.getClass().getMethod("getBlockPos").invoke(tile);
+            java.lang.reflect.Method posReader=engine.getDeclaredMethod("cnbBlockEntityPos",Object.class);
+            posReader.setAccessible(true);
+            Object enginePos=posReader.invoke(null,tile);
+            java.lang.reflect.Method compute=engine.getDeclaredMethod("computeCnbSourceFromStatistics",Object.class);
+            compute.setAccessible(true);
+            Object source=compute.invoke(null,tile);
+            java.lang.reflect.Field rgbField=source.getClass().getDeclaredField("rgb");
+            java.lang.reflect.Field energyField=source.getClass().getDeclaredField("energy");
+            rgbField.setAccessible(true); energyField.setAccessible(true);
+            java.lang.reflect.Method activeMethod=source.getClass().getDeclaredMethod("active");
+            activeMethod.setAccessible(true);
+            System.out.println("RGB_PORT_CNB_DIRECT_SOURCE tilePos="+directPos+" enginePos="+enginePos
+              +" active="+activeMethod.invoke(source)+" rgb="+rgbField.get(source)+" energy="+energyField.get(source));
+          }catch(Throwable e){System.out.println("RGB_PORT_CNB_DIRECT_SOURCE_ERROR "+e);}
+          try{
+            Object tileStats=tile.getClass().getMethod("getStatistics").invoke(tile);
+            Object counts=tileStats.getClass().getMethod("getStateCounts").invoke(tileStats);
+            if(counts instanceof java.util.Map<?,?> m){
+              for(Object info:m.keySet()){
+                Object state=info.getClass().getMethod("getBlockState").invoke(info);
+                int parsed=com.rgbblocks.client.lighting.RGBRealLightEngine.rgbForState((net.minecraft.world.level.block.state.BlockState)state);
+                System.out.println("RGB_PORT_CNB_DIRECT_STATE state="+state+" parsedRgb="+parsed);
+              }
+            }
+          }catch(Throwable e){System.out.println("RGB_PORT_CNB_DIRECT_STATE_ERROR "+e);}
+          try{
+            Class<?> engine=com.rgbblocks.client.lighting.RGBRealLightEngine.class;
+            for(String name:new String[]{"CNB_PENDING","CNB_CACHE","MANUAL_CNB_SHADOW"}){
+              java.lang.reflect.Field f=engine.getDeclaredField(name);
+              f.setAccessible(true);
+              Object value=f.get(null);
+              if(value instanceof java.util.Map<?,?> m)
+                System.out.println("RGB_PORT_CNB_AFTER_REFRESH "+name+" size="+m.size()+" fixture="+m.get(cnb.asLong()));
+            }
+            java.lang.reflect.Field mode=engine.getDeclaredField("EFFECTIVE_MODE");
+            mode.setAccessible(true);
+            System.out.println("RGB_PORT_CNB_EFFECTIVE_MODE "+mode.get(null));
+          }catch(Throwable e){System.out.println("RGB_PORT_CNB_AFTER_REFRESH_ERROR "+e);}
+       }
+'''
+    logic=logic.replace(probe_line,probe_line+"\\n"+post,1)
 
 if TARGET=="fabric1211":
     probe.write_text('''package com.rgbblocks.ci;
