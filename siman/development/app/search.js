@@ -260,7 +260,7 @@ async function runBatch(){
  batchRunning=true;batchStop=false;batchCompleted=[];
  $('bulkStart').disabled=true;$('bulkStop').disabled=false;
  await debug('BULK_START','전체 일괄수집 시작 (ChatLLM → Claude → DeepSeek 웹 → Gemini 웹 → Grok 웹 → ChatGPT)');
- let failures=[];
+ let failures=[],loginRequired=[];
  try{for(const p of BULK){
   if(batchStop)break;
   // The existing ChatLLM index is already fully saved. Avoid rerunning its
@@ -289,11 +289,11 @@ async function runBatch(){
   }
   if(batchStop)break;
   if(startError)failures.push(PROVIDERS[p]+': '+startError);
-  else if(done?.summary?.authRequired){batchCompleted.push(PROVIDERS[p]+' (로그인 필요 · 기록 확인 보류)');await debug('AUTH_REQUIRED',PROVIDERS[p]+' 서버 인증이 필요합니다. 0건 수집 성공으로 계산하지 않습니다.','WARN',p)}
+  else if(done?.summary?.authRequired){loginRequired.push(PROVIDERS[p]+' (로그인 필요 · 대화 존재 여부 미확인)');await debug('AUTH_REQUIRED',PROVIDERS[p]+' HTTP 401 · 로그인 필요, 확인된 빈 계정 아님','WARN',p)}
   else if(done?.ok)batchCompleted.push(PROVIDERS[p]+(p==='chatllm'&&done.summary?.observedComplete?' (발견 목록 완료)':''));
   else failures.push(PROVIDERS[p]+': '+(done?.summary?.error||done?.error||(done?.summary?.paused?'서버 제한 대기':'미완료')));
  }
- const message=(batchStop?'사용자 중지':'일괄수집 단계 종료')+'\n완료: '+(batchCompleted.join(', ')||'없음')+'\n미완료: '+(failures.join(' / ')||'없음')+'\n자세한 내용은 「진단 로그 TXT 저장」에서 확인할 수 있습니다.';
+ const message=(batchStop?'사용자 중지':'일괄수집 단계 종료')+'\n완료: '+(batchCompleted.join(', ')||'없음')+'\n로그인 확인 대기: '+(loginRequired.join(' / ')||'없음')+'\n미완료: '+(failures.join(' / ')||'없음')+'\n자세한 내용은 「진단 로그 TXT 저장」에서 확인할 수 있습니다.';
  batchLabel(message);await debug('BULK_END',message,batchStop?'WARN':'INFO');
  }catch(e){batchLabel('일괄수집 중단: '+e.message);await debug('BULK_EXCEPTION',e.message,'ERROR')}
  finally{batchRunning=false;batchCurrent='';$('bulkStart').disabled=false;$('bulkStop').disabled=true;await loadRecords();await renderStatus()}
