@@ -93,7 +93,7 @@ function combineDeepSeek(previous,visible){
  return result.map((m,index)=>({...m,index}));
 }
 let lastSig='',captureBusy=false;
-let visitHealth={ok:true,provider,version:'1.5.11',stage:'초기화',count:0,at:0};
+let visitHealth={ok:true,provider,version:'1.5.12',stage:'초기화',count:0,at:0};
 const visitLogged=new Set(),skipLogged=new Set();
 async function noteSkip(stage){
  visitHealth={...visitHealth,stage,at:Date.now()};
@@ -145,7 +145,7 @@ async function captureOnce(){
  await SimanStore.save(SimanCore.record(provider,id,title,msgs,{url:location.href,complete:false,source:'visited-dom'}));
  // Commit the signature ONLY after a successful storage write; failed writes must retry.
  lastSig=sig;
- visitHealth={ok:true,provider,version:'1.5.11',stage:'저장 성공',count:msgs.length,at:Date.now()};
+ visitHealth={ok:true,provider,version:'1.5.12',stage:'저장 성공',count:msgs.length,at:Date.now()};
  if(['gemini','deepseek','grok'].includes(provider)&&!visitLogged.has(id)){
   visitLogged.add(id);
   await SimanStore.appendDebug({provider,level:'INFO',stage:'VISIT_CAPTURE',message:'방문 대화 원문을 저장했습니다. 화면 메시지 '+msgs.length+'건'});
