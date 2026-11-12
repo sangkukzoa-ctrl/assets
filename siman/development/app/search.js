@@ -24,10 +24,10 @@ if(applyParams.get('siman_auto_apply')==='1'){
 }
 const $=id=>document.getElementById(id);
 const PROVIDERS=SimanCore.PROVIDERS;
-const BASE={chatllm:'https://apps.abacus.ai/chatllm/',chatgpt:'https://chatgpt.com/',claude:'https://claude.ai/',deepseek:'https://chat.deepseek.com/'};
+const BASE={chatllm:'https://apps.abacus.ai/chatllm/',chatgpt:'https://chatgpt.com/',claude:'https://claude.ai/',deepseek:'https://chat.deepseek.com/',gemini:'https://gemini.google.com/app'};
 let cache=new Map(),hits=[],selected=null,record=null,lastQ='',searchId=0,lastStatus='',refreshTimer=0;
 let batchRunning=false,batchStop=false,batchCurrent='',batchCompleted=[];
-const BULK=['chatllm','claude','deepseek','chatgpt'];
+const BULK=['chatllm','claude','deepseek','gemini','chatgpt'];
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const debug=(stage,message,level='INFO',provider='system')=>SimanStore.appendDebug({stage,message,level,provider}).catch(()=>{});
 
@@ -146,8 +146,13 @@ async function waitTab(id){let t=await chrome.tabs.get(id);if(t.status==='comple
 async function tabFor(p){const all=await chrome.tabs.query({});let t=all.find(x=>tabMatches(p,x.url));if(!t){t=await chrome.tabs.create({url:BASE[p],active:true});await waitTab(t.id)}else if(t.status!=='complete')await waitTab(t.id);return t}
 async function installBridge(tabId){const target={tabId};
  // Inject into BOTH isolated and page worlds, and verify that the version matches.
- await chrome.scripting.executeScript({target,world:'ISOLATED',files:['core.js','store.js','content.js']});
- await chrome.scripting.executeScript({target,world:'MAIN',files:['core.js','network.js','deepseek-web.js','page.js']});
+ // Existing manifest scripts are already active in most tabs. Re-inject only
+ // if a content world is truly absent; repeated insertion filled Chrome error cards.
+ const iso=await chrome.scripting.executeScript({target,world:'ISOLATED',func:()=>!!globalThis.__simanContentV155&&!!globalThis.SimanStore});
+ if(!iso[0]?.result)await chrome.scripting.executeScript({target,world:'ISOLATED',files:['core.js','store.js','content.js']});
+ const existing=await chrome.scripting.executeScript({target,world:'MAIN',func:()=>globalThis.__SimanRunnerV155?.ping()?.version||''});
+ if(existing[0]?.result!=='1.5.9')
+  await chrome.scripting.executeScript({target,world:'MAIN',files:['core.js','network.js','deepseek-web.js','gemini-web.js','page.js']});
  let isolated;
  for(let attempt=0;attempt<8;attempt++){
   isolated=await chrome.scripting.executeScript({target,world:'ISOLATED',func:()=>({ready:!!globalThis.__simanContentV155,storage:!!chrome.storage?.local})});
@@ -254,10 +259,21 @@ async function runBatch(){
  if(batchRunning)return;
  batchRunning=true;batchStop=false;batchCompleted=[];
  $('bulkStart').disabled=true;$('bulkStop').disabled=false;
- await debug('BULK_START','전체 일괄수집 시작 (ChatLLM → Claude → DeepSeek 웹 → ChatGPT)');
+ await debug('BULK_START','전체 일괄수집 시작 (ChatLLM → Claude → DeepSeek 웹 → Gemini 웹 → ChatGPT)');
  let failures=[];
  try{for(const p of BULK){
   if(batchStop)break;
+  // The existing ChatLLM index is already fully saved. Avoid rerunning its
+  // unreliable list replay every time the user wants to resume ChatGPT.
+  if(p==='chatllm'){
+   const catalogs=await SimanStore.getCatalogs();
+   const existing=Object.values(catalogs.chatllm||{});
+   if(existing.length>=10&&existing.every(x=>x.status==='complete')){
+    batchCompleted.push('ChatLLM (기존 '+existing.length+'건 보존)');
+    await debug('CHATLLM_CACHE_SKIP','발견된 '+existing.length+'건 원문 모두 완료 · 새 대화 탐색은 ChatLLM 개별 수집 사용','INFO','chatllm');
+    continue;
+   }
+  }
   batchCurrent=p;batchLabel('일괄수집 중 · '+PROVIDERS[p]+' 준비 중...\n이전 완료: '+(batchCompleted.join(', ')||'없음'));
   let done=null,startError='';
   // One bounded recovery on an orphaned page; completed IDs stay in chrome.storage.local.
@@ -280,6 +296,35 @@ async function runBatch(){
  }catch(e){batchLabel('일괄수집 중단: '+e.message);await debug('BULK_EXCEPTION',e.message,'ERROR')}
  finally{batchRunning=false;batchCurrent='';$('bulkStart').disabled=false;$('bulkStop').disabled=true;await loadRecords();await renderStatus()}
 }
+const AUTO_RESUME_KEY='siman:chatgpt:autoResume';
+let autoResumeChatgpt=true,autoResumeInFlight=false,autoLastAttemptAt=0;
+(async()=>{
+ const config=await chrome.storage.local.get(AUTO_RESUME_KEY);
+ autoResumeChatgpt=config[AUTO_RESUME_KEY]!==false;
+ $('autoChatgptResume').checked=autoResumeChatgpt;
+})().catch(e=>debug('AUTORETRY_INIT',e.message,'WARN'));
+$('autoChatgptResume').onchange=async()=>{
+ autoResumeChatgpt=$('autoChatgptResume').checked;
+ await chrome.storage.local.set({[AUTO_RESUME_KEY]:autoResumeChatgpt});
+ toast(autoResumeChatgpt?'ChatGPT 자동 재개 사용':'ChatGPT 자동 재개 중지');
+};
+async function maybeAutoResumeChatGPT(){
+ if(!autoResumeChatgpt||autoResumeInFlight||batchRunning)return;
+ const status=await SimanStore.getStatus();
+ const last=status.last?.chatgpt;
+ if(!last?.paused||!last.retryAt||last.retryAt>Date.now()||status.active?.chatgpt)return;
+ if(Number(last.finishedAt||0)<=autoLastAttemptAt)return;
+ const tabs=await chrome.tabs.query({});
+ // Do not unexpectedly open/focus a new ChatGPT tab when the user is doing something else.
+ if(!tabs.some(x=>tabMatches('chatgpt',x.url)))return;
+ autoResumeInFlight=true;autoLastAttemptAt=Date.now();
+ try{
+  await debug('AUTO_RESUME','ChatGPT 요청 제한 대기 종료 · 저장된 원문부터 수집 재개','INFO','chatgpt');
+  await runSync('chatgpt');
+ }catch(e){await debug('AUTO_RESUME_ERROR',String(e?.message||e),'WARN','chatgpt')}
+ finally{autoResumeInFlight=false}
+}
+setInterval(()=>maybeAutoResumeChatGPT().catch(e=>debug('AUTO_RESUME_ERROR',e.message,'WARN','chatgpt')),45000);
 $('bulkStart').onclick=runBatch;
 $('bulkStop').onclick=async()=>{if(!batchRunning)return;batchStop=true;await debug('BULK_STOP','일괄수집 중지 요청');if(batchCurrent)await stopRunner(batchCurrent);batchLabel('중지 요청 완료 · 이미 저장된 원문은 유지됩니다.')};
 $('repair').onclick=async()=>{
@@ -294,7 +339,7 @@ $('repair').onclick=async()=>{
   }
  }
  // Previously the repair button ignored all visit-only providers.
- for(const p of ['gemini','grok']){
+ for(const p of ['grok']){
   const list=await chrome.tabs.query({}),existing=list.find(t=>tabMatches(p,t.url));
   if(!existing)continue;
   try{
@@ -330,7 +375,7 @@ $('openOriginal').onclick=gotoOriginal;
 $('query').addEventListener('input',()=>{clearTimeout(refreshTimer);refreshTimer=setTimeout(doSearch,90)});
 $('search').onclick=doSearch;$('provider').onchange=doSearch;$('role').onchange=doSearch;
 async function importRecords(records){let n=0;for(const r of records){if(!SimanStore.valid(r))continue;n++;await SimanStore.save(r)}return n}
-$('importFile').onchange=async e=>{let count=0,errors=[];for(const f of e.target.files){try{let arr=[];if(/\.zip$/i.test(f.name)){const zip=await JSZip.loadAsync(f);for(const z of Object.values(zip.files)){if(z.dir||!/(?:conversation|chat|history|siman).*\.json$/i.test(z.name)||/node_modules|__MACOSX/i.test(z.name))continue;let raw=JSON.parse(await z.async('string'));arr.push(...(Array.isArray(raw?.simanRecords)?raw.simanRecords:SimanCore.parseImport(raw,z.name)))}}
+$('importFile').onchange=async e=>{let count=0,errors=[];for(const f of e.target.files){try{let arr=[];if(/\.zip$/i.test(f.name)){const zip=await JSZip.loadAsync(f);for(const z of Object.values(zip.files)){if(z.dir||!/(?:conversation|chat|history|siman|gemini|myactivity).*\.json$/i.test(z.name)||/node_modules|__MACOSX/i.test(z.name))continue;let raw=JSON.parse(await z.async('string'));arr.push(...(Array.isArray(raw?.simanRecords)?raw.simanRecords:SimanCore.parseImport(raw,z.name)))}}
  else{const raw=JSON.parse(await f.text());arr=Array.isArray(raw?.simanRecords)?raw.simanRecords:SimanCore.parseImport(raw,f.name)}count+=await importRecords(arr)}catch(err){errors.push(f.name+': '+err.message)}}await loadRecords();toast('원문 가져오기: '+count+'개'+(errors.length?' / 오류 '+errors.slice(0,2).join('; '):''));e.target.value=''};
 $('export').onclick=async()=>{try{const data=JSON.stringify({format:'siman-archive-1',exportedAt:new Date().toISOString(),simanRecords:[...cache.values()]});const u=URL.createObjectURL(new Blob([data],{type:'application/json'}));const a=document.createElement('a');a.href=u;a.download='Siman_Archive_'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(u),30000);toast('로컬 원문 백업 완료')}catch(e){toast('백업 실패: '+e.message)}};
 $('clear').onclick=async()=>{if(!confirm('심안에 저장된 로컬 색인을 삭제할까요? 원래 채팅은 삭제되지 않습니다.'))return;await SimanStore.clear();await loadRecords();toast('로컬 색인 삭제 완료')};
