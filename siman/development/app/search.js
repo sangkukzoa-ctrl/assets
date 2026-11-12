@@ -111,7 +111,7 @@ $('saveDebug').onclick=async()=>{
    try{
     const tabs=await chrome.tabs.query({}),tab=tabs.find(x=>tabMatches(p,x.url));
     if(!tab){lines.push(PROVIDERS[p]+': 열린 탭 없음');continue}
-    const out=await chrome.scripting.executeScript({target:{tabId:tab.id},world:'MAIN',func:()=>({runner:window.__SimanRunnerV155?.ping()||null,observer:window.__SimanNetworkV155?.snapshot?{count:window.__SimanNetworkV155.snapshot().conversations.length,templates:window.__SimanNetworkV155.snapshot().templates.map(x=>{try{return new URL(x).pathname}catch{return '(오류)'}})}:null})});
+    const out=await chrome.scripting.executeScript({target:{tabId:tab.id},world:'MAIN',func:()=>({deepseekWeb:location.hostname==='chat.deepseek.com'?{official:true,tokenReady:!!window.SimanDeepSeekWeb?.readToken()}:null,runner:window.__SimanRunnerV155?.ping()||null,observer:window.__SimanNetworkV155?.snapshot?{count:window.__SimanNetworkV155.snapshot().conversations.length,templates:window.__SimanNetworkV155.snapshot().templates.map(x=>{try{return new URL(x).pathname}catch{return '(오류)'}})}:null})});
     lines.push(PROVIDERS[p]+': '+SimanStore.scrub(JSON.stringify(out[0]?.result||{})));
     const check=await chrome.scripting.executeScript({target:{tabId:tab.id},world:'MAIN',func:async()=>{try{return await window.__SimanRunnerV155?.pingStorage?.()||{ok:false,error:'수집기 미설치'}}catch(e){return {ok:false,error:String(e.message||e)}}}});
     lines.push('  로컬 저장소 통신: '+SimanStore.scrub(JSON.stringify(check[0]?.result||{})));
@@ -122,7 +122,7 @@ $('saveDebug').onclick=async()=>{
   for(const p of ['gemini','deepseek','grok']){
    try{
     const tabs=await chrome.tabs.query({}),tab=tabs.find(x=>tabMatches(p,x.url));
-    if(!tab){lines.push(PROVIDERS[p]+': 열린 탭 없음');continue}
+    if(!tab){lines.push(PROVIDERS[p]+': 열린 탭 없음'+(p==='deepseek'?' · 공식 웹은 일괄수집에서 자동으로 열림':'') );continue}
     const result=await chrome.scripting.executeScript({target:{tabId:tab.id},world:'ISOLATED',func:()=>globalThis.__SimanVisitHealthV155?.()||{ok:false,stage:'방문 저장 스크립트 미연결'}});
     const v=result?.[0]?.result||{ok:false,stage:'응답 없음'};
     lines.push(PROVIDERS[p]+': '+SimanStore.scrub(JSON.stringify(v)));
