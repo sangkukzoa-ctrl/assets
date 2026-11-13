@@ -57,6 +57,11 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs --min-sdk-version 26 ImageOrderStudio.apk | tee signature.txt
           grep -F 'Verified using v2 scheme (APK Signature Scheme v2): true' signature.txt
           grep -F 'Verified using v3 scheme (APK Signature Scheme v3): true' signature.txt
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='6' versionName='0.5.0'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='7' versionName='0.5.1'"
+          if "$ANDROID_HOME/build-tools/35.0.0/aapt" dump xmltree ImageOrderStudio.apk AndroidManifest.xml | grep -E 'BIND_ACCESSIBILITY_SERVICE|android.accessibilityservice|UploadAssistService'; then
+            echo '::error::Sideload-blocking accessibility service is present'
+            exit 1
+          fi
+          echo 'No AccessibilityService is present in the published APK.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Public APK, source, checksum, package ID and Android signatures verified.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Signed APK install and picker intent registration are verified before publication in the release workflow.' >> "$GITHUB_STEP_SUMMARY"
