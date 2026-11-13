@@ -1,5 +1,15 @@
 # RGB Blocks 1.3.1 — EXECUTE CONTINUATION, not a fresh planning prompt
 
+## CURRENT FINALIZED CHECKPOINT 2026-11-13 (supersedes ALL older 'running' statements below)
+**READ [SESSION_2026-11-13_EXACT_RESUME.md](./SESSION_2026-11-13_EXACT_RESUME.md) FIRST.** It contains the complete executable handoff with exact branch, versioned builders, runtime environment, production source patch, CI run IDs, pass/fail facts, exact logs, artifacts, and next debugging actions. The next ChatGPT session is the SAME RGB Blocks project and should perform code+CI work immediately on `진행`, not merely repeat these notes.
+
+- GitHub branch `sangkukzoa-ctrl/assets:rgb-blocks-legacy-compat-audit`; last production gameplay fix `3f29f0d8dd31bdecbdd51bba6d337ea3244bdd14` (Forge client live RGB invalidation attempt). Following commits through `5209a8c7` were progress/docs; this linked handoff is a further docs-only commit.
+- **ALL five runs completed** (do NOT treat older 'in progress' wording as live): native Forge build/source/MRPACK/server `43432413655` SUCCESS; Forge shader OFF `43432413860` SUCCESS; Forge Complementary ON `43432414012` SUCCESS; Forge normal GUI `43432413688` SUCCESS; **TWO real clients dynamic red→green `43432414030` FAILURE**. Original NeoForge 1.21.1 RGB+C&B off `43194331152` and shader on `43194331374` SUCCESS.
+- Dual-test FAILURE is isolated and reproducible even with patch `3f29f0d`: both clients join, both receive `MANUAL`/`AUTO`, both pass ordinary+4095 C&B microbit RGB, both see GREEN block/direct source `RGBLightColor4[4,15,2]`, but neighboring RGB light remains old RED `RGBLightColor8[238,85,119]`. The patch compiles and leaves previous functions intact but **did not fix live stale-light propagation**. DO NOT CLAIM FIXED OR RELEASE READY.
+- **Immediate next action:** instrument Forge `ClientLevelMixin#setBlock`/source-index/invalidation pathway and `RGBLightEngine` READY/STORAGE state to distinguish non-fired callback from ineffective/deferred reset and possible competing red C&B source. Fix production code based on actual logging; keep strict dual assertion and rerun 5 Forge tests.
+- Then 1.21.1 NeoForge two-client, mixed C&B Glow/Glass, save/reload, AUTO/MANUAL dirty bake, full parity acceptance.
+
+
 ## LATEST 2026-11-13 phase 12 — LIVE FORGE RGB INVALIDATION FIX RUNNING
 - Runtime root cause unambiguously identified at [two-client diagnostic #43430303743](https://github.com/sangkukzoa-ctrl/assets/actions/runs/43430303743): BOTH remote clients got GREEN block `rgbblocks:rgb_green_59_209_25_glow`, emitted `RGBLightColor4[4,15,2]`, but neighboring RGB light remained old RED `RGBLightColor8[238,85,119]` for many seconds. Both clients otherwise pass original RGB, C&B 4095-bit light and MANUAL/AUTO packet-sync checks. This is NOT an unreceived network packet and NOT C&B regression.
 - Source analysis: `ClientLevelMixin#setBlock` uses `settleAfterServerSync` on remote updates; it refreshes index and queues bootstrap but does NOT clear stale voxel cache in READY sections. The proper pre-existing `RGBLightEngine.invalidateAround` performs full RGB storage clear/repropagation.
