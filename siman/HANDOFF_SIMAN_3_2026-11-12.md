@@ -1,3 +1,33 @@
+# 심안(心眼) v1.5.13 — Chrome 설치 차단 오류 수정 / Windows 실브라우저 검증 배포 (2026-11-13 KST)
+
+> **최신 공개 Beta v1.5.13 (성공 배포).** 아래의 v1.5.12 및 이전 기록은 당시 원전으로 보존. 후속 작업은 반드시 1.5.13을 기준으로.
+
+## 사용자 제공 재현 자료
+- 이미지 2장: 설치 관리자는 **파일 갱신 성공했으나 브라우저 확장프로그램 ACK 0/1** 경고. Chrome 브라우저에는 설치 관리자가 연 `chrome-extension://<실제 확장ID>/siman-update-1512.html?... ` 부트스트랩 화면에서 **ERR_BLOCKED_BY_CLIENT**, “Chrome에서 차단한 페이지입니다” 표시. 실제 확장 ID의 본문은 개인정보가 아니지만 프로젝트 공개문서에는 뒷자리만 기재.
+- `붙여넣은 텍스트(1).txt` (약 418줄): Chrome 확장프로그램 관리자 오류 상세에서 복사한 **content.js 전체 소스/줄 번호**. 실제 예외 문구·스택트레이스는 빠져 있음. `content.js`의 오래된 컨텍스트/비동기 브리지 로직 보강을 적용했으며, 구체적인 카드 예외는 여전히 별도 실사용 재검증 대상.
+- `Siman_v1.5.12_Debug_20261113_224734.txt` (2026-11-13 22:47 KST): Gemini **208/208** (페이지 100+100+8 완결), DeepSeek **40/40**, ChatLLM 관찰 목록 **301/301**. Claude **119/120**, 1건 서버 HTTP 503. Grok 공식 웹 인증 HTTP 401로 실제 0건 확인 아님. ChatGPT **644개 목록 / 완료183 / pending460 / retry1** (429 반복); **v1.5.11 당시 완료532와 현재183의 차이**는 중요하며 저장소 리셋·확장 ID/프로필 불일치 가능성을 살펴야 함. 이번 수집 로그만으로 어느 원인이라고 확정하면 안 됨. v1.5.12 자동 이어받기 `CHATGPT_FAST_RESUME` 실제 동작 확인. 429는 서비스 서버 제한으로 15분마다 반복되기도 함.
+- Chrome 설치 로그 자체 `%LOCALAPPDATA%\2bornot\Siman\setup.log`는 사용자 직접 첨부가 없었고 위의 두 캡처는 직접 판독한 자료임.
+
+## 코드 수정
+1. `siman/development/installer/SimanSetup.cs` AppVersion=1.5.13, InstallerRevision=11. 기존 설치 경로·브라우저 Preferences/Secure Preferences *읽기 전용*, 확장 ID 유지. 기존 방식은 `chrome-extension://` 부트스트랩 페이지를 Chrome 외부 프로세스 인자로 띄우고 주소창에도 주입, Chrome에서 **ERR_BLOCKED_BY_CLIENT**. 새로운 방식은 **그 주소를 아예 열지 않음**.
+2. 설치 관리자가 `<LOCALAPPDATA>/2bornot/Siman/app/siman-updater-request.json` (일회용 신규 파일)에 `{version,extensionId,port,token,at}`을 128비트 랜덤 토큰과 함께 작성; 실제 기존 Chrome/Edge 프로필을 브라우저가 제공하는 `chrome://extensions/` 관리 UI로 열어 기존 확장 Reload를 시도. 네이티브 `TcpListener(IPAddress.Loopback,0)`가 동일 extension ID/버전/토큰의 **새 background ACK**를 17초간 기다림. 설치 단계 후 지시 파일 삭제. 사용자 원문 파일·브라우저 프로필 데이터 직접 수정 금지. 현재 Chrome 프로필 확장 enabled/disabled 상태/disable reasons를 setup.log에 기록. 새 백그라운드가 기록 개수(숫자만)도 로컬 ACK에 제공.
+3. `siman/development/app/background.js`: `chrome.runtime.getURL('siman-updater-request.json')`로 **자기 자신의 extension origin**에서 온디스크 지시파일 읽음; `chrome.storage.local`에 일회성 pending 저장 후 인증 유효성 검증. 실제 AI 탭을 순회해 입력 초안이 있는 탭은 유지, 나머지 탭만 새로고침하고 `http://127.0.0.1:<port>/complete?token=...&v=...&id=...&records=<건수>`로 ACK (사용자 대화/제목/토큰 외부 전송 없음). 새 service worker 최초 로드/온인스톨/온스타트업 모두 지원, 중복 ACK 방지. **호스트 권한 추가 없음**.
+4. `content.js`: 예전 확장 컨텍스트의 `Extension context invalidated` 비동기 후속 저장소 응답에 안전하게 대응하고 옛 메시지 리스너·MutationObserver·타이머 해제. Chrome 과거 오류 카드 기록 자동 제거는 안 함. `page.js`: Claude HTTP 408/500/502/503/504 일시 오류일 때 3회 추가 지연 재시도. Gemini/DeepSeek/ChatLLM/Grok·GPT 429 재개 기본 기능 유지.
+5. `v1513_autoapply.test.cjs`에 외부 `chrome-extension` URL 경로가 설치 관리자에서 제거되었음을 정적 검사하고, 실제로 가짜 background가 디렉터리 지시 JSON을 읽어 인증된 ACK를 만들어내는 fixture 추가. 새 `v1513_claude_503.test.cjs`는 503 2회 후 200 성공 테스트. 구 테스트 포함 총 Node **15종**.
+6. `.github/workflows/siman-v1512-release.yml`은 workflow_dispatch 전용 동결. `.github/workflows/siman-v1513-release.yml`이 최신 Windows EXE/Chrome E2E 및 릴리스 자동 게시. `.github/workflows/siman-public-download-check.yml`는 성공 시 새 v1513 공개 다운로드 SHA256 검사.
+
+## 검증 결과 및 사용자에게 전달할 파일
+- **GitHub Actions Windows 빌드 성공**: https://github.com/sangkukzoa-ctrl/assets/actions/runs/43439284243
+- 실제 v1.5.12 압축 해제 Chrome for Testing Dev Mode ON → v1.5.13 설치 EXE로 동일 확장 ID 자동 적용, 새 background ACK, 파일 제자리 갱신, 사용자 파일 원형 보존 모두 성공. 단 Chrome 사용자의 개별 확장 비활성화 상황/Edge는 별도 실측 대상.
+- 공개 버전: https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.13
+- **고정 Beta**: https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta
+- **고정 EXE**: https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/SimanSetup.exe
+- 고정 ZIP: https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip
+- 소스 ZIP·WEBSTORE ZIP·SHA256SUMS.txt는 v1.5.13 릴리스에 포함. `siman/development/RELEASE_NOTES_v1.5.13.md` 및 블로그 TXT 갱신.
+- 미래 후속 핵심: 사용자 실제 v1.5.13의 Chrome 설치 ACK 및 `setup.log` 로컬 archived records 수치 대조, Chrome 새 오류 카드 예외 문구 수집, ChatGPT 183/644 vs 이전 532/647 저장소·확장 ID 변화 분석, Claude 503 재시도 효과 확인, Grok 401 로그인 상태 사용자 선택. **사용자에게 기존 확장 삭제/재등록/백업·복원부터 요구하지 말 것**.
+
+---
+
 # 심안(心眼) v1.5.12 — 실제 사용자 오류 검증 및 배포 완료 (2026-11-12 KST)
 
 > **현재 최신 공개 Beta는 v1.5.12입니다.** 이 문서 아래의 v1.5.11, v1.5.10, v1.5.9 및 이전 기록은 당시 상태로 보존합니다. 후속 세션 '진행'은 반드시 이 최신 상태에서 이어가십시오.
