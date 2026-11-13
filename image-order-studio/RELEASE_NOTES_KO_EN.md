@@ -1,21 +1,19 @@
-# Image Order Studio v0.5.0 — Unified Gallery / 업로드 통합 갤러리
+# Image Order Studio v0.5.1 — Play Protect installation fix / 설치 차단 해결
 
-Developer: 2bornot · Android 8+ · Korean/English · no ads, no Internet permission
+Developer: 2bornot · Android 8+ · Korean/English · no ads and no internet permission
 
 ## 한국어
-
-- 사진 첨부를 하나의 흐름으로 구성: **사진 선택 → 순서대로 탭 → 완료**.
-- 삼성 Gallery의 내부 구현에 의존하지 않고 실제 기기 MediaStore의 사진 및 앨범을 직접 보여주는 내장 갤러리 추가.
-- 외부 이미지 요청(GET_CONTENT/PICK)에서 순서대로 표시된 파일 URI를 자동 반환.
-- Android 13/14+ 사진 접근권한 및 선택한 사진만 접근하는 모드 지원.
-- 외부 앱의 시스템 선택기를 이용하는 경우, 사용자가 명시적으로 켠 접근성 보조 팝업에서 동일한 갤러리를 바로 열 수 있도록 추가. 이 보조 기능은 외부 앱 첨부 결과 자체를 강제 교체하지 않으며 원래 선택기에서 준비된 결과물을 선택해야 함.
-- 기존 패키지/서명키 유지, versionCode 6.
+- Google Play 프로텍트가 차단할 수 있는 접근성 서비스와 관련 팝업 기능을 앱에서 완전히 제거했습니다.
+- 앱 내부 사진/앨범 갤러리, 순서 번호 표시, 표준 `GET_CONTENT`/`PICK` 업로드 응답, 갤러리 전용 앨범, 파일 선택기, 빠른 설정 타일을 유지합니다.
+- 기존 패키지 `com.twobornot.imageorder` / 기존 서명 인증서를 유지합니다. versionCode 7, versionName 0.5.1.
+- Android 시스템 전용 Photo Picker는 제3자 앱에서 강제로 대체할 수 없습니다. 자동 업로드 감지는 더 이상 제공하지 않습니다.
+- Play 프로텍트 해제/무시를 권유하지 않습니다.
 
 ## English
+- Removed the AccessibilityService and optional overlay entirely, to avoid Google Play Protect's sensitive-permission internet-sideloading block.
+- Kept the local album gallery, ordered image picking, standard GET_CONTENT/PICK callbacks, Gallery album publishing, DocumentsProvider, and Quick Settings tile.
+- Same app ID and signing certificate, versionCode 7.
+- The system-only Android Photo Picker cannot be overridden by an ordinary third-party app.
 
-- Unified workflow: **Choose photos → tap in order → Done**.
-- Native MediaStore gallery with Photos/Albums instead of forwarding to vendor-specific picker implementations.
-- Direct content URI results for supporting GET_CONTENT/PICK requesters.
-- Runtime photo permissions including Android 14+ selected-photo access.
-- Opt-in accessibility shortcut for recognizable upload pickers, without changing other apps' ActivityResult contracts.
-- Same package/signing identity, versionCode 6.
+## QA
+Android source checks reject any accessibility service, notification listener, or SMS permissions. Release CI verifies the final compiled AndroidManifest and APK signature, installs the signed APK on an emulator, and publishes a stable beta only after success.

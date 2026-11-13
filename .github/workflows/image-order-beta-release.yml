@@ -45,8 +45,10 @@ jobs:
           gradle --no-daemon :app:assembleRelease --stacktrace
           test -s app/build/outputs/apk/release/app-release-unsigned.apk
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | tee /tmp/imageorder-aapt.txt
-          grep -F "package: name='com.twobornot.imageorder' versionCode='6' versionName='0.5.0'" /tmp/imageorder-aapt.txt
+          grep -F "package: name='com.twobornot.imageorder' versionCode='7' versionName='0.5.1'" /tmp/imageorder-aapt.txt
           grep -F "sdkVersion:'26'" /tmp/imageorder-aapt.txt
+          ! grep -F 'BIND_ACCESSIBILITY_SERVICE' /tmp/imageorder-aapt.txt
+          ! grep -F 'AccessibilityService' /tmp/imageorder-aapt.txt
       - name: Create one-use transfer certificate (no private key uploaded)
         shell: bash
         run: |
@@ -107,8 +109,12 @@ jobs:
           grep -F 'Verified using v2 scheme (APK Signature Scheme v2): true' signature-report.txt
           grep -F 'Verified using v3 scheme (APK Signature Scheme v3): true' signature-report.txt
           "$BUILD_TOOLS/zipalign" -c -p 4 ImageOrderStudio.apk
-          "$BUILD_TOOLS/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='6' versionName='0.5.0'"
+          "$BUILD_TOOLS/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='7' versionName='0.5.1'"
           test "$(stat -c %s ImageOrderStudio.apk)" -gt 200000
+          if "$BUILD_TOOLS/aapt" dump xmltree ImageOrderStudio.apk AndroidManifest.xml | grep -E 'BIND_ACCESSIBILITY_SERVICE|android.accessibilityservice|UploadAssistService'; then
+            echo '::error::Sensitive Accessibility component present in a sideloaded APK'
+            exit 1
+          fi
       - name: Enable Android Emulator KVM acceleration on GitHub runner
         shell: bash
         run: |

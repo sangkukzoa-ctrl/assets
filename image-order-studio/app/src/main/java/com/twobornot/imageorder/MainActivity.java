@@ -66,7 +66,6 @@ public class MainActivity extends Activity {
         store=new GalleryStore(this,externalMode);exporter=new ImageExporter(this);
         setup();rebuildVisible();updateCounters();
         if(externalMode) ui.post(this::openPicker);
-        else if(launch.getBooleanExtra("from_upload_assist",false))ui.post(this::openPicker);
         else handleIncoming(launch);
     }
     @Override protected void onNewIntent(Intent intent) {
@@ -141,7 +140,6 @@ public class MainActivity extends Activity {
             LinearLayout primary=row();primary.setPadding(dp(8),dp(6),dp(8),dp(6));root.addView(primary);
             addButton(primary,t("＋ 사진 선택 · 순서대로 업로드 준비", "＋ Select photos · prepare upload"),this::openPicker,BLUE);
             LinearLayout more=row();more.setPadding(dp(8),0,dp(8),dp(7));root.addView(more);
-            addButton(more,t("모든 앱에서 첨부 감지 켜기", "Enable upload popup"),this::requestUploadAssist,NAVY);
             addButton(more,t("설정", "Settings"),this::showOtherTools,0xff6f8095);
         }
     }
@@ -492,14 +490,6 @@ public class MainActivity extends Activity {
             // Keep independent copies in the SAF source for system Files pickers.
             OrderedOutbox.publish(this,results);
             List<Uri> added=GalleryMediaExporter.publish(this,results);
-            if(getIntent().getBooleanExtra("from_upload_assist",false)) {
-                ui.post(()->{
-                    Toast.makeText(this,t("순서 이미지를 갤러리에 준비했습니다. 원래 첨부창에서 선택하세요.",
-                         "Ordered images are ready in Gallery. Select them in the original picker."),Toast.LENGTH_LONG).show();
-                    finish();
-                });
-                return;
-            }
             ui.post(()->new AlertDialog.Builder(this)
                 .setTitle(t("갤러리에서 바로 선택할 수 있습니다","Ready in your Gallery"))
                 .setMessage(t("사진 "+added.size()+"장을 'Image Order Studio' 앨범에 저장했습니다.\n\n원래 사이트의 이미지 첨부 화면으로 돌아가 일반 갤러리에서 이 앨범을 선택하세요. 이미지에는 순서가 직접 표시되어 있습니다.",
@@ -507,17 +497,6 @@ public class MainActivity extends Activity {
                 .setPositiveButton(t("확인","OK"),(d,w)->{})
                 .show());
         });
-    }
-
-    private void requestUploadAssist() {
-        new AlertDialog.Builder(this)
-            .setTitle(t("이미지 첨부 감지", "Upload popup assistant"))
-            .setMessage(t("이 기능을 켜면 다른 앱의 사진/파일 선택창이 나타날 때 작은 바로가기 버튼을 표시할 수 있습니다. 이를 위해 Android 접근성 서비스 권한이 필요합니다. 화면의 선택창 여부만 기기 안에서 확인하며 수집하거나 서버로 전송하지 않습니다. 다른 앱의 첨부 결과를 강제로 바꾸지는 않습니다. 활성화하시겠습니까?",
-                "This optional feature watches for photo/file picker windows and displays a small shortcut. Android Accessibility access is required. Detection runs on device only; no content is collected or transmitted. It does not replace another app's attachment result. Open settings to enable?"))
-            .setNegativeButton(t("취소","Cancel"),null)
-            .setPositiveButton(t("접근성 설정 열기","Open Accessibility Settings"),(d,w)->{
-                startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS));
-            }).show();
     }
 
     private void showOtherTools() {
