@@ -1,12 +1,12 @@
 # 심안(心眼) / Siman — AI 대화 원문 통합 검색
 
-> **2026-11-12 현재:** v1.5.12 Windows CI · Node 14종 · Chrome v1.5.11→v1.5.12 실제 자동 업데이트 E2E 및 공개 다운로드 검증 성공. 실사용 진단을 반영해 Grok 인증 실패/빈 계정 구분, Gemini 100개 단위 목록 페이지 탐색, ChatGPT 429 후 로컬 목록 기반 빠른 재개, Chrome 확장 이전 컨텍스트 정리를 개선했습니다. [인수인계](HANDOFF_SIMAN_3_2026-11-12.md).
+> **2026-11-13 검증 배포:** v1.5.13 Windows EXE, Node 15종, 실제 Chrome v1.5.12→v1.5.13 동일 확장 ID 업데이트와 새 background ACK 확인. 이전 외부 `chrome-extension://...` 부트스트랩이 실제 사용자 Chrome에서 `ERR_BLOCKED_BY_CLIENT`로 막히던 경로를 제거했습니다. Gemini 실제 계정의 208/208건 수집 성공도 확인했습니다. [인수인계](HANDOFF_SIMAN_3_2026-11-12.md).
 
 **개발자:** 2bornot  
-**최신 공개 테스트판:** v1.5.12 Beta (2026-11-12)  
+**최신 공개 테스트판:** v1.5.13 Beta (2026-11-12)  
 **환경:** Windows 설치 관리자 `SimanSetup.exe` + Chrome/Edge Manifest V3 확장프로그램
 
-**[최신 Beta 고정 다운로드](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta)** · [고정 설치 ZIP](https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip) · [v1.5.12 개별 버전 기록](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.12)
+**[최신 Beta 고정 다운로드](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta)** · [고정 설치 ZIP](https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip) · [v1.5.13 개별 버전 기록](https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.13)
 
 GitHub Actions가 [`siman/development/`](development/)의 소스 변경을 감지하면 Windows 회귀 테스트·실제 EXE 설치 검사·ZIP/SHA-256 검증을 진행한 다음, 성공 시 **`siman-beta`의 동일한 URL에 최신 파일을 자동 배포**합니다. 블로그는 이 고정 주소만 안내하면 되며, 업데이트된 파일을 직접 설치할 때에는 기존 확장프로그램을 삭제하지 않습니다.
 
@@ -31,9 +31,18 @@ GitHub Actions가 [`siman/development/`](development/)의 소스 변경을 감�
 
 **신규 설치:** 최신 `SimanSetup.exe`를 실행하면 필요한 확장프로그램 파일이 자동 설치됩니다. 이후 한 번만 Chrome 또는 Edge 확장프로그램 관리 화면에서 개발자 모드 → 압축해제된 확장프로그램 로드 → 설치 폴더 선택으로 등록합니다.
 
-**기존 사용자:** 고정 GitHub 다운로드의 최신 `SimanSetup.exe`를 실행하면 **기존 설치 위치에 자동으로 덮어쓰기 업데이트하고 기존 확장 ID를 Chrome·Edge 관리 화면에서 찾아 새 코드를 적용**합니다. Chrome 개발자 모드가 켜진 압축해제 확장 환경에서 실제 Chrome v1.5.11→v1.5.12 무인 업데이트 및 ACK 수신까지 검증했습니다. 수동 재등록과 JSON 원문 백업/복원은 요구하지 않습니다. 브라우저가 ACK를 보내지 않으면 파일 설치만 완료된 것으로 구분하고 `%LOCALAPPDATA%\\2bornot\\Siman\\setup.log`에 이유를 기록합니다. 사용자 검색 색인·대화 원문은 확장프로그램 저장소에 남습니다.
+**기존 사용자:** 고정 GitHub 다운로드의 최신 `SimanSetup.exe`를 실행하면 **기존 설치 위치에 자동으로 덮어쓰기 업데이트하고 기존 확장 ID를 Chrome·Edge 관리 화면에서 찾아 새 코드를 적용**합니다. Chrome 개발자 모드가 켜진 압축해제 확장 환경에서 실제 Chrome v1.5.12→v1.5.13 무인 업데이트 및 ACK 수신까지 검증했습니다. 수동 재등록과 JSON 원문 백업/복원은 요구하지 않습니다. 브라우저가 ACK를 보내지 않으면 파일 설치만 완료된 것으로 구분하고 `%LOCALAPPDATA%\\2bornot\\Siman\\setup.log`에 이유를 기록합니다. 사용자 검색 색인·대화 원문은 확장프로그램 저장소에 남습니다.
 
 설치 실패 시 이전 설치 코드 롤백을 시도하며 로그는 `%LOCALAPPDATA%\\2bornot\\Siman\\setup.log`에 기록됩니다.
+
+## v1.5.13 변경 사항 (2026-11-13 실사용 진단 기반)
+
+- **설치 차단 오류 수정:** 이전 설치 관리자가 외부에서 `chrome-extension://<ID>/siman-update-*.html`을 여는 방식으로 `ERR_BLOCKED_BY_CLIENT`를 유발함. v1.5.13은 같은 설치 폴더의 `siman-updater-request.json`에 1회용 요청을 두고 Chrome 기존 확장 관리자에서 Reload 후 새 백그라운드가 직접 인증된 로컬 ACK를 보냄
+- **실제 Windows EXE/Chrome 시험:** 기존 v1.5.12 확장 ID 유지·설치 파일 제자리 업데이트·기존 기록 보존·실제 백그라운드 ACK 및 Node 15종 회귀 시험 성공. [빌드 기록](https://github.com/sangkukzoa-ctrl/assets/actions/runs/43439284243)
+- **브라우저 오류 진단:** 압축 해제 확장 관리 UI에서 복사한 `content.js` 소스만으로 Chrome 예외 원문은 확인되지 않음. 비동기 저장소 브리지의 구 컨텍스트 무효화 처리를 보강하고 설치 로그에 기존 확장의 활성 상태와 로컬 원문 건수(숫자만) 기록
+- **Claude HTTP 503:** 해당 원문만 점진적 지연 후 최대 3회 추가 재시도. Gemini 208건 완료, DeepSeek 40건 완료, ChatLLM 301건 완료 실사용 로그 확인
+- **주의:** 이전 ChatGPT 로그의 532건 완료와 새 로그의 183건 완료 사이의 차이가 존재하며, Chrome 프로필/확장 ID/저장소 연속성의 실사용 후속 확인 대상임. 새 설치 관리자는 원문을 삭제하지 않으며 기존 확장 ID 재사용을 유지함
+- [v1.5.13 상세 변경 기록](development/RELEASE_NOTES_v1.5.13.md)
 
 ## v1.5.12 변경 사항 (2026-11-12 실사용 진단 기반)
 
