@@ -28,7 +28,21 @@ function shutdown(){
  try{chrome.runtime.onMessage.removeListener(handleRuntimeMessage)}catch{}
 }
 
-let statusQueue=Promise.resolve();const storeEvent=(kind,d)=>{statusQueue=statusQueue.catch(()=>{}).then(()=>kind==='TRACE'?SimanStore.appendDebug({provider:d.provider||provider,level:d.level||'TRACE',stage:d.stage||'',message:d.text||''}):SimanStore.updateEvent({kind,provider:d.provider||provider,stage:d.stage,done:d.done,total:d.total,read:d.read,skipped:d.skipped,failed:d.failed,remaining:d.remaining,retryAt:d.retryAt,details:d.details,text:d.text,result:d.result}));return statusQueue};
+let statusQueue=Promise.resolve();
+const storeEvent=(kind,d)=>{
+ if(!alive()){shutdown();return Promise.resolve()}
+ statusQueue=statusQueue.catch(()=>{}).then(()=>{
+  if(!alive()){shutdown();return}
+  return kind==='TRACE'?SimanStore.appendDebug({
+   provider:d.provider||provider,level:d.level||'TRACE',stage:d.stage||'',message:d.text||''
+  }):SimanStore.updateEvent({
+   kind,provider:d.provider||provider,stage:d.stage,done:d.done,total:d.total,
+   read:d.read,skipped:d.skipped,failed:d.failed,remaining:d.remaining,
+   retryAt:d.retryAt,details:d.details,text:d.text,result:d.result
+  })
+ });
+ return statusQueue;
+};
 function handleBridgeMessage(ev){if(!alive()){shutdown();return}void (async()=>{if(ev.source!==window||ev.origin!==location.origin||ev.data?.tag!==TAG)return;const d=ev.data;
  if(d.kind==='BRIDGE'){
   let out={tag:TAG,kind:'BRIDGE_REPLY',seqId:d.seqId,ok:false};
@@ -46,9 +60,11 @@ function handleBridgeMessage(ev){if(!alive()){shutdown();return}void (async()=>{
  })().catch(e=>{
   // Chrome invalidates old content-script contexts after unpacked extension reload.
   // Expected late events must not become unhandled rejection cards in chrome://extensions.
-  if(!globalThis.chrome?.runtime?.id)return;
-  if(!alive())shutdown();
-  else console.warn('[Siman bridge] storage event error: '+String(e?.name||'Error'));
+  if(!alive()||/Extension context invalidated|Extension.*context.*invalid|Context invalid/i.test(String(e?.message||''))){
+   shutdown();return;
+  }
+  // A stale-page failure must never create an unhandled Chrome extension error.
+  console.warn('[Siman bridge] storage event error: '+String(e?.name||'Error'));
  });
 }
 window.addEventListener('message',handleBridgeMessage);
@@ -93,7 +109,7 @@ function combineDeepSeek(previous,visible){
  return result.map((m,index)=>({...m,index}));
 }
 let lastSig='',captureBusy=false;
-let visitHealth={ok:true,provider,version:'1.5.12',stage:'초기화',count:0,at:0};
+let visitHealth={ok:true,provider,version:'1.5.13',stage:'초기화',count:0,at:0};
 const visitLogged=new Set(),skipLogged=new Set();
 async function noteSkip(stage){
  visitHealth={...visitHealth,stage,at:Date.now()};
@@ -145,7 +161,7 @@ async function captureOnce(){
  await SimanStore.save(SimanCore.record(provider,id,title,msgs,{url:location.href,complete:false,source:'visited-dom'}));
  // Commit the signature ONLY after a successful storage write; failed writes must retry.
  lastSig=sig;
- visitHealth={ok:true,provider,version:'1.5.12',stage:'저장 성공',count:msgs.length,at:Date.now()};
+ visitHealth={ok:true,provider,version:'1.5.13',stage:'저장 성공',count:msgs.length,at:Date.now()};
  if(['gemini','deepseek','grok'].includes(provider)&&!visitLogged.has(id)){
   visitLogged.add(id);
   await SimanStore.appendDebug({provider,level:'INFO',stage:'VISIT_CAPTURE',message:'방문 대화 원문을 저장했습니다. 화면 메시지 '+msgs.length+'건'});
