@@ -381,6 +381,57 @@ def forge_cnb_position_access(source):
     return source.replace(old,new)
 patch(rgbengine,forge_cnb_position_access)
 
+# 1.20.1 Forge multiplayer live-block updates are NOT equivalent to 26.1.2:
+# ClientLevel#setBlock may apply a new RGB Glow state without producing the
+# changed sendBlockUpdated callback expected by the original mixin. The old
+# settleAfterServerSync path only queues bootstrap and DOES NOT remove stale
+# per-channel RGBLightStorage voxels in already-READY sections.
+# Real two-client CI proved this: both clients received GREEN block state and
+# GREEN [4,15,2] emission but held original RED [238,85,119] neighboring light
+# indefinitely. Preserve the original algorithm and use its existing exact
+# invalidateAround() on Forge source/occluder transitions; also detect a
+# previously indexed source when a glow block gets removed (new state = air).
+# Keep the 1.21.1 NeoForge implementation and source baseline untouched.
+forge_source_index=CODE/"com/rgbblocks/client/lighting/RGBSourceIndex.java"
+def forge_live_source_index(source):
+    anchor='''   public static void refresh(BlockAndTintGetter level, BlockPos pos) {'''
+    addition='''   public static boolean hasSourceAt(BlockPos pos) {
+      return pos != null && BY_POS.containsKey(pos.asLong());
+   }
+
+'''
+    if source.count(anchor)!=1:
+        raise AssertionError("RGB source index position anchor moved")
+    return source.replace(anchor,addition+anchor,1)
+patch(forge_source_index,forge_live_source_index)
+
+forge_client_level=CODE/"com/rgbblocks/mixin/client/ClientLevelMixin.java"
+def forge_live_rgb_invalidations(source):
+    source=source.replace(
+        'import com.rgbblocks.client.lighting.RGBRealLightEngine;',
+        'import com.rgbblocks.client.lighting.RGBRealLightEngine;\\nimport com.rgbblocks.client.lighting.RGBSourceIndex;'.replace('\\n','\n'))
+    old='''         if (lightRelevant || occluderRelevant) {
+            if (rgbblocks$isRemoteMultiplayer()) {
+               RGBRealLightEngine.settleAfterServerSync(pos);
+            } else {
+               RGBRealLightEngine.invalidateAround(pos);
+            }
+         }'''
+    new='''         boolean previousSource = RGBSourceIndex.hasSourceAt(pos);
+         if (lightRelevant || occluderRelevant || previousSource) {
+            // Full invalidation clears already-ready RGB voxels, rather than
+            // simply scheduling a source bootstrap that retains old RED light.
+            if (rgbblocks$isRemoteMultiplayer() && !lightRelevant && !previousSource) {
+               RGBRealLightEngine.settleAfterServerSync(pos);
+            } else {
+               RGBRealLightEngine.invalidateAround(pos);
+            }
+         }'''
+    if source.count(old)!=1:
+        raise AssertionError("Original ClientLevel#setBlock mixin source-refresh site moved")
+    return source.replace(old,new,1)
+patch(forge_client_level,forge_live_rgb_invalidations)
+
 # The original 1.3.1 C&B vanilla-emission suppression hook also reflects
 # BlockInformation#blockState(), separately from the real RGB light engine.
 # C&B 20.1.20 implements IBlockInformation#getBlockState(), so both readers
