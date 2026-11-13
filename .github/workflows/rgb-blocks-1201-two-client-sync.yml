@@ -1,0 +1,47 @@
+name: RGB Blocks 1.20.1 TWO real clients live C&B RGB and AUTO/MANUAL sync
+on:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths:
+      - 'rgb-blocks-compat/test_mc1201_forge_two_clients.py'
+      - 'rgb-blocks-compat/inject_ci_two_client_sync_probe.py'
+      - 'rgb-blocks-compat/inject_ci_only_light_probe.py'
+      - 'rgb-blocks-compat/build_mc1201_forge.py'
+      - '.github/workflows/rgb-blocks-1201-inworld.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  multiplayer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 85
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preflight Forge world test and RGB/C&B instrumenter Python syntax
+        run: python3 -m py_compile rgb-blocks-compat/test_mc1201_forge_two_clients.py rgb-blocks-compat/inject_ci_only_light_probe.py rgb-blocks-compat/inject_ci_two_client_sync_probe.py
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.8'}
+      - name: Set up Linux Xvfb graphics and screenshot
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb scrot mesa-utils libgl1-mesa-dri libgl1 libasound2t64 libxrandr2 libxcursor1 libxinerama1 libxi6
+      - name: Compile real RGB 1.20.1 Forge JAR
+        run: |
+          python3 rgb-blocks-compat/build_mc1211_fabric.py
+          python3 rgb-blocks-compat/build_mc1201_forge.py
+          cd port-work/mc1201-forge
+          cd ../..
+          python3 rgb-blocks-compat/inject_ci_only_light_probe.py forge1201
+          python3 rgb-blocks-compat/inject_ci_two_client_sync_probe.py
+          cd port-work/mc1201-forge
+          gradle --no-daemon build
+      - name: Run TWO real Forge production clients and validate RGB/C&B live sync across both
+        run: python3 rgb-blocks-compat/test_mc1201_forge_two_clients.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgbblocks-1201-two-live-clients-rgb-cnb-mode-sync-and-logs
+          path: mc1201-forge-two-clients/evidence/
+          retention-days: 30
