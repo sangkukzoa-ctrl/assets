@@ -1,4 +1,4 @@
-/* 心眼 v1.5.12 — same-origin archive reader, conservative pacing and resumable index. */
+/* 心眼 v1.5.13 — same-origin archive reader, conservative pacing and resumable index. */
 (()=>{'use strict';
 if(window.__simanPageV155)return;
 window.__simanPageV155=true;
@@ -362,7 +362,18 @@ async function scanClaude(){
   const cached=await completeIds('claude',[...conv.keys()]);await markMany('claude',[...cached],'complete');
   for(const [id,x] of conv){if(cancelled||pausedError)break;if(cached.has(id)){skipped++;processed++;continue}
    try{let j;const path='/api/organizations/'+encodeURIComponent(oid)+'/chat_conversations/'+encodeURIComponent(id)+'?tree=true&rendering_mode=messages&render_all_tools=true';
-    try{j=await serviceRequest(path)}catch(e){if(e.ratePaused||e.cancelled)throw e;j=await serviceRequest('/api/organizations/'+encodeURIComponent(oid)+'/chat_conversations/'+encodeURIComponent(id)+'?tree=True&rendering_mode=messages&render_all_tools=true&consistency=eventual')}
+    for(let attempt=0;attempt<4;attempt++){
+      try{
+       j=await serviceRequest(attempt%2===0?path:
+        '/api/organizations/'+encodeURIComponent(oid)+'/chat_conversations/'+encodeURIComponent(id)+'?tree=True&rendering_mode=messages&render_all_tools=true&consistency=eventual');
+       break;
+      }catch(e){
+       if(e.ratePaused||e.cancelled)throw e;
+       if(![408,500,502,503,504].includes(e.status)||attempt===3)throw e;
+       trace('CLAUDE_RETRY','Claude 원문 일시 장애 HTTP '+e.status+' · 재시도 '+(attempt+1)+'/3','WARN');
+       await sleep((attempt+1)*2100);
+      }
+     }
     const root=j?.result||j?.data||j;
     let c=C.claude({...root,uuid:id,name:x.name||root.name,project_uuid:x.project_uuid||root.project_uuid,project_name:projectNames.get(String(x.project_uuid||''))||''});
     if(c?.messages?.length){if(await saveRecord(c))read++;else{failed++;await mark('claude',id,'failed','저장 실패')}}
@@ -445,6 +456,6 @@ async function run(options={}){if(running)return;running=true;cancelled=false;au
  let result;
  if(provider==='chatgpt')result=await scanChatGPT({resumeOnly:!!options.resumeOnly});else if(provider==='claude')result=await scanClaude();else if(provider==='chatllm')result=await scanChatLLM();else if(provider==='deepseek')result=await scanDeepSeek();else if(provider==='gemini')result=await scanGemini();else if(provider==='grok')result=await scanGrok();else throw Error('해당 서비스는 방문 대화 자동 저장만 지원합니다.');emit('DONE',{result});trace('DONE','발견 '+(result.found||0)+' / 저장 '+(result.read||0)+' / 계정 목록 확인 '+!!result.listComplete)}
  catch(e){if(e.cancelled)emit('DONE',{result:report(0,0,0,0,0,false,{cancelled:true})});else if(e.ratePaused){emit('DONE',{result:report(0,0,0,0,0,false,{paused:true,retryAt:e.retryAt||0})});emit('WARN',{text:'서버 429 요청 제한으로 수집 일시 중지'});}else {trace('FAIL',String(e?.message||e),'ERROR');emit('ERROR',{text:String(e?.message||e)})}}finally{clearInterval(heartbeat);running=false;auth=null}}
-window.__SimanRunnerV155={start:(options={})=>{if(running)return {ok:true,already:true};run(options);return {ok:true}},stop:()=>{cancelled=true;activeController?.abort();return {ok:true}},ping:()=>({ok:true,provider,version:'1.5.12',running,stage:lastProgress.stage,lastProgressAt}),pingStorage:async()=>{const started=Date.now();const r=await bridge('TEST',{},6500);return {ok:!!r.ok&&!!r.storageReady,latencyMs:Date.now()-started}}};
+window.__SimanRunnerV155={start:(options={})=>{if(running)return {ok:true,already:true};run(options);return {ok:true}},stop:()=>{cancelled=true;activeController?.abort();return {ok:true}},ping:()=>({ok:true,provider,version:'1.5.13',running,stage:lastProgress.stage,lastProgressAt}),pingStorage:async()=>{const started=Date.now();const r=await bridge('TEST',{},6500);return {ok:!!r.ok&&!!r.storageReady,latencyMs:Date.now()-started}}};
 window.addEventListener('message',ev=>{if(ev.source!==window||ev.origin!==origin||ev.data?.tag!==TAG)return;const d=ev.data;if(d.kind==='BRIDGE_REPLY'){pending.get(d.seqId)?.(d);pending.delete(d.seqId)}if(d.kind==='COMMAND'){if(d.action==='START')run();if(d.action==='STOP')cancelled=true}});
 })();
