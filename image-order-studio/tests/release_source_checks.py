@@ -6,7 +6,7 @@ export=(p/'app/src/main/java/com/twobornot/imageorder/ImageExporter.java').read_
 ledger=(p/'app/src/main/java/com/twobornot/imageorder/SequenceLedger.java').read_text()
 manifest=(p/'app/src/main/AndroidManifest.xml').read_text()
 gradle=(p/'app/build.gradle').read_text()
-assert "versionCode 6" in gradle and "versionName '0.5.0'" in gradle
+assert "versionCode 7" in gradle and "versionName '0.5.1'" in gradle
 assert 'applicationId \'com.twobornot.imageorder\'' in gradle
 assert 'android.permission.INTERNET' not in manifest
 assert 'READ_MEDIA_IMAGES' in manifest and 'READ_EXTERNAL_STORAGE' in manifest
@@ -61,17 +61,25 @@ assert 'Pictures/' not in gallery  # use official DIRECTORY_PICTURES instead
 assert 'startActivityAndCollapse(intent)' in tile
 print('v0.4.0 Android gallery / SAF / Quick Settings source checks PASS')
 
-# 0.5.0 gallery-first UI and optional user-authorized overlay assistance.
-assert 'NativeGalleryActivity' in manifest and 'UploadAssistService' in manifest
-assert 'android.permission.BIND_ACCESSIBILITY_SERVICE' in manifest
-assert 'android.permission.READ_MEDIA_VISUAL_USER_SELECTED' in manifest
+# 0.5.1: Remove sideload Play Protect sensitive ACCESSIBILITY service.
+# The approved/standard picker integrations and on-device gallery remain.
+assert 'NativeGalleryActivity' in manifest
+assert 'UploadAssistService' not in manifest
+assert 'BIND_ACCESSIBILITY_SERVICE' not in manifest
+assert 'android.accessibilityservice' not in manifest
+assert 'BIND_NOTIFICATION_LISTENER_SERVICE' not in manifest
+assert 'READ_SMS' not in manifest and 'RECEIVE_SMS' not in manifest
+assert not (p/'app/src/main/java/com/twobornot/imageorder/UploadAssistService.java').exists()
+assert not (p/'app/src/main/res/xml/upload_assist_service.xml').exists()
+assert 'requestUploadAssist()' not in source
+assert 'from_upload_assist' not in source
 native=(p/'app/src/main/java/com/twobornot/imageorder/NativeGalleryActivity.java').read_text()
-overlay=(p/'app/src/main/java/com/twobornot/imageorder/UploadAssistService.java').read_text()
 assert 'LinkedHashMap<String,Uri> ordered' in native
 assert 'EXTRA_ORDER_VERIFIED' in native
 assert 'setResult(RESULT_OK,data)' in native
 assert 'MediaStore.Images.Media.getContentUri' in native
-assert 'TYPE_ACCESSIBILITY_OVERLAY' in overlay
-assert 'requestUploadAssist()' in source
-assert 'ui.postDelayed' in source
-print('v0.5.0 unified gallery and optional overlay source checks PASS')
+assert 'android.permission.READ_MEDIA_VISUAL_USER_SELECTED' in manifest
+assert 'android.intent.action.GET_CONTENT' in manifest
+assert 'android.intent.action.PICK' in manifest
+assert 'com.twobornot.imageorder.documents' not in manifest  # uses ${applicationId}, not a hardcoded authority
+print('v0.5.1: accessibility-free gallery and native picker checks PASS')

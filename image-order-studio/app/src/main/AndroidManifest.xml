@@ -53,13 +53,6 @@
             android:permission="android.permission.MANAGE_DOCUMENTS">
             <intent-filter><action android:name="android.content.action.DOCUMENTS_PROVIDER" /></intent-filter>
         </provider>
-        <service android:name=".UploadAssistService" android:exported="true"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:label="Image Order Studio - 첨부 감지"
-            android:description="@string/accessibility_description">
-            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
-            <meta-data android:name="android.accessibilityservice" android:resource="@xml/upload_assist_service" />
-        </service>
         <service android:name=".OrderTileService" android:label="Image Order Studio"
             android:icon="@drawable/ic_launcher" android:exported="true"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">

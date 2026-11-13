@@ -1,7 +1,7 @@
-# Privacy / 개인정보 처리
+# Privacy / 개인정보 처리 · v0.5.1
 
-Image Order Studio is offline. It has no INTERNET permission, advertising SDKs, analytics, or server accounts. MediaStore read permissions are used only to display local photos and albums. Android 14+ may grant partial image access, which the app accepts.
+Image Order Studio processes images locally and has **no INTERNET permission, analytics, advertising SDK, or account**. Image and album read permissions are used only to display photographs on the device. On Android 14+, the app respects user-selected limited access.
 
-The optional Upload Assist Accessibility Service is disabled until the user voluntarily enables it after reading an in-app disclosure. The service reads window package identifiers and visible clickable labels only to decide when to offer an on-screen shortcut. It does not access passwords/editable text, transmit screenshot contents, save event logs, change other apps' upload destinations, or automatically click Submit.
+**This APK does not register an AccessibilityService.** No other-app screen scanning, overlay interception, notification monitoring, SMS permission, or background data collection is used. The quick-settings tile is a user-triggered launch shortcut.
 
-이미지와 순서는 기기 내부에만 처리·저장합니다. 접근성 기반 첨부 알림은 사용자가 직접 활성화한 경우에만 작동하며, 외부 앱의 첨부 관련 화면 감지에만 사용합니다. 저장된 개인 대화 및 사진 내용은 서버로 전송하지 않습니다.
+사진과 선택한 순서는 기기 내부에서만 처리됩니다. 광고, 인터넷 연결, 계정 등록, 백그라운드 화면 감시, 접근성 서비스는 없습니다. 갤러리 읽기 권한은 사진과 앨범을 표시하는 데 사용하며, 일부 사진만 허용하는 Android 권한도 지원합니다.
