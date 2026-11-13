@@ -7,7 +7,7 @@ on:
       - 'rgb-blocks-compat/inject_ci_two_client_sync_probe.py'
       - 'rgb-blocks-compat/inject_ci_only_light_probe.py'
       - 'rgb-blocks-compat/build_mc1201_forge.py'
-      - '.github/workflows/rgb-blocks-1201-inworld.yml'
+      - '.github/workflows/rgb-blocks-1201-two-client-sync.yml'
   workflow_dispatch:
 permissions:
   contents: read
