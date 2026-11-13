@@ -1,5 +1,12 @@
 # RGB Blocks 1.3.1 — EXECUTE CONTINUATION, not a fresh planning prompt
 
+## LATEST 2026-11-13 update — strict dual client mode sync PASS, live green test FAIL
+- First real two-client run [#43427634724](https://github.com/sangkukzoa-ctrl/assets/actions/runs/43427634724) completed FAIL, **but** both clients independently joined the same Forge 1.20.1 server and BOTH passed normal RGB + C&B 4095-microbit light. Both received MANUAL and AUTO mode switch packets, both processes remained live.
+- Only next test failed: after real server red→green Glow block swap at (0,121,7), neither client generated green-source+neighbor-light PASS in 100s. Cause not yet diagnosed. Independent working original C&B emitter tests unaffected.
+- Patch [`b5fecdc`](https://github.com/sangkukzoa-ctrl/assets/commit/b5fecdcba67e8b5816bfe00c4cc23c4eb91af9dd) introduces CI-only `RGB_PORT_PEER_LIVE_GREEN_DIAG` emitting client BlockState, parsed RGB, sourceColorAt, adjacent light, AUTO flag; original live green assertion remains mandatory. Also prints per-client diagnostic tails on failure. **Inspect active rerun [#43430303743](https://github.com/sangkukzoa-ctrl/assets/actions/runs/43430303743)**, job log `RGB_PORT_PEER_LIVE_GREEN_DIAG` and `RGB_PORT_PEER_LIVE_GREEN_SYNC_WAIT`.
+- If clients have new GREEN block and sourceColorAt GREEN but near remains RED, diagnose light cache invalidation/mixin server sync; if block stays old RED, diagnose networking/chunk updates or test coordinates. Fix production Forge builder only on demonstrated runtime bug, preserving NeoForge.
+- See `PORT_STATUS.md` phase 11. Do NOT reset existing code or release yet.
+
 ## LIVE 2026-11-13 two-real-clients acceptance underway
 - Restored branch `rgb-blocks-legacy-compat-audit`; no source reset. The formerly pending Forge production GUI [#43195703260](https://github.com/sangkukzoa-ctrl/assets/actions/runs/43195703260) completed **SUCCESS**. The previous Forge 1.20.1 native build, strict C&B RGB shader OFF/ON and NeoForge 1.21.1 strict C&B all remain PASS.
 - Created a new **separate strict CI-only concurrent real multiplayer test** (no release source changes): `rgb-blocks-compat/inject_ci_two_client_sync_probe.py` (CI-only Java probe), `rgb-blocks-compat/test_mc1201_forge_two_clients.py` (two ordinary installed Forge clients), `.github/workflows/rgb-blocks-1201-two-client-sync.yml`.
