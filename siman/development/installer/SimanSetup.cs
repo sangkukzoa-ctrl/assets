@@ -20,8 +20,8 @@ namespace SimanSetup
 {
     internal static class Program
     {
-        public const string AppVersion = "1.5.12";
-        public const string InstallerRevision = "10";
+        public const string AppVersion = "1.5.13";
+        public const string InstallerRevision = "11";
         public static readonly string Root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "2bornot", "Siman");
         public static readonly string Target = Path.Combine(Root, "app");
         public static readonly string LogPath = Path.Combine(Root, "setup.log");
@@ -377,6 +377,76 @@ namespace SimanSetup
         // A single-use 128-bit token is sent to the extension-owned page and returned
         // by the updated extension background worker to this loopback-only listener.
         // This proves the new extension context ran, not just that a browser tab opened.
+        // The old updater opened chrome-extension://ID/siman-update-*.html from
+        // an EXTERNAL Chrome process. Real Chrome returns ERR_BLOCKED_BY_CLIENT
+        // for that route when the extension context is disabled/stale.
+        // The new installer writes a short-lived request into the SAME installed
+        // extension directory, invokes Chrome's native manager Reload button,
+        // and waits for the new background worker to acknowledge on loopback.
+        // No user data, Chrome profile, extension ID or Preferences are modified.
+        private static string DirectivePath
+        {
+            get { return Path.Combine(Target, "siman-updater-request.json"); }
+        }
+
+        private static void PrepareBackgroundAck(ExtensionProfile profile, int port, string token)
+        {
+            long now = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalMilliseconds;
+            var request = new Dictionary<string, object> {
+                { "version", AppVersion }, { "extensionId", profile.Id },
+                { "port", port }, { "token", token }, { "at", now }
+            };
+            File.WriteAllText(DirectivePath, new JavaScriptSerializer().Serialize(request), new UTF8Encoding(false));
+        }
+
+        private static bool ReceiveBackgroundAck(TcpListener listener, string token, string expectedId,
+            int milliseconds, BrowserUpdateResult result)
+        {
+            Stopwatch watch = Stopwatch.StartNew();
+            while (watch.ElapsedMilliseconds < milliseconds)
+            {
+                if (!listener.Pending()) { Thread.Sleep(90); continue; }
+                using (TcpClient client = listener.AcceptTcpClient())
+                {
+                    client.ReceiveTimeout = 1500;
+                    client.SendTimeout = 1500;
+                    string first = "";
+                    bool accepted = false;
+                    try
+                    {
+                        using (StreamReader input = new StreamReader(client.GetStream(), Encoding.ASCII, false, 1024, true))
+                            first = input.ReadLine() ?? "";
+                        if (first.StartsWith("GET /complete?", StringComparison.Ordinal) &&
+                            QueryValue(first, "v") == AppVersion &&
+                            QueryValue(first, "token") == token &&
+                            String.Equals(QueryValue(first, "id"), expectedId, StringComparison.OrdinalIgnoreCase))
+                        {
+                            accepted = true;
+                            int refreshed, drafts;
+                            if (Int32.TryParse(QueryValue(first, "refreshed"), out refreshed))
+                                result.RefreshedTabs += refreshed;
+                            if (Int32.TryParse(QueryValue(first, "drafts"), out drafts))
+                                result.DraftTabs += drafts;
+                            Log("BROWSER RELOADED: new background worker ACK; version=" + AppVersion +
+                                "; extension ID ending=" + expectedId.Substring(28) +
+                                "; local archive records=" + QueryValue(first, "records") +
+                                "; refreshed=" + QueryValue(first, "refreshed") +
+                                "; preserved drafts=" + QueryValue(first, "drafts"));
+                        }
+                        byte[] bytes = Encoding.UTF8.GetBytes("<!doctype html><meta charset=utf-8><title>Siman updated</title>OK");
+                        byte[] header = Encoding.ASCII.GetBytes(
+                            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n" +
+                            "Content-Length: " + bytes.Length + "\r\nConnection: close\r\n\r\n");
+                        client.GetStream().Write(header, 0, header.Length);
+                        client.GetStream().Write(bytes, 0, bytes.Length);
+                    }
+                    catch (Exception ex) { Log("BROWSER ACK NOTE: " + ex.GetType().Name); }
+                    if (accepted) return true;
+                }
+            }
+            return false;
+        }
+
         public static BrowserUpdateResult ApplyBrowserUpdates()
         {
             var result = new BrowserUpdateResult();
@@ -387,7 +457,6 @@ namespace SimanSetup
                 result.Details = "브라우저에 등록된 심안을 아직 찾지 못했습니다.";
                 return result;
             }
-            var pending = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             TcpListener listener = null;
             try
             {
@@ -404,79 +473,46 @@ namespace SimanSetup
                         continue;
                     }
                     string token = Guid.NewGuid().ToString("N");
-                    // Use a brand new resource name, NOT search.html: Chrome caches
-                    // scripts already loaded by the previous extension version.
-                    string url = "chrome-extension://" + profile.Id +
-                        "/siman-update-1512.html?siman_auto_apply=1&version=" + AppVersion +
-                        "&port=" + port + "&token=" + token;
-                    // No user interaction, forced browser restarts, debug ports, key
-                    // shortcuts, profile writes or extension re-registration.
-                    string args = "--user-data-dir=\"" + profile.UserDataDir +
-                        "\" --profile-directory=\"" + profile.ProfileName +
-                        "\" --new-window \"" + url + "\"";
                     try
                     {
-                        pending[token] = profile.Browser + "/" + profile.ProfileName;
-                        Log("BROWSER LAUNCH: " + profile.Browser + "/" + profile.ProfileName +
-                            " exe=" + exe + " extension ending=" + profile.Id.Substring(28));
+                        PrepareBackgroundAck(profile, port, token);
+                        Log("BROWSER UPDATE: on-disk background request armed for " +
+                            profile.Browser + "/" + profile.ProfileName +
+                            " ID ending=" + profile.Id.Substring(28) +
+                            "; no chrome-extension URL navigation");
+                        // Start or focus only the profile that originally registered Siman.
+                        // Launch the extensions MANAGER, never a blocked chrome-extension URL.
+                        string args = "--user-data-dir=\"" + profile.UserDataDir +
+                            "\" --profile-directory=\"" + profile.ProfileName +
+                            "\" --new-window \"chrome://extensions/\"";
                         Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = true });
-                        // The old extension can be blocked after replacing its on-disk
-                        // manifest. A new extension:// page cannot fix a disabled old
-                        // runtime. Ask Chrome's own extensions manager to reload the
-                        // existing unpacked ID before delivering the update receipt.
-                        // This is a user-interface action; never edit Chrome profiles.
-                        bool managerReload = ReloadExtensionFromManager(profile.Browser, profile.Id);
-                        Log("BROWSER UPDATE: original extension manager reload " +
-                            (managerReload ? "invoked" : "unavailable"));
-                        bool addressSent = NavigateExistingBrowser(profile.Browser, url);
-                        Log("BROWSER UPDATE: extension bootstrap address dispatch " +
-                            (addressSent ? "sent" : "not available"));
                         result.Launched++;
+                        bool managerReload = ReloadExtensionFromManager(profile.Browser, profile.Id);
+                        Log("BROWSER UPDATE: manager reload " + (managerReload ? "invoked" : "unavailable") +
+                            " for " + profile.Browser + "/" + profile.ProfileName);
+                        // Even if manager UI was inaccessible, a running Chrome profile
+                        // may already have noticed the updated unpacked extension.
+                        // Only its actual new background worker can confirm success.
+                        bool ok = ReceiveBackgroundAck(listener, token, profile.Id, 17000, result);
+                        if (ok) result.Confirmed++;
+                        else
+                        {
+                            result.Failed++;
+                            Log("BROWSER ACK MISSING: " + profile.Browser + "/" + profile.ProfileName +
+                                "; extension manager reload=" + managerReload +
+                                "; Chrome can be disabled or accessibility control unavailable");
+                        }
                     }
                     catch (Exception e)
                     {
-                        pending.Remove(token);
                         result.Failed++;
-                        Log("BROWSER LAUNCH ERROR: " + profile.Browser + "/" + profile.ProfileName + " " + e.Message);
+                        Log("BROWSER UPDATE ERROR: " + profile.Browser + "/" +
+                            profile.ProfileName + ": " + e.ToString());
                     }
-                }
-                var watch = Stopwatch.StartNew();
-                while (pending.Count > 0 && watch.ElapsedMilliseconds < 14000)
-                {
-                    if (!listener.Pending()) { Thread.Sleep(80); continue; }
-                    using (TcpClient client = listener.AcceptTcpClient())
+                    finally
                     {
-                        client.ReceiveTimeout = 1200;
-                        client.SendTimeout = 1200;
-                        string first = "";
-                        try
-                        {
-                            using (StreamReader input = new StreamReader(client.GetStream(), Encoding.ASCII, false, 1024, true))
-                                first = input.ReadLine() ?? "";
-                            string token = QueryValue(first, "token");
-                            string version = QueryValue(first, "v");
-                            if (first.StartsWith("GET /complete?", StringComparison.Ordinal) &&
-                                version == AppVersion && pending.ContainsKey(token))
-                            {
-                                result.Confirmed++;
-                                int refreshed; int drafts;
-                                if (Int32.TryParse(QueryValue(first, "refreshed"), out refreshed))
-                                    result.RefreshedTabs += refreshed;
-                                if (Int32.TryParse(QueryValue(first, "drafts"), out drafts))
-                                    result.DraftTabs += drafts;
-                                Log("BROWSER RELOADED: " + pending[token] +
-                                    " / app " + version + " / tabs " + QueryValue(first, "refreshed") +
-                                    " / preserved drafts " + QueryValue(first, "drafts"));
-                                pending.Remove(token);
-                            }
-                            byte[] bytes = Encoding.UTF8.GetBytes("<!doctype html><meta charset=utf-8><title>Siman updated</title>OK");
-                            byte[] header = Encoding.ASCII.GetBytes(
-                                "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n" +
-                                "Content-Length: " + bytes.Length + "\r\nConnection: close\r\n\r\n");
-                            client.GetStream().Write(header, 0, header.Length);
-                            client.GetStream().Write(bytes, 0, bytes.Length);
-                        }
-                        catch (Exception e) { Log("BROWSER ACK NOTE: " + e.GetType().Name); }
+                        try { if (File.Exists(DirectivePath)) File.Delete(DirectivePath); }
+                        catch (Exception e) { Log("BROWSER DIRECTIVE CLEANUP: " + e.GetType().Name); }
                     }
                 }
             }
@@ -486,7 +522,6 @@ namespace SimanSetup
                 result.Failed++;
             }
             finally { if (listener != null) listener.Stop(); }
-            result.Failed += pending.Count;
             result.Details = result.Confirmed + "/" + result.Found +
                 "개 브라우저 프로필 새 코드 적용 확인 · AI 탭 자동 갱신 " +
                 result.RefreshedTabs + "개 · 작성 중인 입력 보호 " + result.DraftTabs + "개";
