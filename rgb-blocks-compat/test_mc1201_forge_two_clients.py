@@ -31,7 +31,7 @@ def runthread(p,label,out):
             for line in p.stdout:
                 lines.append(line)
                 f.write(line);f.flush()
-                if any(q in line for q in ("Done (","joined the game","lost connection","ERROR","FATAL","Fatal","Traceback","Render thread","RGB mode","Server thread","Failed")):
+                if any(q in line for q in ("Done (","joined the game","lost connection","ERROR","FATAL","Fatal","Traceback","Render thread","RGB mode","Server thread","Failed","RGB_PORT_PEER_")):
                     record(label+" "+line.rstrip()[:450])
     t=threading.Thread(target=reader,daemon=True);t.start()
     return lines,t
@@ -243,6 +243,14 @@ try:
     green_first=await_pattern(clog,"RGB_PORT_PEER_LIVE_GREEN_SYNC_PASS",client,100,"primary_live_green")
     green_peer=await_pattern(peerlog,"RGB_PORT_PEER_LIVE_GREEN_SYNC_PASS",peer,100,"peer_live_green")
     result["two_clients_live_rgb_sync_verified"]=green_first and green_peer
+    if not result["two_clients_live_rgb_sync_verified"]:
+        for name,folder in (("PRIMARY",GAME),("SECONDARY",PEER)):
+            path=folder/"logs/latest.log"
+            if path.is_file():
+                diag=[line for line in path.read_text(encoding="utf-8",errors="replace").splitlines()
+                      if "RGB_PORT_PEER_" in line]
+                for line in diag[-24:]:
+                    record("TWO_CLIENT_DIAG_"+name+" "+line[-650:])
     result["both_clients_alive_after_sync"]=client.poll() is None and peer.poll() is None
     assert result["two_clients_live_rgb_sync_verified"],"Live server RGB source/lighting edit did not propagate to both clients"
     assert result["both_clients_alive_after_sync"],"At least one multiplayer client exited during live update"

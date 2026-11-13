@@ -40,6 +40,15 @@ extra = r'''
        +com.rgbblocks.runtime.RGBRuntime.clientWorldId());
    }
    if (syncAutoRestored && !liveGreenPassed) {
+     if(ticks%120==0) {
+       var liveState=mc.level.getBlockState(src);
+       var emittedNow=com.rgbblocks.client.lighting.RGBRealLightEngine.sourceColorAt(mc.level,src);
+       var neighborNow=com.rgbblocks.client.lighting.RGBLightEngine.lightColorAt(near,0.5f,0.5f,0.5f);
+       System.out.println("RGB_PORT_PEER_LIVE_GREEN_DIAG tick="+ticks
+         +" block="+liveState+" rgb="+Integer.toHexString(com.rgbblocks.client.lighting.RGBRealLightEngine.rgbForState(liveState))
+         +" emitted="+emittedNow+" near="+neighborNow
+         +" auto="+com.rgbblocks.runtime.RGBRuntime.clientTargetAuto());
+     }
      int changed=com.rgbblocks.client.lighting.RGBRealLightEngine.rgbForState(mc.level.getBlockState(src));
      int cr=(changed>>16)&255, cg=(changed>>8)&255, cb=changed&255;
      if(changed>=0 && cg>cr && cg>cb && cg>=180) {
