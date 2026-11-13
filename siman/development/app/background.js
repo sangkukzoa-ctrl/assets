@@ -1,4 +1,4 @@
-/* Siman v1.5.12 — one-shot self-update handshake. Never touches chat archives. */
+/* Siman v1.5.13 — one-shot self-update handshake. Never touches chat archives. */
 'use strict';
 const KEY='siman:updater:pending';
 const PROVIDERS=['https://apps.abacus.ai/*','https://*.abacus.ai/*',
@@ -36,28 +36,69 @@ async function refreshChatTabs() {
  }
  return {refreshed,skippedDraft,failed};
 }
+// v1.5.13: the installer writes a one-time request into the SAME unpacked
+// extension directory before invoking the Chrome extensions-manager Reload.
+// Chrome itself loads this service worker after Reload; no external navigation
+// to chrome-extension:// (blocked by Chrome in real user profile) is necessary.
+const DIRECTIVE='siman-updater-request.json';
+let updateFlight=null;
+async function pendingFromDirectory(){
+ const url=chrome.runtime.getURL(DIRECTIVE);
+ let r;
+ try {r=await fetch(url,{cache:'no-store'});}catch{return false}
+ if(!r?.ok)return false;
+ let candidate;
+ try{candidate=await r.json()}catch{return false}
+ if(!validRequest(candidate)||candidate.extensionId!==chrome.runtime.id)return false;
+ await chrome.storage.local.set({[KEY]:{
+  version:candidate.version,port:candidate.port,token:candidate.token,at:candidate.at
+ }});
+ return true;
+}
 async function applyPendingUpdate() {
- const state=(await chrome.storage.local.get(KEY))[KEY];
- if(!validRequest(state))return {ok:false,reason:'no-valid-pending-update'};
- // Remove the one-time updater marker before reporting. The conversation store is untouched.
+ let state=(await chrome.storage.local.get(KEY))[KEY];
+ if(!validRequest(state)){
+  const accepted=await pendingFromDirectory();
+  if(!accepted)return {ok:false,reason:'no-valid-pending-update'};
+  state=(await chrome.storage.local.get(KEY))[KEY];
+ }
+ if(!validRequest(state))return {ok:false,reason:'expired-update-request'};
+ // Remove the single-use marker before reporting. User conversations untouched.
  await chrome.storage.local.remove(KEY);
  const result=await refreshChatTabs();
+ // Report COUNT only: never send any titles, content, keys or authentication.
+ let recordCount=-1;
+ try{
+  const keys=await chrome.storage.local.getKeys();
+  recordCount=keys.filter(k=>k.startsWith('siman:v11:record:')).length;
+ }catch{}
  const url='http://127.0.0.1:'+state.port+'/complete?token='+
   encodeURIComponent(state.token)+'&v='+encodeURIComponent(state.version)+
-  '&refreshed='+result.refreshed+'&drafts='+result.skippedDraft+'&failed='+result.failed;
- // A top-level navigation does not need local-network fetch host permissions.
- // Keep the receipt tab inactive and close it after the local installer receives the ACK.
+  '&id='+encodeURIComponent(chrome.runtime.id)+
+  '&refreshed='+result.refreshed+'&drafts='+result.skippedDraft+
+  '&failed='+result.failed+'&records='+recordCount;
+ // Local-only receipt uses an ordinary browser navigation. No extra permissions.
  try{
   const tab=await chrome.tabs.create({url,active:false});
-  if(tab?.id)setTimeout(()=>{chrome.tabs.remove(tab.id).catch(()=>{});},1700);
-  return {ok:true,...result};
- }catch(e){return {ok:false,reason:'ack-open-failed'};}
+  if(tab?.id)setTimeout(()=>{chrome.tabs.remove(tab.id).catch(()=>{});},3500);
+  return {ok:true,...result,recordCount};
+ }catch(e){return {ok:false,reason:'local-ack-tab-failed'};}
+}
+function completeOnce(){
+ if(updateFlight)return updateFlight;
+ updateFlight=applyPendingUpdate().catch(e=>({ok:false,reason:String(e?.name||'Error')}))
+  .finally(()=>{updateFlight=null});
+ return updateFlight;
 }
 chrome.runtime.onInstalled.addListener(details=>{
- if(details.reason==='update'||details.reason==='install')applyPendingUpdate().catch(()=>{});
+ if(details.reason==='update'||details.reason==='install')completeOnce().catch(()=>{});
 });
+chrome.runtime.onStartup.addListener(()=>{completeOnce().catch(()=>{});});
 chrome.runtime.onMessage.addListener((message,sender,reply)=>{
  if(message?.type!=='SIMAN_APPLY_PENDING_UPDATE')return;
- applyPendingUpdate().then(reply).catch(e=>reply({ok:false,reason:String(e?.message||e)}));
+ completeOnce().then(reply).catch(e=>reply({ok:false,reason:String(e?.name||'Error')}));
  return true;
 });
+// Loading this worker immediately after pressing extension Reload must also ACK
+// even when Chrome does not issue a manifest 'update' event for unpacked builds.
+completeOnce().catch(()=>{});
