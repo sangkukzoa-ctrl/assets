@@ -269,6 +269,8 @@ namespace SimanSetup
             internal string ProfileName;
             internal string UserDataDir;
             internal string Id;
+            internal string BrowserState;
+            internal string DisableReasons;
         }
 
         internal sealed class BrowserUpdateResult
@@ -352,10 +354,14 @@ namespace SimanSetup
                             if (!String.Equals(path, expected, StringComparison.OrdinalIgnoreCase)) continue;
                             if (!seenIds.Add(item.Key)) continue;
                             found.Add(new ExtensionProfile {
-                                Browser = binaries[b], ProfileName = name, UserDataDir = dataDirs[b], Id = item.Key
+                                Browser = binaries[b], ProfileName = name, UserDataDir = dataDirs[b], Id = item.Key,
+                                 BrowserState = Convert.ToString(At(ext, "state")),
+                                 DisableReasons = Convert.ToString(At(ext, "disable_reasons"))
                             });
                             Log("BROWSER FOUND: " + binaries[b] + "/" + name +
-                                " extension ID ending " + item.Key.Substring(28));
+                                " extension ID ending " + item.Key.Substring(28) +
+                                 " state=" + Convert.ToString(At(ext, "state")) +
+                                 " disabled=" + Convert.ToString(At(ext, "disable_reasons")));
                         }
                     }
                     catch (Exception e)
@@ -479,6 +485,7 @@ namespace SimanSetup
                         Log("BROWSER UPDATE: on-disk background request armed for " +
                             profile.Browser + "/" + profile.ProfileName +
                             " ID ending=" + profile.Id.Substring(28) +
+                            "; state=" + profile.BrowserState + "; disable=" + profile.DisableReasons +
                             "; no chrome-extension URL navigation");
                         // Start or focus only the profile that originally registered Siman.
                         // Launch the extensions MANAGER, never a blocked chrome-extension URL.
@@ -982,8 +989,10 @@ namespace SimanSetup
                 else if (applied.Failed > 0)
                 {
                     MessageBox.Show(this,
-                        "심안 코드 파일은 업데이트됐지만 일부 브라우저에서 새 코드 적용 확인을 받지 못했습니다.\n\n" +
-                        applied.Details + "\n기존 확장프로그램은 삭제하지 않았습니다.\n\n진단 로그: " + Program.LogPath,
+                        "심안 코드 파일은 갱신됐지만 기존 확장프로그램의 새 코드 실행 확인을 받지 못했습니다.\n\n" +
+                        applied.Details + "\n확장프로그램과 저장된 기록은 삭제하지 않았습니다." +
+                         "\n기존 심안 카드의 '새로고침'을 누르면 갱신된 코드를 적용할 수 있습니다." +
+                         "\n\n진단 로그: " + Program.LogPath,
                         "심안 - 브라우저 자동 적용 점검", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
                 else if (!automatic)
