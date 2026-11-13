@@ -1,5 +1,13 @@
 # RGB Blocks 1.3.1 — EXECUTE CONTINUATION, not a fresh planning prompt
 
+## LIVE 2026-11-13 two-real-clients acceptance underway
+- Restored branch `rgb-blocks-legacy-compat-audit`; no source reset. The formerly pending Forge production GUI [#43195703260](https://github.com/sangkukzoa-ctrl/assets/actions/runs/43195703260) completed **SUCCESS**. The previous Forge 1.20.1 native build, strict C&B RGB shader OFF/ON and NeoForge 1.21.1 strict C&B all remain PASS.
+- Created a new **separate strict CI-only concurrent real multiplayer test** (no release source changes): `rgb-blocks-compat/inject_ci_two_client_sync_probe.py` (CI-only Java probe), `rgb-blocks-compat/test_mc1201_forge_two_clients.py` (two ordinary installed Forge clients), `.github/workflows/rgb-blocks-1201-two-client-sync.yml`.
+- New CI run [#43427634724](https://github.com/sangkukzoa-ctrl/assets/actions/runs/43427634724), code head `bf38f1c` at launch. **CHECK FINAL STATUS/LOGS FIRST**. It checks both simultaneous clients load C&B RGB microbit light and adjacent colored light, receive server-authoritative MANUAL→AUTO mode packets, then both receive the live red→green source edit and compute green neighboring light. It must see `RGB_PORT_PEER_MANUAL_SYNC_PASS`, `RGB_PORT_PEER_AUTO_SYNC_PASS`, `RGB_PORT_PEER_LIVE_GREEN_SYNC_PASS` on EACH client, plus both originals' `RGB_PORT_CNB_LIGHT_PROBE_PASS`. Test records `result.json` and both client logs, never disables assertions.
+- As needed, fix **CI-only** harness issues (runner memory, PortableMC dual client, missing telemetry); if runtime code actually breaks, fix Forge port properly and rerun original strict OFF/ON.
+- Next after dual-client acceptance: repeat on 1.21.1 NeoForge, C&B mixed RGB/glass and actual edits, AUTO/MANUAL dirty bake and chunk/world/dimension reload persistence.
+
+
 > Owner command: **"진행"** means resume **actual source editing, real GitHub Actions build, failure diagnosis and commit** from the most recent live CI status. Do not ask the owner to restate goals or redo work. Do not give a progress-summary-only answer. Work in bounded iterations to avoid long-turn failure. This file is the entrypoint if chat memory or the prior context collapses.
 
 ## LIVE UPDATE: 2026-11-09 third session (supersedes old four-run checkpoint below)
