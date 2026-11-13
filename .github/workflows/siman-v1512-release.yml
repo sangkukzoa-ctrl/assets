@@ -1,10 +1,5 @@
 name: Siman v1.5.12 Windows regression and beta release
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/siman-v1512-release.yml'
-      - 'siman/development/**'
   workflow_dispatch:
 concurrency:
   group: siman-v1512-release
