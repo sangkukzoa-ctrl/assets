@@ -21,11 +21,14 @@ replace_once(
 private static boolean syncManualSeen = false;
 private static boolean syncAutoRestored = false;
 private static boolean liveGreenPassed = false;
-private static boolean liveRemovalPassed = false;"""
+private static boolean liveRemovalPassed = false;
+private static int manualFrozenTicks = 0;
+private static boolean manualFrozenPassed = false;
+private static boolean manualBakePassed = false;"""
 )
 replace_once(
     "if (passed && cnbPassed) return;",
-    "if (passed && cnbPassed && syncAutoRestored && liveGreenPassed && liveRemovalPassed) return;"
+    "if (passed && cnbPassed && syncAutoRestored && liveGreenPassed && liveRemovalPassed && manualFrozenPassed && manualBakePassed) return;"
 )
 anchor = " net.minecraft.core.BlockPos near=new net.minecraft.core.BlockPos(0,121,6);"
 extra = r'''
@@ -85,6 +88,40 @@ extra = r'''
          System.out.println("RGB_PORT_PEER_LIVE_SOURCE_REMOVAL_WAIT"
            +" direct="+removedEmission+" near="+remaining+" ticks="+ticks);
        }
+     }
+   }
+   // Reintroduce green emitter while MANUAL is active: the direct source
+   // changes, but the existing baked RED C&B neighbor must remain unchanged.
+   if (liveRemovalPassed && !manualFrozenPassed
+         && com.rgbblocks.runtime.RGBRuntime.clientTargetManual()) {
+     var state=mc.level.getBlockState(src);
+     int directRGB=com.rgbblocks.client.lighting.RGBRealLightEngine.rgbForState(state);
+     int rr=(directRGB>>16)&255, gg=(directRGB>>8)&255, bb=directRGB&255;
+     if (directRGB>=0 && gg>rr && gg>bb && gg>=180) {
+       var emitted=com.rgbblocks.client.lighting.RGBRealLightEngine.sourceColorAt(mc.level,src);
+       var held=com.rgbblocks.client.lighting.RGBLightEngine.lightColorAt(near,0.5f,0.5f,0.5f);
+       if (emitted.active() && held.active() && held.r()>held.g()) {
+         if (++manualFrozenTicks>=30) {
+           manualFrozenPassed=true;
+           System.out.println("RGB_PORT_PEER_MANUAL_DEFER_PASS direct="+emitted
+             +" held="+held+" stableTicks="+manualFrozenTicks);
+         }
+       } else {
+         manualFrozenTicks=0;
+         if(ticks%100==0) System.out.println("RGB_PORT_PEER_MANUAL_DEFER_WAIT source="+emitted+" light="+held);
+       }
+     }
+   }
+   // /rgb bake is sent only after BOTH DEFER_PASS markers. Successful GREEN
+   // neighbor afterward proves the original dirty-position replay executed.
+   if (manualFrozenPassed && !manualBakePassed
+         && com.rgbblocks.runtime.RGBRuntime.clientTargetManual()) {
+     var baked=com.rgbblocks.client.lighting.RGBLightEngine.lightColorAt(near,0.5f,0.5f,0.5f);
+     if (baked.active() && baked.g()>baked.r() && baked.g()>baked.b()) {
+       manualBakePassed=true;
+       System.out.println("RGB_PORT_PEER_MANUAL_BAKE_PASS neighbor="+baked+" ticks="+ticks);
+     } else if (ticks%120==0) {
+       System.out.println("RGB_PORT_PEER_MANUAL_BAKE_WAIT neighbor="+baked+" ticks="+ticks);
      }
    }
  }
