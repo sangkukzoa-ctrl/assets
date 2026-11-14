@@ -708,5 +708,24 @@ def gui():
     root.mainloop()
 
 if __name__=="__main__":
-    if len(sys.argv)>=3 and sys.argv[1]=="--self-test":sys.exit(selftest(sys.argv[2]))
+    if len(sys.argv)>=3 and sys.argv[1]=="--self-test":
+        sys.exit(selftest(sys.argv[2]))
+    if len(sys.argv)>1 and sys.argv[1] in (
+            "--audit-folder","--audit-resume","--audit-score"):
+        # Execute using the SAME bundled OCR, no cloud service or GUI.
+        # Keep the actual transcript and optional human GT on local disks.
+        from qa_offline_v0421 import cli
+        try:
+            sys.exit(cli())
+        except Exception as audit_error:
+            debuglog.exception("offline_audit_failed",audit_error)
+            # --windowed EXEs have no console; write diagnostic next to
+            # the chosen output rather than silently claiming success.
+            if len(sys.argv)>=4:
+                try:
+                    Path(sys.argv[-1]+".error.txt").write_text(
+                        traceback.format_exc(),encoding="utf-8")
+                except OSError:
+                    pass
+            sys.exit(2)
     gui()
