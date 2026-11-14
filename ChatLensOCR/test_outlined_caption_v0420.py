@@ -45,6 +45,14 @@ mono=Image.new("RGB",(w,h),(255,255,255))
 ImageDraw.Draw(mono).text((50,400),"NO CAPTION",font=font,fill=(0,0,0))
 assert outlined_caption_box(mono) is None
 assert outlined_caption_box(Image.new("RGB",(240,200),"yellow")) is None
+# Dense horizontal gridlines distinguish specification tables from video
+# footage even when bottom rows contain yellow labels.
+gridded=im.copy()
+grid_draw=ImageDraw.Draw(gridded)
+for yy in range(15,275,24):
+    grid_draw.line((0,yy,w-1,yy),fill=(210,210,210),width=2)
+assert outlined_caption_box(gridded) is None
+
 
 # If OCR already found text, it must survive byte-for-byte unchanged.
 with patch("app.recognize",return_value=[
