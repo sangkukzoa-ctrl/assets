@@ -1,5 +1,9 @@
 # RGB Blocks 1.3.1 — legacy port recovery and verification ledger
 
+### Phase 13c strict interim evidence (completed #43614271783)
+- Patch `0231dda1` alone still **FAILED** the strict concurrent clients test [#43614271783](https://github.com/sangkukzoa-ctrl/assets/actions/runs/43614271783). Both connected and synced AUTO/MANUAL/C&B; one client retained original RED block and neighboring red light, peer received GREEN block but neighboring red light persisted. No `RGB_PORT_DIAG_*` hooks logged. This reinforces need to inspect active `ClientLevelMixin` on `306e1efb`, NOT to mark #43614271783 PASS or skip the failure.
+- The same `0231dda1` passed native build/source/modpack #43614271755, original shader-OFF in-world RGB+C&B #43614271800, shader ON RGB+C&B #43614271775. These passes do not substitute for dynamic two-client check.
+
 ### 2026-11-15 phase 13b — exact diagnostic result and active Mixin registration
 - CI-only baseline [#43613469184](https://github.com/sangkukzoa-ctrl/assets/actions/runs/43613469184) on `efbda280` **COMPLETED FAILURE**, after both clients saw GREEN state/emission, normal RGB+C&B and MANUAL/AUTO PASS. **ZERO `RGB_PORT_DIAG_*` instrumentation hits** across test job logs, even though CI instrumentation compiled and two clients rendered new source. This points to absent Forge ClientLevelMixin application, or a missing injection path. Preserve full CI evidence.
 - Forge packet update hook patch `0231dda1` completed full Forge build/source+pack [#43614271755](https://github.com/sangkukzoa-ctrl/assets/actions/runs/43614271755) SUCCESS and shader OFF [#43614271800](https://github.com/sangkukzoa-ctrl/assets/actions/runs/43614271800) and Oculus Complementary ON [#43614271775](https://github.com/sangkukzoa-ctrl/assets/actions/runs/43614271775) SUCCESS; two-client [#43614271783](https://github.com/sangkukzoa-ctrl/assets/actions/runs/43614271783) and GUI not yet concluded at time recorded.
