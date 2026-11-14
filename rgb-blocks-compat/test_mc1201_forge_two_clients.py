@@ -201,6 +201,14 @@ try:
     # Real two-peer verification: both independent game processes remain connected
     # to the same Forge dedicated server during manual/auto and live RGB changes.
     assert result["client_joined"] and result["atlas_ready"],"Primary Forge client not ready"
+    # Keep the primary player at the same force-loaded RGB test platform as the
+    # peer. Previously only the peer was teleported before the live edit; the
+    # primary could leave the server's player-tracked section and retain a
+    # legitimate old chunk snapshot while the peer received GREEN.
+    command(server,"tp RGBPortTester -1.5 120.0 0.5 facing 0.5 121.5 7.5")
+    assert await_pattern(slog,"Teleported RGBPortTester to -1.500000, 120.000000, 0.500000",
+                         server,35,"primary_at_RGB_fixture"),"Primary was not moved into RGB test scene"
+    command(server,"gamemode creative RGBPortTester")
     result["first_rgb_probe_verified"]=await_pattern(clog,"RGB_PORT_LIGHT_PROBE_PASS",client,100,"first_rgb_source")
     result["first_cnb_rgb_probe_verified"]=await_pattern(clog,"RGB_PORT_CNB_LIGHT_PROBE_PASS",client,100,"first_cnb_rgb")
     assert result["first_rgb_probe_verified"] and result["first_cnb_rgb_probe_verified"],"First client lacks RGB+C&B microbit light"
@@ -241,6 +249,14 @@ try:
     result["two_clients_auto_sync"]=auto_first and auto_peer
     assert result["two_clients_auto_sync"],"AUTO mode not restored on both clients"
 
+    # Explicitly verify BOTH players still stand in the loaded RGB fixture.
+    # A chunk update is only networked to the client's tracking radius.
+    command(server,"tp RGBPortTester -1.5 120.0 0.5 facing 0.5 121.5 7.5")
+    command(server,"tp RGBPortPeer 1.5 120.0 0.5 facing 0.5 121.5 7.5")
+    command(server,"data get entity RGBPortTester Pos")
+    command(server,"data get entity RGBPortPeer Pos")
+    time.sleep(3)
+    record("RGB_PORT_DUAL_CLIENT_FIXTURE_POSITIONS_REQUESTED primary=(-1.5,120,0.5) peer=(1.5,120,0.5)")
     # A live server edit must replace the original red full-block source with
     # a green source for both clients, and adjacent computed light must turn green.
     command(server,f"setblock 0 121 7 {green}_glow")
