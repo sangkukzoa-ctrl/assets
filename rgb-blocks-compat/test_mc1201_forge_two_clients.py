@@ -140,7 +140,11 @@ result.update({"peer_joined":False,"peer_rgb_probe_verified":False,
                "first_cnb_rgb_probe_verified":False,"two_clients_manual_sync":False,
                "two_clients_auto_sync":False,"two_clients_live_rgb_sync_verified":False,
                "both_clients_alive_after_sync":False,"two_clients_live_source_removal_verified":False,
-               "both_clients_alive_after_removal":False,"green_block":green})
+               "both_clients_alive_after_removal":False,
+               "two_clients_manual_defer_verified":False,
+               "two_clients_manual_bake_verified":False,
+               "both_clients_alive_after_manual_bake":False,
+               "green_block":green})
 try:
     result["server_ready"]=await_pattern(slog,"Done (",server,180,"server_boot")
     if not result["server_ready"]:raise AssertionError("Forge dedicated server did not reach Ready")
@@ -309,6 +313,24 @@ try:
     result["both_clients_alive_after_removal"]=client.poll() is None and peer.poll() is None
     assert result["two_clients_live_source_removal_verified"],"Live source removal did not update both clients' RGB light"
     assert result["both_clients_alive_after_removal"],"Client exited during live RGB source removal"
+    # Strict MANUAL semantics: source changes are kept dirty without affecting
+    # the baked adjacent RGB light until BOTH players receive /rgb bake.
+    command(server,"rgb manual")
+    assert await_pattern(slog,"RGB mode: MANUAL",server,30,"manual_bake_mode"),"Server refused MANUAL mode"
+    time.sleep(4)
+    command(server,f"setblock 0 121 7 {green}_glow")
+    manual_held_first=await_pattern(clog,"RGB_PORT_PEER_MANUAL_DEFER_PASS",client,95,"primary_manual_deferred")
+    manual_held_peer=await_pattern(peerlog,"RGB_PORT_PEER_MANUAL_DEFER_PASS",peer,95,"peer_manual_deferred")
+    result["two_clients_manual_defer_verified"]=manual_held_first and manual_held_peer
+    assert result["two_clients_manual_defer_verified"],"MANUAL mode changed stored RGB light before bake on a real client"
+    command(server,"rgb setbake all")
+    command(server,"rgb bake")
+    manual_bake_first=await_pattern(clog,"RGB_PORT_PEER_MANUAL_BAKE_PASS",client,145,"primary_manual_bake")
+    manual_bake_peer=await_pattern(peerlog,"RGB_PORT_PEER_MANUAL_BAKE_PASS",peer,145,"peer_manual_bake")
+    result["two_clients_manual_bake_verified"]=manual_bake_first and manual_bake_peer
+    result["both_clients_alive_after_manual_bake"]=client.poll() is None and peer.poll() is None
+    assert result["two_clients_manual_bake_verified"],"Manual /rgb bake did not replay RGB light on both clients"
+    assert result["both_clients_alive_after_manual_bake"],"Client exited during manual dirty-position bake"
     client_game=GAME/"logs/latest.log"
     if client_game.is_file():
         txt=client_game.read_text(encoding="utf-8",errors="replace")
@@ -401,4 +423,5 @@ assert result["peer_joined"] and result["peer_rgb_probe_verified"] and result["p
 assert result["two_clients_manual_sync"] and result["two_clients_auto_sync"],"Both clients did not receive mode synchronization"
 assert result["two_clients_live_rgb_sync_verified"] and result["both_clients_alive_after_sync"],"Two-peer live RGB edit failed"
 assert result["two_clients_live_source_removal_verified"] and result["both_clients_alive_after_removal"],"Two-peer RGB source removal invalidation failed"
-record("PASS: Two simultaneously connected Forge 1.20.1 production clients, RGB/C&B microbit light, MANUAL/AUTO packets, live RED->GREEN edit and GREEN->AIR removal both propagated")
+assert result["two_clients_manual_defer_verified"] and result["two_clients_manual_bake_verified"] and result["both_clients_alive_after_manual_bake"],"Two-peer manual bake deferred replay failed"
+record("PASS: Two simultaneous real Forge 1.20.1 clients: RGB/C&B microbit, mode packets, RED->GREEN, GREEN->AIR, MANUAL deferred lighting and /rgb bake replay")
