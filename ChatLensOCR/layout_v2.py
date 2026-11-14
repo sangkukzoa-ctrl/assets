@@ -151,6 +151,12 @@ def _variants(img,mode, language, precise):
             ims.append(Image.fromarray(cv2.cvtColor(boosted,cv2.COLOR_GRAY2RGB)))
         else:
             ims.append(ImageOps.autocontrast(base,cutoff=1))
+    # A single visible text row must stay single-line to Tesseract even if
+    # OCR enlargement makes its bitmap taller than the engine's 52px heuristic.
+    # This intentionally excludes game dialogue, tables and multiline blocks.
+    original_single_line=(mode=="범용" and
+                          12<=img.height<=52 and
+                          img.width>=4*img.height)
     for candidate in ims:
         if scale>1:
             candidate=candidate.resize(
@@ -158,7 +164,8 @@ def _variants(img,mode, language, precise):
                 Image.Resampling.LANCZOS)
         # Both engines return coordinates in the enlarged candidate.
         # Normalize immediately to the original cropped image's pixel grid.
-        tt,tboxes,tconf=tesseract_read(candidate,mode,language)
+        tt,tboxes,tconf=tesseract_read(
+            candidate,mode,language,psm=7 if original_single_line else None)
         if mode=="파판14" and language=="한국어" and tt:
             korean,_,kc=tesseract_read(candidate,mode,language,psm=6,tess_lang="kor")
             tt=_prefer_korean_ffxiv_message(tt,korean,kc)
