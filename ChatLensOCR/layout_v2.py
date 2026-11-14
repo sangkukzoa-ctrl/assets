@@ -572,6 +572,20 @@ def generic(img,language,precise):
                          "human_verified":False,
                          "needs_review":True,
                          "box":(0,round(img.height*.67),img.width,img.height)})
+    # Outlined, pale-gold captions sometimes contain several visible lines
+    # but OCR returns absolutely no text. Mark them as unreadable instead of
+    # silently dropping the entire dialogue or inventing a sentence.
+    # Other OCR results and their literal punctuation are left untouched.
+    if language=="한국어":
+        from outlined_caption_v0420 import outlined_caption_box
+        outline=outlined_caption_box(img)
+        if outline is not None and not reread.strip():
+            from review_v046 import UNREADABLE_MARKER
+            reread=UNREADABLE_MARKER
+            metadata.append({"type":"unreadable_outlined_caption",
+                             "box":outline,
+                             "evidence":"pixel_outline_glyph_rows",
+                             "human_verified":False,"needs_review":True})
     return "범용",reread,[],metadata,items
 
 
