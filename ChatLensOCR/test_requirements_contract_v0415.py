@@ -56,6 +56,11 @@ assert "outlined_caption_v0420 import outlined_caption_box" in layout
 assert "result_belongs_to_image" in source
 assert "qa_offline_v0421 import cli" in source
 assert "allow_learning=False" in (root/"qa_offline_v0421.py").read_text(encoding="utf-8")
+assert "original_single_line=" in layout
+assert "psm=7 if original_single_line else None" in layout
+qa_source=(root/"qa_offline_v0421.py").read_text(encoding="utf-8")
+assert '"by_detected_mode":_breakdown_by' in qa_source
+assert '"duplicate_gt_entries":duplicate_truth' in qa_source
 assert "icon_grid_title_crop_bottom" in guard
 assert 'VERSION = "0.4.22"' in version
 print("v0.4.22 requirements contract: %d UI/storage/review/offline "
