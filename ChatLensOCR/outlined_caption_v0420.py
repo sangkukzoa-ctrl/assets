@@ -15,6 +15,14 @@ def outlined_caption_box(image):
     if not (380<=w<=1800 and 320<=h<=1400):
         return None
     a=np.asarray(image.convert("RGB"),dtype=np.int16)
+    # The rescue is intended for photo/video captions, not dense game logs
+    # or specification tables whose repeated yellow labels resemble subtitles.
+    upper=cv2.cvtColor(a[:int(h*.52)].astype(np.uint8),
+                       cv2.COLOR_RGB2GRAY)
+    if np.percentile(upper,5)>=80:
+        return None
+    if float((cv2.Canny(upper,80,180)>0).mean())>.024:
+        return None
     r,g,b=a[:,:,0],a[:,:,1],a[:,:,2]
     yellow=((r>125)&(g>105)&(r-b>28)&(g-b>20)&
             (r-g<95)&(g>=r*.56)&(b<205))
