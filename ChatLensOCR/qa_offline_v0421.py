@@ -120,6 +120,33 @@ def _distance(a,b):
         previous=current
     return previous[-1]
 
+def _breakdown_by(rows,key):
+    """Weighted CER by OCR mode or recorded screen type, not an unweighted
+    average of small screenshots and large text pages."""
+    groups={}
+    for item in rows:
+        name=str(item.get(key) or "미분류")
+        group=groups.setdefault(name,{
+            "labeled_images":0,"text_images":0,"blank_images":0,
+            "exact_matches":0,"reference_chars":0,"character_edits":0,
+            "blank_false_positives":0})
+        group["labeled_images"]+=1
+        reference=int(item.get("reference_chars",0))
+        if reference:
+            group["text_images"]+=1
+            group["reference_chars"]+=reference
+            group["character_edits"]+=int(item.get("errors",0))
+            group["exact_matches"]+=int(bool(item.get("exact")))
+        else:
+            group["blank_images"]+=1
+            group["blank_false_positives"]+=int(bool(item.get("false_positive")))
+    for group in groups.values():
+        count=group["reference_chars"]
+        group["weighted_literal_cer"]=(
+            round(group["character_edits"]/count,6) if count else None)
+    return dict(sorted(groups.items()))
+
+
 def score_human_truth(audit_jsonl,reference_csv,output_json):
     """Score literal CER, exact matches and empty-image hallucinations.
 
@@ -131,11 +158,14 @@ def score_human_truth(audit_jsonl,reference_csv,output_json):
     for filename,row in evidence.items():
         by_basename.setdefault(Path(filename).name,[]).append(row)
     exact=0;total_edits=0;total_chars=0;positives=0;blank_total=0;blank_false=0
-    missing=[];duplicates=[];rows=[]
+    missing=[];duplicates=[];duplicate_truth=[];rows=[];seen_truth=set()
     with Path(reference_csv).open(encoding="utf-8-sig",newline="") as f:
         for gt in csv.DictReader(f):
             if gt.get("fully_human_transcribed","").strip()!="예":continue
             name=gt.get("filename","")
+            if not name or name in seen_truth:
+                duplicate_truth.append(name);continue
+            seen_truth.add(name)
             matched=by_basename.get(name,[])
             if len(matched)>1:
                 duplicates.append(name);continue
@@ -143,20 +173,37 @@ def score_human_truth(audit_jsonl,reference_csv,output_json):
                 missing.append(name);continue
             original=(gt.get("human_ground_truth_full") or "").replace("\r\n","\n").strip()
             guessed=(matched[0].get("result") or "").replace("\r\n","\n").strip()
+            # The original classification can contain old errors. A human
+            # correction takes priority; neither is a confirmed true label
+            # unless independently verified in the private review record.
+            category=(gt.get("v0419_corrected_screen_type","").strip() or
+                      gt.get("actual_screen_type_previous_classification","").strip() or
+                      "미분류")
+            evidence={"detected_mode":matched[0].get("mode","미분류"),
+                      "recorded_screen_type":category}
             if original:
                 positives+=1
                 edits=_distance(original,guessed)
                 total_edits+=edits;total_chars+=len(original)
                 if edits==0:exact+=1
-                rows.append({"filename":name,"reference_chars":len(original),
+                rows.append({"filename":name,**evidence,
+                             "reference_chars":len(original),
                              "predicted_chars":len(guessed),
-                             "errors":edits,"exact":edits==0})
+                             "errors":edits,"exact":edits==0,
+                             "needs_review":edits!=0,
+                             "review_reason":(
+                                 "empty_ocr" if not guessed else
+                                 "possible_extra_text" if len(guessed)>max(18,len(original)*2) else
+                                 "literal_mismatch" if edits else "exact")})
             else:
                 blank_total+=1
                 if guessed:blank_false+=1
-                rows.append({"filename":name,"reference_chars":0,
+                rows.append({"filename":name,**evidence,
+                             "reference_chars":0,
                              "predicted_chars":len(guessed),
-                             "false_positive":bool(guessed)})
+                             "false_positive":bool(guessed),
+                             "needs_review":bool(guessed),
+                             "review_reason":"hallucinated_text" if guessed else "verified_blank"})
     summary={"labeled_positive_images":positives,
              "labeled_blank_images":blank_total,
              "exact_matches":exact,
@@ -167,6 +214,17 @@ def score_human_truth(audit_jsonl,reference_csv,output_json):
              "blank_image_false_positives":blank_false,
              "missing_or_failed":missing,
              "duplicate_basename":duplicates,
+             "duplicate_gt_entries":duplicate_truth,
+             "by_detected_mode":_breakdown_by(rows,"detected_mode"),
+             "by_recorded_screen_type":_breakdown_by(rows,"recorded_screen_type"),
+             "review_queue":[
+                 {"filename":item["filename"],"reason":item["review_reason"],
+                  "errors":item.get("errors",0),"reference_chars":item["reference_chars"]}
+                 for item in sorted(rows,key=lambda a:(
+                     int(bool(a.get("false_positive"))),
+                     int(a.get("errors",0))),reverse=True)
+                 if item["needs_review"]
+             ],
              "private_local_only":True,
              "per_image":rows}
     Path(output_json).write_text(json.dumps(summary,ensure_ascii=False,indent=2),
@@ -180,5 +238,5 @@ def cli(arguments=None):
         return 0 if not result["failed"] else 2
     if len(args)==4 and args[0]=="--audit-score":
         summary=score_human_truth(args[1],args[2],args[3])
-        return 0 if not summary["missing_or_failed"] and not summary["duplicate_basename"] else 2
+        return 0 if not (summary["missing_or_failed"] or summary["duplicate_basename"] or summary["duplicate_gt_entries"]) else 2
     return 2
