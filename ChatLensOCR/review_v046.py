@@ -25,6 +25,21 @@ def result_belongs_to_image(records, filename):
         for item in records
     )
 
+def completed_result_matches_active(records, entries, active_image):
+    """Guard a race: a single-image OCR worker can finish after the user
+    switches image selection. Never display or export A as B.
+
+    Genuine batch results remain applicable to every member of that batch.
+    Identity, not equal-looking pixels, defines which image is active.
+    """
+    if not records or active_image is None:
+        return False
+    return any(
+        image is active_image and result_belongs_to_image(records, filename)
+        for filename,image in entries
+    )
+
+
 def format_batch_txt(records):
     return "\n\n".join(
         "--- " + str(row["filename"]) + " [" + str(row["mode"]) + "] ---\n"
