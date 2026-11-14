@@ -20,11 +20,12 @@ replace_once(
     """private static int tickCallbackCount = 0;
 private static boolean syncManualSeen = false;
 private static boolean syncAutoRestored = false;
-private static boolean liveGreenPassed = false;"""
+private static boolean liveGreenPassed = false;
+private static boolean liveRemovalPassed = false;"""
 )
 replace_once(
     "if (passed && cnbPassed) return;",
-    "if (passed && cnbPassed && syncAutoRestored && liveGreenPassed) return;"
+    "if (passed && cnbPassed && syncAutoRestored && liveGreenPassed && liveRemovalPassed) return;"
 )
 anchor = " net.minecraft.core.BlockPos near=new net.minecraft.core.BlockPos(0,121,6);"
 extra = r'''
@@ -64,6 +65,25 @@ extra = r'''
        } else if(ticks%120==0) {
          System.out.println("RGB_PORT_PEER_LIVE_GREEN_SYNC_WAIT emitted="+emitted
            +" neighbor="+light+" ticks="+ticks);
+       }
+     }
+   }
+   // Only examine removal AFTER both peers already proved GREEN propagation.
+   // The nearby C&B sculpture is still a genuine RED source, so the expected
+   // post-removal color is red-dominant rather than necessarily black.
+   if (liveGreenPassed && !liveRemovalPassed) {
+     var removedState=mc.level.getBlockState(src);
+     if (removedState.isAir()) {
+       var removedEmission=com.rgbblocks.client.lighting.RGBRealLightEngine.sourceColorAt(mc.level,src);
+       com.rgbblocks.client.lighting.RGBLightEngine.ensureBootstrapped(mc.level,near);
+       var remaining=com.rgbblocks.client.lighting.RGBLightEngine.lightColorAt(near,0.5f,0.5f,0.5f);
+       if (!removedEmission.active() && (!remaining.active() || remaining.r()>remaining.g())) {
+         liveRemovalPassed=true;
+         System.out.println("RGB_PORT_PEER_LIVE_SOURCE_REMOVAL_PASS"
+           +" direct="+removedEmission+" near="+remaining+" ticks="+ticks);
+       } else if (ticks%120==0) {
+         System.out.println("RGB_PORT_PEER_LIVE_SOURCE_REMOVAL_WAIT"
+           +" direct="+removedEmission+" near="+remaining+" ticks="+ticks);
        }
      }
    }
