@@ -52,6 +52,8 @@ for text in ("restore_white_subtitle","recover_empty_caption",
     assert text in layout,text
 assert "detail_evidence(image)" in shop
 assert "from table_v0419 import analyze as table_read" in layout
+assert "outlined_caption_v0420 import outlined_caption_box" in layout
+assert "result_belongs_to_image" in source
 assert "icon_grid_title_crop_bottom" in guard
 assert 'VERSION = "0.4.20"' in version
 print("v0.4.20 requirements contract: %d UI/storage/review/offline "
