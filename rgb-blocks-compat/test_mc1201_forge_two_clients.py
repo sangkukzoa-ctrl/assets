@@ -43,6 +43,15 @@ def await_pattern(lines,pat,proc,seconds,label):
         time.sleep(0.7)
     record("TIMEOUT/MISSING "+label+" pattern="+pat+" return="+str(proc.poll()))
     return False
+def await_pattern_since(lines,pat,start_index,proc,seconds,label):
+    """Accept only a NEW post-command event, never an earlier login/save."""
+    st=time.monotonic()
+    while time.monotonic()-st<seconds:
+        if any(pat in line for line in lines[start_index:]):return True
+        if proc.poll() is not None:break
+        time.sleep(0.7)
+    record("TIMEOUT/MISSING NEW "+label+" pattern="+pat+" return="+str(proc.poll()))
+    return False
 def command(server,s):
     server.stdin.write(s+"\n");server.stdin.flush()
     record("SERVER_COMMAND "+s)
@@ -144,6 +153,14 @@ result.update({"peer_joined":False,"peer_rgb_probe_verified":False,
                "two_clients_manual_defer_verified":False,
                "two_clients_manual_bake_verified":False,
                "both_clients_alive_after_manual_bake":False,
+               "peer_reconnect_login_verified":False,
+               "peer_reconnect_world_id_verified":False,
+               "peer_reconnect_snapshot_saved":False,
+               "peer_reconnect_snapshot_loaded":False,
+               "peer_reconnect_rgb_cnb_verified":False,
+               "peer_chunk_unload_verified":False,
+               "peer_chunk_return_verified":False,
+               "primary_alive_during_reconnect":False,
                "green_block":green})
 try:
     result["server_ready"]=await_pattern(slog,"Done (",server,180,"server_boot")
@@ -331,6 +348,67 @@ try:
     result["both_clients_alive_after_manual_bake"]=client.poll() is None and peer.poll() is None
     assert result["two_clients_manual_bake_verified"],"Manual /rgb bake did not replay RGB light on both clients"
     assert result["both_clients_alive_after_manual_bake"],"Client exited during manual dirty-position bake"
+    # After the actual MANUAL bake, return to AUTO and exercise a FULL
+    # offline→reconnect cycle for the same production peer installation.
+    # Keep the first client online on the same dedicated server throughout.
+    # The 4095-bit red C&B sculpture and GREEN full emitter are NOT reset.
+    initial_peer_ids=[line.split("worldId=",1)[1].split()[0]
+         for line in peerlog if "RGB_PORT_PEER_MANUAL_SYNC_PASS worldId=" in line]
+    assert initial_peer_ids and initial_peer_ids[-1], "Original peer had no authoritative world identity"
+    initial_peer_world_id=initial_peer_ids[-1]
+    command(server,"rgb auto")
+    time.sleep(4)
+    prior_leave=len(slog)
+    prior_save=len(peerlog)
+    command(server,"kick RGBPortPeer RGB_PORT_CI_RECONNECT")
+    assert await_pattern_since(slog,"RGBPortPeer lost connection",prior_leave,server,45,
+                               "peer_disconnected_before_restart"),"Peer did not disconnect cleanly"
+    assert await_pattern_since(peerlog,"Saved RGB lightmap:",prior_save,peer,45,
+                               "peer_cache_saved_on_disconnect"),"Forge peer did not persist lightmap at logout"
+    snaps=sorted((PEER/"rgbblocks"/"lightmaps").rglob("*.rgl.gz"))
+    result["peer_reconnect_snapshot_saved"]=bool(snaps) and all(p.stat().st_size>100 for p in snaps)
+    assert result["peer_reconnect_snapshot_saved"],"Peer RGB lightmap snapshot absent or empty after disconnect"
+    record("RGB_PORT_PEER_SAVED_SNAPSHOTS "+json.dumps([
+        {"path":str(p.relative_to(PEER)),"bytes":p.stat().st_size,
+         "sha256":hashlib.sha256(p.read_bytes()).hexdigest()} for p in snaps]))
+    terminate(peer)
+    peerthread.join(timeout=8)
+    old_peer_log=PEER/"logs/latest.log"
+    if old_peer_log.is_file():shutil.copy2(old_peer_log,EVIDENCE/"minecraft-peer-before-reconnect.log")
+    before_rejoin=len(slog)
+    reconnect_cmd=list(peer_cmd)+["--jvm-arg=-Drgbport.ci.reconnect=true"]
+    record("RELAUNCH_SAME_PEER_DIRECTORY "+str(reconnect_cmd))
+    peer=subprocess.Popen(reconnect_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+                          env=peer_env,text=True,start_new_session=True,bufsize=1)
+    peerlog,peerthread=runthread(peer,"PEER_RECONNECT",EVIDENCE/"peer-reconnect-console.log")
+    result["peer_reconnect_login_verified"]=await_pattern_since(slog,"RGBPortPeer joined the game",
+         before_rejoin,server,210,"same_player_rejoined_original_server")
+    assert result["peer_reconnect_login_verified"],"Former peer did not rejoin original Forge server"
+    command(server,"tp RGBPortPeer 1.5 120.0 0.5 facing 0.5 121.5 7.5")
+    result["peer_reconnect_snapshot_loaded"]=await_pattern(peerlog,"Loaded RGB lightmap:",
+         peer,105,"saved_rgb_lightmap_loaded_after_rejoin")
+    assert result["peer_reconnect_snapshot_loaded"],"Saved RGB lightmap did not load on fresh client process"
+    result["peer_reconnect_rgb_cnb_verified"]=await_pattern(peerlog,
+         "RGB_PORT_PEER_RECONNECT_SOURCE_PASS",peer,135,"reconnected_peer_green_cnb")
+    assert result["peer_reconnect_rgb_cnb_verified"],"Reconnected production client did not restore GREEN RGB + red C&B light"
+    reconnected_ids=[line.split("worldId=",1)[1].split()[0]
+         for line in peerlog if "RGB_PORT_PEER_RECONNECT_SOURCE_PASS worldId=" in line]
+    result["peer_reconnect_world_id_verified"]=bool(reconnected_ids) and reconnected_ids[-1]==initial_peer_world_id
+    assert result["peer_reconnect_world_id_verified"],"World ID changed across reconnect or missing state sync"
+    result["primary_alive_during_reconnect"]=client.poll() is None
+    assert result["primary_alive_during_reconnect"],"Original other client stopped during peer reconnect"
+
+    # Actual client-side chunk eviction: force a player outside the tracking
+    # radius, prove src chunk UNLOADED, then re-enter and demand light rebuild.
+    command(server,"tp RGBPortPeer 256.5 120.0 0.5")
+    result["peer_chunk_unload_verified"]=await_pattern(peerlog,
+         "RGB_PORT_PEER_CHUNK_UNLOAD_PASS",peer,95,"peer_source_chunk_evicted")
+    assert result["peer_chunk_unload_verified"],"Far-away peer never unloaded original RGB source chunk"
+    command(server,"tp RGBPortPeer 1.5 120.0 0.5 facing 0.5 121.5 7.5")
+    result["peer_chunk_return_verified"]=await_pattern(peerlog,
+         "RGB_PORT_PEER_CHUNK_RETURN_PASS",peer,145,"peer_source_chunk_reloaded")
+    assert result["peer_chunk_return_verified"],"Chunk returned without restoring RGB + C&B per-channel light"
+    assert peer.poll() is None and client.poll() is None,"A client exited during reconnect/chunk reload"
     client_game=GAME/"logs/latest.log"
     if client_game.is_file():
         txt=client_game.read_text(encoding="utf-8",errors="replace")
@@ -392,6 +470,14 @@ finally:
         shutil.copy2(GAME/"logs/latest.log",EVIDENCE/"minecraft-client-latest.log")
     if (PEER/"logs/latest.log").is_file():
         shutil.copy2(PEER/"logs/latest.log",EVIDENCE/"minecraft-peer-latest.log")
+    if (EVIDENCE/"peer-reconnect-console.log").is_file():
+        contents=(EVIDENCE/"peer-reconnect-console.log").read_text(encoding="utf-8",errors="replace")
+        relevant=[line for line in contents.splitlines()
+                  if any(pat in line for pat in (
+                     "RGB_PORT_PEER_RECONNECT_", "RGB_PORT_PEER_CHUNK_", "RGB_PORT_CNB",
+                     "RGB_PORT_LIGHT_", "RGB Blocks", "ERROR", "FATAL", "MixinApplyError"))]
+        for line in relevant[-65:]:
+            record("PEER_RECONNECT_DIAG "+line[:900])
     for who,folder in (("PRIMARY",GAME),("SECONDARY",PEER)):
         candidate=folder/"logs/latest.log"
         if candidate.is_file():
@@ -424,4 +510,10 @@ assert result["two_clients_manual_sync"] and result["two_clients_auto_sync"],"Bo
 assert result["two_clients_live_rgb_sync_verified"] and result["both_clients_alive_after_sync"],"Two-peer live RGB edit failed"
 assert result["two_clients_live_source_removal_verified"] and result["both_clients_alive_after_removal"],"Two-peer RGB source removal invalidation failed"
 assert result["two_clients_manual_defer_verified"] and result["two_clients_manual_bake_verified"] and result["both_clients_alive_after_manual_bake"],"Two-peer manual bake deferred replay failed"
-record("PASS: Two simultaneous real Forge 1.20.1 clients: RGB/C&B microbit, mode packets, RED->GREEN, GREEN->AIR, MANUAL deferred lighting and /rgb bake replay")
+assert all(result[k] for k in (
+    "peer_reconnect_login_verified","peer_reconnect_world_id_verified",
+    "peer_reconnect_snapshot_saved","peer_reconnect_snapshot_loaded",
+    "peer_reconnect_rgb_cnb_verified","peer_chunk_unload_verified",
+    "peer_chunk_return_verified","primary_alive_during_reconnect"
+)), "Same-client reconnect/persistence/chunk unload-reload gate failed"
+record("PASS: Two simultaneous Forge 1.20.1 clients: RGB+C&B, RED->GREEN, GREEN->AIR, MANUAL bake, saved lightmap logout/reload, same peer reconnect, chunk unload/return")
