@@ -47,7 +47,8 @@ def audit_folder(folder,output_jsonl,*,resume=False,analyzer=None,icons=None,
         from layout_v2 import analyze as analyzer
     if icons is None:
         from app import Icons
-        icons=Icons()
+        # No auto-learning side effects during accuracy benchmarks.
+        icons=Icons(allow_learning=False)
     folder=Path(folder).resolve()
     files=_image_files(folder)
     if not files:raise ValueError("No supported screenshot image found")
