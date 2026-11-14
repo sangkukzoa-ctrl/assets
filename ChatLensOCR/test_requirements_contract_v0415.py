@@ -54,6 +54,8 @@ assert "detail_evidence(image)" in shop
 assert "from table_v0419 import analyze as table_read" in layout
 assert "outlined_caption_v0420 import outlined_caption_box" in layout
 assert "result_belongs_to_image" in source
+assert "qa_offline_v0421 import cli" in source
+assert "allow_learning=False" in (root/"qa_offline_v0421.py").read_text(encoding="utf-8")
 assert "icon_grid_title_crop_bottom" in guard
 assert 'VERSION = "0.4.21"' in version
 print("v0.4.21 requirements contract: %d UI/storage/review/offline "
