@@ -24,7 +24,11 @@ private static boolean liveGreenPassed = false;
 private static boolean liveRemovalPassed = false;
 private static int manualFrozenTicks = 0;
 private static boolean manualFrozenPassed = false;
-private static boolean manualBakePassed = false;"""
+private static boolean manualBakePassed = false;
+private static boolean reconnectLightPassed = false;
+private static boolean reconnectSawChunkUnload = false;
+private static boolean reconnectReturnPassed = false;
+private static int reconnectStableSamples = 0;"""
 )
 replace_once(
     "if (passed && cnbPassed) return;",
@@ -126,7 +130,82 @@ extra = r'''
    }
  }
 '''
-replace_once(anchor, anchor + "\n" + extra)
+# The second production client is deliberately disconnected, stopped and
+# restarted with the SAME minecraft directory after MANUAL bake. This separate
+# CI-only JVM flag tests persisted RGB/C&B lightmap restoration and a real
+# client chunk eviction/reload, without depending on the original RED fixture
+# that is now authoritatively GREEN.
+reconnect_extra = r'''
+ if (Boolean.getBoolean("rgbport.ci.reconnect")) {
+   boolean far = Math.abs(mc.player.getX()) > 160.0;
+   if (far && !mc.level.isLoaded(src) && !reconnectSawChunkUnload) {
+     reconnectSawChunkUnload=true;
+     reconnectStableSamples=0;
+     System.out.println("RGB_PORT_PEER_CHUNK_UNLOAD_PASS pos="+mc.player.blockPosition()
+       +" sourceLoaded="+mc.level.isLoaded(src)+" ticks="+ticks);
+   }
+   boolean loaded=mc.level.isLoaded(src) && mc.level.isLoaded(new net.minecraft.core.BlockPos(4,121,7));
+   if (loaded && !far) {
+     var live=mc.level.getBlockState(src);
+     int actual=com.rgbblocks.client.lighting.RGBRealLightEngine.rgbForState(live);
+     int r=(actual>>16)&255,g=(actual>>8)&255,b=actual&255;
+     var emitter=com.rgbblocks.client.lighting.RGBRealLightEngine.sourceColorAt(mc.level,src);
+     com.rgbblocks.client.lighting.RGBLightEngine.ensureBootstrapped(mc.level,near);
+     var nearLight=com.rgbblocks.client.lighting.RGBLightEngine.lightColorAt(near,0.5f,0.5f,0.5f);
+     var cnb=new net.minecraft.core.BlockPos(4,121,7);
+     var nearCnb=new net.minecraft.core.BlockPos(4,121,6);
+     var cnbState=mc.level.getBlockState(cnb);
+     var cnbId=net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(cnbState.getBlock());
+     if(cnbId!=null && "chiselsandbits".equals(cnbId.getNamespace()) && "chiseled".equals(cnbId.getPath())) {
+       com.rgbblocks.client.lighting.RGBRealLightEngine.refreshCnbBlockEntity(mc.level.getBlockEntity(cnb));
+     }
+     com.rgbblocks.client.lighting.RGBLightEngine.ensureBootstrapped(mc.level,nearCnb);
+     var cbEmitter=com.rgbblocks.client.lighting.RGBRealLightEngine.sourceColorAt(mc.level,cnb);
+     var cbNear=com.rgbblocks.client.lighting.RGBLightEngine.lightColorAt(nearCnb,0.5f,0.5f,0.5f);
+     boolean good=actual>=0 && g>r && g>b && g>=180
+       && emitter.active() && emitter.g()>emitter.r()
+       && nearLight.active() && nearLight.g()>nearLight.r() && nearLight.g()>nearLight.b()
+       && cnbId!=null && "chiselsandbits".equals(cnbId.getNamespace())
+       && "chiseled".equals(cnbId.getPath())
+       && cbEmitter.active() && cbEmitter.r()>cbEmitter.g()
+       && cbNear.active() && cbNear.r()>cbNear.g()
+       && com.rgbblocks.runtime.RGBRuntime.clientTargetAuto()
+       && !com.rgbblocks.runtime.RGBRuntime.clientWorldId().isBlank();
+     if(good) {
+       if(++reconnectStableSamples>=3) {
+         if(!reconnectLightPassed) {
+           reconnectLightPassed=true;
+           System.out.println("RGB_PORT_PEER_RECONNECT_SOURCE_PASS worldId="
+             +com.rgbblocks.runtime.RGBRuntime.clientWorldId()
+             +" emitter="+emitter+" near="+nearLight+" cnb="+cbEmitter
+             +" cnbNear="+cbNear+" ticks="+ticks);
+         }
+         if(reconnectSawChunkUnload && !reconnectReturnPassed) {
+           reconnectReturnPassed=true;
+           System.out.println("RGB_PORT_PEER_CHUNK_RETURN_PASS worldId="
+             +com.rgbblocks.runtime.RGBRuntime.clientWorldId()
+             +" emitter="+emitter+" near="+nearLight+" cnb="+cbEmitter
+             +" cnbNear="+cbNear+" ticks="+ticks);
+         }
+       }
+     } else {
+       reconnectStableSamples=0;
+       if(ticks%120==0) System.out.println("RGB_PORT_PEER_RECONNECT_WAIT state="+live
+         +" direct="+emitter+" neighbor="+nearLight
+         +" cnb="+cbId(cnbId)+" cnbLight="+cbEmitter+" aroundCnb="+cbNear
+         +" auto="+com.rgbblocks.runtime.RGBRuntime.clientTargetAuto());
+     }
+   } else if(ticks%120==0) {
+     System.out.println("RGB_PORT_PEER_RECONNECT_CHUNK_WAIT sourceLoaded="+mc.level.isLoaded(src)
+       +" player="+mc.player.blockPosition()+" sawUnload="+reconnectSawChunkUnload);
+   }
+   return;
+ }
+'''
+# No additional helpers are allowed in the injected method: Java's String.valueOf
+# handles a nullable Registry key directly.
+reconnect_extra = reconnect_extra.replace('cbId(cnbId)', 'String.valueOf(cnbId)')
+replace_once(anchor, anchor + "\n" + reconnect_extra + "\n" + extra)
 path.write_text(source, encoding="utf-8")
 print("CI_ONLY_TWO_CLIENT_SYNC_PROBE", path, len(source), flush=True)
 
