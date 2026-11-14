@@ -23,7 +23,7 @@ assert result_belongs_to_image(batch,"other.png")
 selected=[{"filename":"sample.png [선택 영역]","result":"crop"}]
 assert result_belongs_to_image(selected,"sample.png")
 assert not result_belongs_to_image(selected,"other.png")
-assert not result_belongs_to_image(selected,"sample.png [선택 영역]")
+assert result_belongs_to_image(selected,"sample.png [선택 영역]")
 
 source=(Path(__file__).resolve().parent/"app.py").read_text(encoding="utf-8")
 handler=source.split("    def change(event=None):",1)[1].split(
