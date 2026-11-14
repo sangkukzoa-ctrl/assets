@@ -139,7 +139,8 @@ result.update({"peer_joined":False,"peer_rgb_probe_verified":False,
                "peer_cnb_rgb_probe_verified":False,"first_rgb_probe_verified":False,
                "first_cnb_rgb_probe_verified":False,"two_clients_manual_sync":False,
                "two_clients_auto_sync":False,"two_clients_live_rgb_sync_verified":False,
-               "both_clients_alive_after_sync":False,"green_block":green})
+               "both_clients_alive_after_sync":False,"two_clients_live_source_removal_verified":False,
+               "both_clients_alive_after_removal":False,"green_block":green})
 try:
     result["server_ready"]=await_pattern(slog,"Done (",server,180,"server_boot")
     if not result["server_ready"]:raise AssertionError("Forge dedicated server did not reach Ready")
@@ -296,6 +297,18 @@ try:
         if shot.returncode==0 and screenshot.is_file():
             result["screenshots"].append({"file":screenshot.name,"size":screenshot.stat().st_size})
         else:record("SCREENSHOT_FAILED "+shot.stdout)
+    # Restore-world correctness: both peers must notice removal of the GREEN
+    # emitter, clear the former green light, and preserve the independent RED
+    # 4095-bit C&B sculpture contribution. Keep screenshot above intact.
+    command(server,"setblock 0 121 7 minecraft:air")
+    command(server,"execute if block 0 121 7 minecraft:air run say RGB_PORT_SERVER_SOURCE_REMOVED_PASS")
+    assert await_pattern(slog,"RGB_PORT_SERVER_SOURCE_REMOVED_PASS",server,35,"server_confirmed_source_removed"),"Server failed to remove GREEN source"
+    removal_first=await_pattern(clog,"RGB_PORT_PEER_LIVE_SOURCE_REMOVAL_PASS",client,100,"primary_source_removal")
+    removal_peer=await_pattern(peerlog,"RGB_PORT_PEER_LIVE_SOURCE_REMOVAL_PASS",peer,100,"peer_source_removal")
+    result["two_clients_live_source_removal_verified"]=removal_first and removal_peer
+    result["both_clients_alive_after_removal"]=client.poll() is None and peer.poll() is None
+    assert result["two_clients_live_source_removal_verified"],"Live source removal did not update both clients' RGB light"
+    assert result["both_clients_alive_after_removal"],"Client exited during live RGB source removal"
     client_game=GAME/"logs/latest.log"
     if client_game.is_file():
         txt=client_game.read_text(encoding="utf-8",errors="replace")
@@ -387,4 +400,5 @@ assert result["first_rgb_probe_verified"] and result["first_cnb_rgb_probe_verifi
 assert result["peer_joined"] and result["peer_rgb_probe_verified"] and result["peer_cnb_rgb_probe_verified"],"Second client lacks C&B RGB light"
 assert result["two_clients_manual_sync"] and result["two_clients_auto_sync"],"Both clients did not receive mode synchronization"
 assert result["two_clients_live_rgb_sync_verified"] and result["both_clients_alive_after_sync"],"Two-peer live RGB edit failed"
-record("PASS: Two simultaneously connected Forge 1.20.1 production clients, RGB/C&B microbit light, MANUAL/AUTO mode packets and live green edit propagated")
+assert result["two_clients_live_source_removal_verified"] and result["both_clients_alive_after_removal"],"Two-peer RGB source removal invalidation failed"
+record("PASS: Two simultaneously connected Forge 1.20.1 production clients, RGB/C&B microbit light, MANUAL/AUTO packets, live RED->GREEN edit and GREEN->AIR removal both propagated")
