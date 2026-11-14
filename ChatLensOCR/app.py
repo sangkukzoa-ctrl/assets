@@ -478,7 +478,21 @@ def gui():
     lb.pack(fill="x",pady=6)
     def change(event=None):
         sel=lb.curselection()
-        if sel:active[0]=entries[sel[0]][1];selection[0]=None;show()
+        if not sel:
+            return
+        filename,image=entries[sel[0]]
+        # Keep batch results when they include this image. Otherwise a
+        # previous single-image OCR transcript must not masquerade as the
+        # newly selected image, nor remain available for TXT/JSON export.
+        from review_v046 import result_belongs_to_image
+        if last[0] and not result_belongs_to_image(last[0],filename):
+            last[0]=None
+            for widget in fields:
+                widget.delete("1.0","end")
+            status.set("대상 변경 · 현재 이미지 OCR을 새로 실행하세요")
+        active[0]=image
+        selection[0]=None
+        show()
     lb.bind("<<ListboxSelect>>",change)
     def remove_selected():
         indices=sorted(lb.curselection(),reverse=True)
