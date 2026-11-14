@@ -9,6 +9,22 @@ import json
 
 UNREADABLE_MARKER = "[글자 미인식]"
 
+
+def result_belongs_to_image(records, filename):
+    """An OCR result from A must not be displayed as if it belongs to B.
+
+    A manually selected crop keeps the original filename with the explicit
+    selection suffix. Exact equality prevents prefix collisions between files.
+    Batch OCR remains valid while any item from that batch is selected.
+    """
+    if not records or not filename:
+        return False
+    return any(
+        isinstance(item,dict) and
+        item.get("filename") in (filename, filename+" [선택 영역]")
+        for item in records
+    )
+
 def format_batch_txt(records):
     return "\n\n".join(
         "--- " + str(row["filename"]) + " [" + str(row["mode"]) + "] ---\n"
