@@ -36,6 +36,8 @@ jobs:
         run: python -m compileall -q ChatLensOCR
       - name: Verify versioned result export before dependency installation
         run: python ChatLensOCR/test_export_v0373_regression.py
+      - name: Early v0.4.23 feature and release metadata contract (no OCR dependency install)
+        run: python ChatLensOCR/test_requirements_contract_v0415.py
       - name: Numeric OCR quality triage and duplicate human GT regression
         run: python ChatLensOCR/test_quality_triage_v0422.py
       - name: Install build dependencies
