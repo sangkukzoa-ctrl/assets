@@ -39,7 +39,7 @@ assert not completed_result_matches_active(
     single,[("first.png",same_pixels_different_object)],A)
 
 app=(Path(__file__).resolve().parent/"app.py").read_text(encoding="utf-8")
-poll=app.split("    def poll():",1)[1].split("    root.after(120,poll)",1)[0]
+poll=app.split("    def poll():",1)[1].split("\n    root.after(120,poll)\n",1)[0]
 assert "completed_result_matches_active(info,entries,active[0])" in poll
 assert "last[0]=None" in poll
 assert "field.delete(\"1.0\",\"end\")" in poll
