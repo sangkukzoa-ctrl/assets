@@ -852,6 +852,17 @@ for file in RES.glob("*mixin*.json"):
         if "Sodium06BlockRendererMixin" not in name and "MinecraftDisconnectMixin" not in name]
     if "client.Embeddium03BlockRendererMixin" not in data["client"]:
        data["client"].append("client.Embeddium03BlockRendererMixin")
+    # The 1.3.1F metadata is an intermediate resource source, NOT a
+    # guarantee that all NeoForge/Forge RGB lifecycle mixins are registered.
+    # Previous Forge packet diagnostics recorded ZERO ClientLevelMixin hooks
+    # despite seeing the new block on both clients. Register the existing
+    # source's mixin explicitly (once) in the Forge runtime config.
+    all_mixins=data.get("mixins",[])+data["client"]
+    if not any(str(entry).split(".")[-1]=="ClientLevelMixin" for entry in all_mixins):
+       data["client"].append("client.ClientLevelMixin")
+    assert any(str(entry).split(".")[-1]=="ClientLevelMixin"
+               for entry in data.get("mixins",[])+data["client"]), "Forge ClientLevelMixin must be active"
+    print("FORGE_ACTIVE_CLIENTLEVEL_MIXIN",file.name, data["client"],flush=True)
     file.write_text(json.dumps(data,indent=2),encoding="utf-8")
 print("Forge 1.20.1 migration source staged: Java",len(list(CODE.rglob("*.java"))),
       "resources",len(list(RES.rglob("*"))),flush=True)
