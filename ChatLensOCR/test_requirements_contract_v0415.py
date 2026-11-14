@@ -54,6 +54,8 @@ assert "detail_evidence(image)" in shop
 assert "from table_v0419 import analyze as table_read" in layout
 assert "outlined_caption_v0420 import outlined_caption_box" in layout
 assert "result_belongs_to_image" in source
+assert "completed_result_matches_active" in source
+assert "from panel_grid_v0423 import analyze as pixel_panel_read" in layout
 assert "qa_offline_v0421 import cli" in source
 assert "allow_learning=False" in (root/"qa_offline_v0421.py").read_text(encoding="utf-8")
 assert "original_single_line=" in layout
