@@ -522,6 +522,13 @@ def generic(img,language,precise):
     pixel_table=table_read(img,language,precise)
     if pixel_table is not None:
         return pixel_table
+    # Separate actual grayscale button cells before concatenating words
+    # from adjacent columns. Unverified black-value screens and unrelated
+    # layouts keep the existing generic recognition path unchanged.
+    from panel_grid_v0423 import analyze as pixel_panel_read
+    panel=pixel_panel_read(img,language,precise)
+    if panel is not None:
+        return panel
     # Image icons arranged as a full-screen inventory are not actual prose.
     # Recognize only the pixel-evidenced title above the first slot border,
     # preserving the exact OCR output without running OCR on the icon rows.
