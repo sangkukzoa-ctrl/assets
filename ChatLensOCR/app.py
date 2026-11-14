@@ -117,9 +117,10 @@ def merge_rows(items):
     return sorted(joined,key=lambda z:z["box"][1])
 
 class Icons:
-    def __init__(self):
+    def __init__(self,allow_learning=True):
         import cv2, numpy as np
         self.icons=[]
+        self.allow_learning=allow_learning
         self.official_templates=set()
         for directory in [BASE/"assets"/"jobs",DATA/"job_samples",DATA/"job_samples"/"auto"]:
             if not directory.exists():continue
@@ -167,7 +168,7 @@ class Icons:
         if score<.71 or score-runner<.025:return ("",None,score)
         # Only a high-confidence match against a bundled source reference
         # can add a local sample. Learned samples cannot self-reinforce.
-        if is_official and score>=.90 and score-runner>=.12:
+        if self.allow_learning and is_official and score>=.90 and score-runner>=.12:
             from auto_job_samples_v047 import learn_verified_icon
             learned=learn_verified_icon(image,rect,job,score,score-runner,DATA,
                                        allowed_jobs=set(JOBS.values()))
