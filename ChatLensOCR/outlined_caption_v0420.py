@@ -28,7 +28,7 @@ def outlined_caption_box(image):
     minimum=max(28.,w*.052)
     candidates=[]
     for i in range(3,len(score)-3):
-        if score[i]<minimum or score[i]<score[i-1] or score[i]<score[i+1]):
+        if score[i]<minimum or score[i]<score[i-1] or score[i]<score[i+1]:
             continue
         before=score[max(0,i-15):i]
         after=score[i+1:min(len(score),i+16)]
