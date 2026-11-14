@@ -156,7 +156,7 @@ def _variants(img,mode, language, precise):
     # This intentionally excludes game dialogue, tables and multiline blocks.
     original_single_line=(mode=="범용" and
                           12<=img.height<=52 and
-                          img.width>=4*img.height)
+                          img.width>=max(220,6*img.height))
     for candidate in ims:
         if scale>1:
             candidate=candidate.resize(
