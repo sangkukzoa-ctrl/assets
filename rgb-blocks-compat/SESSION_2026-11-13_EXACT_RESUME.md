@@ -1,4 +1,11 @@
 # RGB Blocks 1.3.1 — EXACT CONTINUATION SNAPSHOT (2026-11-13, 22:45+ KST)
+
+### 2026-11-15 exact continuation after 2/2 — first FULL strict Forge dual-client live edit PASS
+- The previous major live RED→GREEN blocker is **SOLVED AND VERIFIED** for BOTH real Forge 1.20.1 dedicated clients: [#43621307272](https://github.com/sangkukzoa-ctrl/assets/actions/runs/43621307272) full SUCCESS. Primary and peer logged `RGB_PORT_PEER_LIVE_GREEN_SYNC_PASS`, source `[4,15,2]`, neighbor `[170,238,51]`; C&B RGB, mode MANUAL/AUTO, screenshot and network registry sync all success. The primary was formerly outside the tested tracked source scene; CI test now teleports both before edit. Forge production Mixin HEAD/TAIL fix remains `306e1efb`; source model from 1.3.1 unchanged.
+- Latest additional real-game work: CI-only emission removal probe commit `62c029b9`, 2-client harness removal assertions `da930c1b`. Strict removal run [#43622567101](https://github.com/sangkukzoa-ctrl/assets/actions/runs/43622567101) was in progress when recorded. This tests GREEN→AIR and removal of stale green while red C&B sculpture continues emitting, on BOTH peers.
+- On next **진행**, read actual current GitHub branch HEAD and [#43622567101](https://github.com/sangkukzoa-ctrl/assets/actions/runs/43622567101) conclusion/logs FIRST; if fail fix production only after diagnostics. Do not roll back prior dual-client PASS or confuse it with the new removal gate. Follow with Forge MANUAL dirty bake, NeoForge TWO clients, C&B mixed/Glass edit and restart/chunk persistence before release.
+- Repo `sangkukzoa-ctrl/assets`, branch `rgb-blocks-legacy-compat-audit`. Two-part bounded work chunks; persist code+test+ledger in GitHub every turn.
+
 **NOT A NEW PORT PROJECT.** This is the runnable checkpoint for the next conversation in the SAME RGB Blocks Project. Resume the existing GitHub branch and test pipeline; do not reimplement or choose a different loader. The owner uses one-word **"진행"** to order continuing the actual edit/build/test loop immediately.
 
 ### 2026-11-15 phase 13b — exact diagnostic result and active Mixin registration
