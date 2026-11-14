@@ -4,11 +4,19 @@
 
 [Privacy](PRIVACY.md) · [Third-party notices](NOTICE.md)
 
+## Development build v0.4.23 — race-safe OCR results and precise pixel-button UI
+
+v0.4.23 preserves an in-flight OCR result only when it belongs to the currently active screenshot; batch and selected ROI records remain available. A conservative, geometry-based route reads actual grayscale pixel-font buttons and the adjacent labels separately in precise mode. Unrecognized panels keep the prior general OCR behavior.
+
+The new public synthetic regressions are `test_inflight_result_switch_v0423.py` and `test_panel_grid_v0423.py`. The 166 original personal screenshots, manual transcripts and private CER audits are never included in the public repository, workflow artifacts or release.
+
+### Previously released baseline: v0.4.22
+
 ## Development build v0.4.22 — single-line layout correction and private OCR quality triage
 
 Latest public download: https://github.com/sangkukzoa-ctrl/assets/releases/tag/chatlens-beta
 
-# ChatLens OCR v0.4.22 (무료 공개 테스트판 · Beta)
+# ChatLens OCR v0.4.23 (개발 검증판 · Beta 준비)
 
 **개발 중이며 문자 인식 오류가 발생할 수 있습니다. 정확도 개선을 지속하고 있습니다.** 추출한 이름·금액·날짜 및 중요한 문장은 원본 이미지와 비교해 주세요.
 
