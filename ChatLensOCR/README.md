@@ -4,11 +4,11 @@
 
 [Privacy](PRIVACY.md) · [Third-party notices](NOTICE.md)
 
-## Development build v0.4.19 — pixel-backed multi-column table OCR and private 166-image verification
+## Development build v0.4.20 — outlined caption review and image-result integrity
 
 Latest public download: https://github.com/sangkukzoa-ctrl/assets/releases/tag/chatlens-beta
 
-# ChatLens OCR v0.4.19 (무료 공개 테스트판 · Beta)
+# ChatLens OCR v0.4.20 (무료 공개 테스트판 · Beta)
 
 **개발 중이며 문자 인식 오류가 발생할 수 있습니다. 정확도 개선을 지속하고 있습니다.** 추출한 이름·금액·날짜 및 중요한 문장은 원본 이미지와 비교해 주세요.
 
@@ -16,13 +16,13 @@ Latest public download: https://github.com/sangkukzoa-ctrl/assets/releases/tag/c
 
 스크린샷을 분석하여 일반 문서와 웹페이지, 쇼핑몰 상품 목록, 카카오톡 대화, 파이널판타지14 채팅·전투 로그를 텍스트로 추출합니다.
 
-## v0.4.19 표 판독 개선
+## v0.4.20 표 판독 개선
 - 선이 반복되는 밝은 다열 웹표를 픽셀 구조에 따라 열별로 분리해 판독합니다. 행·열을 섞거나 한 행의 날짜/금액을 다른 행으로 넘기는 오류를 줄이는 것이 목적입니다.
 - 반복되는 사각형 아이콘은 글자가 아닌 그림으로 식별하고, 파란 버튼에 보이는 흰 글자만 별도로 판독합니다. 고정 문구 치환이나 구매내역별 예외 코드는 사용하지 않습니다.
 - 화면 구조가 뚜렷하지 않으면 기존 OCR 방식으로 돌아갑니다. 원본 이미지와 사람이 직접 판독한 비공개 테스트 데이터는 공개 저장소에 넣지 않습니다.
 - Windows 공개 베타 빌드 성공과 실제 이미지 전체 문자정확도 검증은 서로 다른 항목으로 관리합니다.
 
-## 사용 방법
+## v0.4.20 개선\n- 여러 줄의 노란 외곽선 자막이 픽셀로 감지되었으나 OCR이 공란을 반환하면, 추측한 문장 대신 `[글자 미인식]`을 표시하여 사용자의 검수를 돕습니다.\n- 단일 이미지 OCR 결과를 표시한 상태에서 다른 이미지로 전환하면 이전 이미지의 결과가 새 이미지 결과로 오해되지 않도록 비웁니다. 일괄 분석 결과는 유지됩니다.\n- 사용자 원본 166장, 판독 GT, 비공개 검수 데이터는 GitHub 공개 저장소에 업로드하지 않습니다.\n\n## 사용 방법
 1. [공식 GitHub Releases](https://github.com/sangkukzoa-ctrl/assets/releases/tag/chatlens-beta)에서 Windows x64 EXE 또는 ZIP 다운로드
 2. ZIP이라면 압축 해제 후 EXE 실행 (Python 설치 불필요)
 3. **이미지 열기** 또는 **붙여넣기**로 스크린샷 추가
