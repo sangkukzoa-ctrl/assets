@@ -678,6 +678,18 @@ def gui():
             elif kind=="ok":
                 analysis_start[0]=None
                 analysis_detail[0]=None
+                # The worker may have started on A before the user selected
+                # B. Only display results that include the *active* image.
+                # Batch results are valid for every image in that batch.
+                from review_v046 import completed_result_matches_active
+                if not completed_result_matches_active(info,entries,active[0]):
+                    last[0]=None
+                    for field in fields:
+                        field.delete("1.0","end")
+                    status.set("이전 이미지 분석 완료 · 현재 선택한 이미지를 다시 분석하세요")
+                    show()
+                    root.after(120,poll)
+                    return
                 last[0]=info
                 from review_v046 import format_batch_txt
                 setfield(fields[0],format_batch_txt(info))
