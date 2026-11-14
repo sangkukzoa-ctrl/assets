@@ -72,3 +72,106 @@ extra = r'''
 replace_once(anchor, anchor + "\n" + extra)
 path.write_text(source, encoding="utf-8")
 print("CI_ONLY_TWO_CLIENT_SYNC_PROBE", path, len(source), flush=True)
+
+# CI-only trace: isolate the Forge 1.20.1 packet -> ClientLevel -> RGB
+# invalidation path. Never patch the release builder with these print calls.
+client_mixin = Path("port-work/mc1201-forge/src/main/java/com/rgbblocks/mixin/client/ClientLevelMixin.java")
+mixin_source = client_mixin.read_text(encoding="utf-8")
+def mixin_once(old, new):
+    global mixin_source
+    if mixin_source.count(old) != 1:
+        raise AssertionError(f"CI Forge Mixin probe anchor moved: {old[:110]!r}; count={mixin_source.count(old)}")
+    mixin_source = mixin_source.replace(old, new, 1)
+
+mixin_once(
+    '      if (Boolean.TRUE.equals(cir.getReturnValue()) && pos != null) {',
+    '''      if (rgbblocks$ciSource(pos)) {
+         System.out.println("RGB_PORT_DIAG_SETBLOCK_TAIL state=" + state
+            + " ok=" + cir.getReturnValue()
+            + " world=" + ((ClientLevel)(Object)this).getBlockState(pos)
+            + " nearby=" + RGBLightEngine.lightColorAt(new BlockPos(0,121,6),0.5f,0.5f,0.5f));
+      }
+      if (Boolean.TRUE.equals(cir.getReturnValue()) && pos != null) {'''
+)
+mixin_once(
+    '      if (pos != null) {\n         boolean changed = oldState != newState',
+    '''      if (rgbblocks$ciSource(pos)) {
+         System.out.println("RGB_PORT_DIAG_BLOCK_UPDATED old=" + oldState
+            + " new=" + newState + " flags=" + flags
+            + " nearby=" + RGBLightEngine.lightColorAt(new BlockPos(0,121,6),0.5f,0.5f,0.5f));
+      }
+      if (pos != null) {
+         boolean changed = oldState != newState'''
+)
+mixin_once(
+    '   private static boolean rgbblocks$isRemoteMultiplayer() {',
+    '''   private static boolean rgbblocks$ciSource(BlockPos pos) {
+      return pos != null && pos.getX() == 0 && pos.getY() == 121 && pos.getZ() == 7;
+   }
+
+   @Inject(method = "setServerVerifiedBlockState", at = @At("HEAD"))
+   private void rgbblocks$ciServerBlockHead(BlockPos pos, BlockState state, int flags, CallbackInfo ci) {
+      if (rgbblocks$ciSource(pos)) {
+         System.out.println("RGB_PORT_DIAG_SERVER_BLOCK_HEAD incoming=" + state
+            + " old=" + ((ClientLevel)(Object)this).getBlockState(pos)
+            + " flags=" + flags);
+      }
+   }
+
+   @Inject(method = "setServerVerifiedBlockState", at = @At("TAIL"))
+   private void rgbblocks$ciServerBlockTail(BlockPos pos, BlockState state, int flags, CallbackInfo ci) {
+      if (rgbblocks$ciSource(pos)) {
+         System.out.println("RGB_PORT_DIAG_SERVER_BLOCK_TAIL incoming=" + state
+            + " actual=" + ((ClientLevel)(Object)this).getBlockState(pos)
+            + " nearby=" + RGBLightEngine.lightColorAt(new BlockPos(0,121,6),0.5f,0.5f,0.5f));
+      }
+   }
+
+   @Inject(method = "syncBlockState", at = @At("TAIL"))
+   private void rgbblocks$ciSyncBlockTail(BlockPos pos, BlockState state,
+       net.minecraft.world.phys.Vec3 playerPos, CallbackInfo ci) {
+      if (rgbblocks$ciSource(pos)) {
+         System.out.println("RGB_PORT_DIAG_PREDICTION_BLOCK_TAIL incoming=" + state
+            + " actual=" + ((ClientLevel)(Object)this).getBlockState(pos));
+      }
+   }
+
+   private static boolean rgbblocks$isRemoteMultiplayer() {'''
+)
+client_mixin.write_text(mixin_source, encoding="utf-8")
+
+real_engine = Path("port-work/mc1201-forge/src/main/java/com/rgbblocks/client/lighting/RGBRealLightEngine.java")
+real_source = real_engine.read_text(encoding="utf-8")
+engine_anchor = '''   public static void invalidateAround(BlockPos pos) {
+      if (shouldDeferNewEvent()) {'''
+engine_instrumented = '''   public static void invalidateAround(BlockPos pos) {
+      if (pos != null && pos.getX() == 0 && pos.getY() == 121 && pos.getZ() == 7) {
+         System.out.println("RGB_PORT_DIAG_INVALIDATE_CALLED mode=" + EFFECTIVE_MODE
+            + " ready=" + RGBLightPersistence.readyForCurrentDimension()
+            + " defer=" + shouldDeferNewEvent()
+            + " direct=" + sourceColorAt(clientLevel(), pos)
+            + " before=" + RGBLightEngine.lightColorAt(new BlockPos(0,121,6),0.5f,0.5f,0.5f));
+      }
+      if (shouldDeferNewEvent()) {'''
+if real_source.count(engine_anchor) != 1:
+    raise AssertionError("Forge CI real light invalidation probe anchor moved")
+real_source = real_source.replace(engine_anchor, engine_instrumented, 1)
+engine_anchor_end = '''      RGBRenderInvalidator.dirtyAround(pos, radiusCached());
+   }
+
+   public static void invalidateChunk'''
+engine_end_instrumented = '''      RGBRenderInvalidator.dirtyAround(pos, radiusCached());
+      if (pos != null && pos.getX() == 0 && pos.getY() == 121 && pos.getZ() == 7) {
+         System.out.println("RGB_PORT_DIAG_INVALIDATE_EXECUTED mode=" + EFFECTIVE_MODE
+            + " after=" + RGBLightEngine.lightColorAt(new BlockPos(0,121,6),0.5f,0.5f,0.5f));
+      }
+   }
+
+   public static void invalidateChunk'''
+if real_source.count(engine_anchor_end) != 1:
+    raise AssertionError("Forge CI invalidate execution probe anchor moved")
+real_source = real_source.replace(engine_anchor_end, engine_end_instrumented, 1)
+real_engine.write_text(real_source, encoding="utf-8")
+print("CI_ONLY_FORGE_BLOCK_PACKET_AND_INVALIDATION_TRACES", client_mixin, real_engine, flush=True)
+
+
