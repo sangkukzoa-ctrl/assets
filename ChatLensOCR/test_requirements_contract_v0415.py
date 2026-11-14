@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""v0.4.20 originally requested features / historical regression contract.
+"""v0.4.21 originally requested features / historical regression contract.
 
 Contains literal UI and code surface checks only; no customer screenshots.
 If any of these features disappears, Windows CI must stop before release.
@@ -18,7 +18,7 @@ for file in root.glob("*.py"):
     # normally imported only on a rare user input.
     ast.parse(file.read_text(encoding="utf-8"),filename=str(file))
 features={
-    "desktop standalone GUI": 'root.title("ChatLens OCR v0.4.20',
+    "desktop standalone GUI": 'root.title("ChatLens OCR v0.4.21',
     "author and public copyright": "Copyright © 2026 2bornot",
     "offline input from local files": "filedialog.askopenfilenames",
     "clipboard image import": "ImageGrab.grabclipboard()",
@@ -55,6 +55,6 @@ assert "from table_v0419 import analyze as table_read" in layout
 assert "outlined_caption_v0420 import outlined_caption_box" in layout
 assert "result_belongs_to_image" in source
 assert "icon_grid_title_crop_bottom" in guard
-assert 'VERSION = "0.4.20"' in version
-print("v0.4.20 requirements contract: %d UI/storage/review/offline "
+assert 'VERSION = "0.4.21"' in version
+print("v0.4.21 requirements contract: %d UI/storage/review/offline "
       "features and six general/specialized guards PASS" % len(features))
