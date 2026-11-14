@@ -432,6 +432,56 @@ def forge_live_rgb_invalidations(source):
     return source.replace(old,new,1)
 patch(forge_client_level,forge_live_rgb_invalidations)
 
+# Forge 1.20.1 inbound authoritative packets enter
+# ClientLevel#setServerVerifiedBlockState. Track the PRE-packet block state,
+# then invalidate AFTER the packet has applied the replacement. The original
+# 26.1.2 Mixin on setBlock/sendBlockUpdated alone is insufficient for the
+# observed remote dedicated-server RED -> GREEN source transition. This extra
+# hook also covers removal (old RGB -> air) without losing the prior state.
+# The original per-channel propagation, 4095-bit C&B emission and deferred
+# AUTO/MANUAL behavior are untouched.
+def forge_server_verified_rgb_changes(source):
+    anchor='''   private static boolean rgbblocks$isRemoteMultiplayer() {'''
+    injection='''   @org.spongepowered.asm.mixin.Unique
+   private java.util.Set<Long> rgbblocks$pendingServerRgbUpdates;
+
+   @Inject(method = "setServerVerifiedBlockState", at = @At("HEAD"))
+   private void rgbblocks$beforeServerVerifiedRgbChange(BlockPos pos, BlockState incoming,
+       int flags, CallbackInfo ci) {
+      if (pos == null || incoming == null) {
+         return;
+      }
+      BlockState previous = ((ClientLevel)(Object)this).getBlockState(pos);
+      if (previous != incoming && (previous == null || !previous.equals(incoming))
+          && (rgbblocks$isLightRelevant(previous)
+              || rgbblocks$isLightRelevant(incoming)
+              || RGBSourceIndex.hasSourceAt(pos))) {
+         if (this.rgbblocks$pendingServerRgbUpdates == null) {
+            this.rgbblocks$pendingServerRgbUpdates = new java.util.HashSet<>();
+         }
+         this.rgbblocks$pendingServerRgbUpdates.add(pos.asLong());
+      }
+   }
+
+   @Inject(method = "setServerVerifiedBlockState", at = @At("TAIL"))
+   private void rgbblocks$afterServerVerifiedRgbChange(BlockPos pos, BlockState incoming,
+       int flags, CallbackInfo ci) {
+      if (pos != null && incoming != null
+          && this.rgbblocks$pendingServerRgbUpdates != null
+          && this.rgbblocks$pendingServerRgbUpdates.remove(pos.asLong())) {
+         BlockState applied = ((ClientLevel)(Object)this).getBlockState(pos);
+         if (incoming == applied || incoming.equals(applied)) {
+            RGBRealLightEngine.invalidateAround(pos);
+         }
+      }
+   }
+
+'''
+    if source.count(anchor) != 1:
+        raise AssertionError("Forge ClientLevel remote-update hook anchor moved")
+    return source.replace(anchor,injection+anchor,1)
+patch(forge_client_level,forge_server_verified_rgb_changes)
+
 # The original 1.3.1 C&B vanilla-emission suppression hook also reflects
 # BlockInformation#blockState(), separately from the real RGB light engine.
 # C&B 20.1.20 implements IBlockInformation#getBlockState(), so both readers
