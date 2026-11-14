@@ -31,7 +31,7 @@ def runthread(p,label,out):
             for line in p.stdout:
                 lines.append(line)
                 f.write(line);f.flush()
-                if any(q in line for q in ("Done (","joined the game","lost connection","ERROR","FATAL","Fatal","Traceback","Render thread","RGB mode","Server thread","Failed","RGB_PORT_PEER_")):
+                if any(q in line for q in ("Done (","joined the game","lost connection","ERROR","FATAL","Fatal","Traceback","Render thread","RGB mode","Server thread","Failed","RGB_PORT_PEER_","RGB_PORT_DIAG_","MixinApplyError","mixin apply","Mixin config","rgbblocks.mixins")):
                     record(label+" "+line.rstrip()[:450])
     t=threading.Thread(target=reader,daemon=True);t.start()
     return lines,t
@@ -76,6 +76,10 @@ with zipfile.ZipFile(jar) as zip:
     palette=json.loads(zip.read("assets/rgbblocks/palette.json"))
     assert len(palette)==16687
     assert json.loads(zip.read("pack.mcmeta"))["pack"]["pack_format"]==15
+    manifest=zip.read("META-INF/MANIFEST.MF").decode("utf-8",errors="replace")
+    assert "MixinConfigs: rgbblocks.mixins.json" in manifest, "Forge runtime JAR missing MixinConfigs"
+    assert "client.ClientLevelMixin" in json.loads(zip.read("rgbblocks.mixins.json")).get("client",[]), "Runtime config lacks ClientLevelMixin"
+    record("FORGE_JAR_MIXIN_CONFIGURED manifest=True clientLevelMixin=True jar="+str(jar))
 chosen=next(c for c in palette if c["red"]>180 and c["green"]<100 and c["blue"]<100)
 block="rgbblocks:rgb_%s_%d_%d_%d"%(chosen["group"],chosen["red"],chosen["green"],chosen["blue"])
 green_choice=next(c for c in palette if c["green"]>200 and c["red"]<80 and c["blue"]<80)
@@ -248,9 +252,17 @@ try:
             path=folder/"logs/latest.log"
             if path.is_file():
                 diag=[line for line in path.read_text(encoding="utf-8",errors="replace").splitlines()
-                      if "RGB_PORT_PEER_" in line]
-                for line in diag[-24:]:
-                    record("TWO_CLIENT_DIAG_"+name+" "+line[-650:])
+                      if any(token in line for token in (
+                          "RGB_PORT_PEER_", "RGB_PORT_DIAG_", "Mixin", "mixin",
+                          "setServerVerifiedBlockState", "RGBRealLightEngine", "ERROR", "FATAL"))]
+                for line in diag[-140:]:
+                    record("TWO_CLIENT_DIAG_"+name+" "+line[-900:])
+            console=EVIDENCE/("client-console.log" if name=="PRIMARY" else "peer-console.log")
+            if console.is_file():
+                diag=[line for line in console.read_text(encoding="utf-8",errors="replace").splitlines()
+                      if any(token in line for token in ("RGB_PORT_DIAG_", "MixinApplyError", "Mixin", "mixin", "setServerVerifiedBlockState"))]
+                for line in diag[-80:]:
+                    record("TWO_CLIENT_CONSOLE_"+name+" "+line[-900:])
     result["both_clients_alive_after_sync"]=client.poll() is None and peer.poll() is None
     assert result["two_clients_live_rgb_sync_verified"],"Live server RGB source/lighting edit did not propagate to both clients"
     assert result["both_clients_alive_after_sync"],"At least one multiplayer client exited during live update"
@@ -325,8 +337,23 @@ finally:
     sthread.join(timeout=5)
     if "cthread" in locals():cthread.join(timeout=5)
     if "peerthread" in locals():peerthread.join(timeout=5)
+    if (GAME/"logs/latest.log").is_file():
+        shutil.copy2(GAME/"logs/latest.log",EVIDENCE/"minecraft-client-latest.log")
     if (PEER/"logs/latest.log").is_file():
         shutil.copy2(PEER/"logs/latest.log",EVIDENCE/"minecraft-peer-latest.log")
+    for who,folder in (("PRIMARY",GAME),("SECONDARY",PEER)):
+        candidate=folder/"logs/latest.log"
+        if candidate.is_file():
+            contents=candidate.read_text(encoding="utf-8",errors="replace")
+            matches=[line for line in contents.splitlines()
+                     if any(token in line for token in (
+                         "RGB_PORT_DIAG_", "ClientLevelMixin", "MixinApplyError",
+                         "setServerVerifiedBlockState", "Mixin config"))]
+            record("FORGE_CLIENT_MIXIN_DIAG_SUMMARY "+who
+                   +" matches="+str(len(matches))
+                   +" rgb_events="+str(sum("RGB_PORT_DIAG_" in x for x in matches)))
+            for line in matches[-55:]:
+                record("FORGE_CLIENT_MIXIN_TRACE_"+who+" "+line[-950:])
     (EVIDENCE/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2))
     record("RESULT "+json.dumps(result,ensure_ascii=False))
 assert result["server_ready"] and result["client_joined"],"Real client did not join real multiplayer server"
