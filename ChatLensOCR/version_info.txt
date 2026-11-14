@@ -11,12 +11,12 @@ VSVersionInfo(
       StringTable('040904B0', [
         StringStruct('CompanyName', '2bornot'),
         StringStruct('FileDescription', 'ChatLens OCR - Offline Screenshot OCR'),
-        StringStruct('FileVersion', '0.4.20.0'),
+        StringStruct('FileVersion', '0.4.21.0'),
         StringStruct('InternalName', 'ChatLensOCR'),
         StringStruct('LegalCopyright', 'Copyright © 2026 2bornot'),
-        StringStruct('OriginalFilename', 'ChatLensOCR_v0.4.20.exe'),
+        StringStruct('OriginalFilename', 'ChatLensOCR_v0.4.21.exe'),
         StringStruct('ProductName', 'ChatLens OCR'),
-        StringStruct('ProductVersion', '0.4.20.0')
+        StringStruct('ProductVersion', '0.4.21.0')
       ])
     ]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])
