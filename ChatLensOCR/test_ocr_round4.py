@@ -23,7 +23,10 @@ assert 'sticker_tools.pack(side="left")' in code
 assert 'if mode.get()=="파판14"' in code
 assert 'elif mode.get()=="카카오톡"' in code
 assert 'if not last[0]:' in code  # forbid saving placeholder text
-assert 'if sel:active[0]=entries[sel[0]][1];selection[0]=None;show()' in code
+assert 'result_belongs_to_image(last[0],filename)' in code
+assert 'active[0]=image' in code
+assert 'selection[0]=None' in code
+assert 'last[0]=None' in code
 assert 'default_test_result_filename()' in code
 assert 'with Image.open(f) as picture:add_image(picture,Path(f).name)' in code
 
