@@ -33,7 +33,11 @@ with tempfile.TemporaryDirectory() as dirname:
 source=(Path(__file__).resolve().parent/"app.py").read_text(encoding="utf-8")
 assert 'self.official_templates=set()' in source
 assert 'DATA/"job_samples"/"auto"' in source
-assert 'if is_official and score>=.90 and score-runner>=.12:' in source
+assert 'if self.allow_learning and is_official and score>=.90 and score-runner>=.12:' in source
+assert 'self.allow_learning=allow_learning' in source
+assert 'icons=Icons(allow_learning=False)' in (
+    Path(__file__).resolve().parent/"qa_offline_v0421.py"
+).read_text(encoding="utf-8")
 assert 'learn_verified_icon(image,rect,job,score,score-runner,DATA' in source
 assert 'button(icon_tools,"직업 아이콘 직접 등록 (선택)"' in source
 
