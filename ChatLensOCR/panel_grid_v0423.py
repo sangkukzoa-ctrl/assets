@@ -104,6 +104,17 @@ def _read_roi(roi,kind,reader,cache,language):
                 agreed=False
         else:
             chosen=native or enlarged
+            if chosen is not None and chosen[2]<40:
+                chosen=None
+            if chosen is None:
+                # Keep PSM8-only text if PSM7 produces none.
+                counts=Counter(v[0] for v in candidates)
+                count=max(counts.values())
+                if count>=2:
+                    chosen=next(v for v in candidates if counts[v[0]]==count)
+                else:
+                    trusted=[v for v in candidates if v[2]>=80]
+                    chosen=max(trusted,key=lambda v:v[2]) if trusted else None
             agreed=False
         result=((chosen[0],chosen[1],chosen[2],agreed,chosen[3]) if chosen
                 else (None,[],0.,False,1))

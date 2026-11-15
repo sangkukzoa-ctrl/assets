@@ -26,6 +26,13 @@ def stable_reader(image,mode,language,psm=None,tess_lang=None):
 r=panel._read_roi(roi,'label',stable_reader,{},'영어')
 assert r[0]=='Stable Label' and r[3] is True,r
 
+# Preserve PSM8-only evidence if PSM7 cannot decode a label.
+def isolated_reader(image,mode,language,psm=None,tess_lang=None):
+    if psm==7:return '',[],0
+    return 'Fallback Token',[{'text':'Fallback Token','box':(1,1,25,18),'score':.91}],93
+r=panel._read_roi(roi,'label',isolated_reader,{},'영어')
+assert r[0]=='Fallback Token' and r[3] is False,r
+
 def button_reader(image,mode,language,psm=None,tess_lang=None):
     word='Apply' if (psm==8 or image.width==200) else 'Applx'
     return word,[{'text':word,'box':(1,1,20,15),'score':.9}],93
