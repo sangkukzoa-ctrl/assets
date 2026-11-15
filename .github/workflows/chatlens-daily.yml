@@ -36,7 +36,7 @@ jobs:
         run: python -m compileall -q ChatLensOCR
       - name: Verify versioned result export before dependency installation
         run: python ChatLensOCR/test_export_v0373_regression.py
-      - name: Early v0.4.23 feature and release metadata contract (no OCR dependency install)
+      - name: Early v0.4.24 feature and release metadata contract (no OCR dependency install)
         run: python ChatLensOCR/test_requirements_contract_v0415.py
       - name: Numeric OCR quality triage and duplicate human GT regression
         run: python ChatLensOCR/test_quality_triage_v0422.py
@@ -123,6 +123,8 @@ jobs:
         run: python ChatLensOCR/test_visual_table_v0419.py
       - name: Pixel-button layout geometry and exact literal OCR tests
         run: python ChatLensOCR/test_panel_grid_v0423.py
+      - name: Literal single-line pixel labels, PSM7/PSM8 disagreement and clipped edges
+        run: python ChatLensOCR/test_panel_ocr_selection_v0424.py
       - name: Outlined caption unreadable marker with no text invention
         run: python ChatLensOCR/test_outlined_caption_v0420.py
       - name: Switching images must not show stale single OCR results
@@ -193,19 +195,19 @@ jobs:
         run: python ChatLensOCR/test_layout_v2.py
       - name: Build single Windows GUI executable
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name ChatLensOCR_v0.4.23 --version-file ChatLensOCR/version_info.txt --collect-all rapidocr --collect-all onnxruntime --collect-all cv2 --hidden-import=pytesseract --hidden-import=explorer_v1 --hidden-import=colored_page --hidden-import=pvp_v2 --hidden-import=kakao_stickers --hidden-import=kakao_korean --hidden-import=sticker_match_v035 --hidden-import=kakao_names_v036 --hidden-import=ffxiv_combat_v037 --hidden-import=ffxiv_scoreboard_v037 --hidden-import=multicolumn_v037 --hidden-import=shop_grid_v0374 --hidden-import=ffxiv_latin_v0422 --hidden-import=ui_input_v042 --hidden-import=kakao_fidelity_v043 --hidden-import=kakao_integrity_v044 --hidden-import=kakao_tail_rescue_v045 --hidden-import=review_v046 --hidden-import=auto_job_samples_v047 --hidden-import=ffxiv_viewer_crop_v047 --hidden-import=ffxiv_fidelity_v0410 --hidden-import=ffxiv_scoreboard_grid_v0412 --hidden-import=generic_subtitle_fidelity_v0412 --hidden-import=generic_blank_caption_v0413 --hidden-import=ocr_hallucination_guard_v0414 --hidden-import=product_detail_v0415 --hidden-import=table_v0419 --hidden-import=panel_grid_v0423 --hidden-import=outlined_caption_v0420 --hidden-import=qa_offline_v0421 --hidden-import=tess_backend --hidden-import=ocr_guard_v0372 --hidden-import=debuglog_v0372 --hidden-import=batch_v0372 --hidden-import=test_export_v0373 --add-data "$env:ProgramFiles\Tesseract-OCR;tesseract" --add-data "ChatLensOCR/assets;assets" --add-data "ChatLensOCR/models;models" --add-data "ChatLensOCR/LICENSE;." --add-data "ChatLensOCR/NOTICE.md;." --hidden-import=rapidocr --hidden-import=onnxruntime ChatLensOCR/app.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name ChatLensOCR_v0.4.24 --version-file ChatLensOCR/version_info.txt --collect-all rapidocr --collect-all onnxruntime --collect-all cv2 --hidden-import=pytesseract --hidden-import=explorer_v1 --hidden-import=colored_page --hidden-import=pvp_v2 --hidden-import=kakao_stickers --hidden-import=kakao_korean --hidden-import=sticker_match_v035 --hidden-import=kakao_names_v036 --hidden-import=ffxiv_combat_v037 --hidden-import=ffxiv_scoreboard_v037 --hidden-import=multicolumn_v037 --hidden-import=shop_grid_v0374 --hidden-import=ffxiv_latin_v0422 --hidden-import=ui_input_v042 --hidden-import=kakao_fidelity_v043 --hidden-import=kakao_integrity_v044 --hidden-import=kakao_tail_rescue_v045 --hidden-import=review_v046 --hidden-import=auto_job_samples_v047 --hidden-import=ffxiv_viewer_crop_v047 --hidden-import=ffxiv_fidelity_v0410 --hidden-import=ffxiv_scoreboard_grid_v0412 --hidden-import=generic_subtitle_fidelity_v0412 --hidden-import=generic_blank_caption_v0413 --hidden-import=ocr_hallucination_guard_v0414 --hidden-import=product_detail_v0415 --hidden-import=table_v0419 --hidden-import=panel_grid_v0423 --hidden-import=outlined_caption_v0420 --hidden-import=qa_offline_v0421 --hidden-import=tess_backend --hidden-import=ocr_guard_v0372 --hidden-import=debuglog_v0372 --hidden-import=batch_v0372 --hidden-import=test_export_v0373 --add-data "$env:ProgramFiles\Tesseract-OCR;tesseract" --add-data "ChatLensOCR/assets;assets" --add-data "ChatLensOCR/models;models" --add-data "ChatLensOCR/LICENSE;." --add-data "ChatLensOCR/NOTICE.md;." --hidden-import=rapidocr --hidden-import=onnxruntime ChatLensOCR/app.py
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
       - name: Verify 2bornot EXE metadata
         run: |
-          $info=(Get-Item (Resolve-Path "dist/ChatLensOCR_v0.4.23.exe")).VersionInfo
+          $info=(Get-Item (Resolve-Path "dist/ChatLensOCR_v0.4.24.exe")).VersionInfo
           if ($info.CompanyName -ne "2bornot") { throw "CompanyName mismatch: $($info.CompanyName)" }
           if ($info.LegalCopyright -notmatch "2bornot") { throw "LegalCopyright missing" }
           if ($info.ProductName -ne "ChatLens OCR") { throw "ProductName mismatch" }
-          if ($info.ProductVersion -ne "0.4.23.0") { throw "ProductVersion mismatch" }
-          Write-Host "Verified developer 2bornot, Copyright 2026 and ProductVersion 0.4.23.0"
+          if ($info.ProductVersion -ne "0.4.24.0") { throw "ProductVersion mismatch" }
+          Write-Host "Verified developer 2bornot, Copyright 2026 and ProductVersion 0.4.24.0"
       - name: Verify frozen executable with network blocked
         run: |
-          $p = Start-Process -FilePath (Resolve-Path ".\dist\ChatLensOCR_v0.4.23.exe") -ArgumentList "--self-test", (Join-Path $PWD "selftest.json") -Wait -PassThru
+          $p = Start-Process -FilePath (Resolve-Path ".\dist\ChatLensOCR_v0.4.24.exe") -ArgumentList "--self-test", (Join-Path $PWD "selftest.json") -Wait -PassThru
           if (Test-Path selftest.json) { Get-Content selftest.json }
           if ($p.ExitCode -ne 0) { throw "OCR frozen selftest failed: $($p.ExitCode)" }
           Get-Content selftest.json
@@ -228,7 +230,7 @@ jobs:
           '@ | python -
           if ($LASTEXITCODE -ne 0) { throw "Synthetic sample generation failed" }
           $audit=Join-Path $root "local_audit.jsonl"
-          $exe=(Resolve-Path ".\\dist\\ChatLensOCR_v0.4.23.exe").Path
+          $exe=(Resolve-Path ".\\dist\\ChatLensOCR_v0.4.24.exe").Path
           $p=Start-Process -FilePath $exe -ArgumentList @("--audit-folder",$folder,$audit) -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Frozen local audit failed: $($p.ExitCode)" }
           $record=Get-Content $audit -Encoding utf8 | Select-Object -First 1 | ConvertFrom-Json
@@ -291,7 +293,7 @@ jobs:
             exit 0
           }
           $cert = Join-Path $env:RUNNER_TEMP 'chatlens_signing.pfx'
-          $exe = (Resolve-Path 'dist/ChatLensOCR_v0.4.23.exe').Path
+          $exe = (Resolve-Path 'dist/ChatLensOCR_v0.4.24.exe').Path
           try {
             [IO.File]::WriteAllBytes($cert, [Convert]::FromBase64String($env:CODE_SIGN_PFX_BASE64))
             $signtool = Get-ChildItem -Path 'C:\Program Files (x86)\Windows Kits\10\bin' -Filter signtool.exe -Recurse | Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
@@ -306,8 +308,8 @@ jobs:
           }
       - name: Create and validate release archive
         run: |
-          $exe = (Resolve-Path "dist/ChatLensOCR_v0.4.23.exe").Path
-          $zip = "dist/ChatLensOCR_v0.4.23_Windows_x64.zip"
+          $exe = (Resolve-Path "dist/ChatLensOCR_v0.4.24.exe").Path
+          $zip = "dist/ChatLensOCR_v0.4.24_Windows_x64.zip"
           $sha = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           if ((Get-Item $exe).Length -lt 25MB) { throw "Executable unexpectedly small" }
           Copy-Item "ChatLensOCR/LICENSE" "dist/LICENSE.txt"
@@ -317,12 +319,12 @@ jobs:
           $check = Join-Path $env:RUNNER_TEMP "ChatLensVerify"
           New-Item -ItemType Directory -Force -Path $check | Out-Null
           Expand-Archive -Path $zip -DestinationPath $check -Force
-          $extracted = (Get-FileHash (Join-Path $check "ChatLensOCR_v0.4.23.exe") -Algorithm SHA256).Hash.ToLowerInvariant()
+          $extracted = (Get-FileHash (Join-Path $check "ChatLensOCR_v0.4.24.exe") -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($sha -ne $extracted) { throw "Archive checksum mismatch" }
           $zipSha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
           @(
-            "$sha  ChatLensOCR_v0.4.23.exe"
-            "$zipSha  ChatLensOCR_v0.4.23_Windows_x64.zip"
+            "$sha  ChatLensOCR_v0.4.24.exe"
+            "$zipSha  ChatLensOCR_v0.4.24_Windows_x64.zip"
           ) | Set-Content "dist/SHA256SUMS.txt" -Encoding ascii
           Get-Content "dist/SHA256SUMS.txt"
           Write-Host "EXE bytes: $((Get-Item $exe).Length)"
@@ -331,14 +333,14 @@ jobs:
       - name: Attest binary build provenance (different from Authenticode)
         uses: actions/attest@v4
         with:
-          subject-path: dist/ChatLensOCR_v0.4.23.exe
+          subject-path: dist/ChatLensOCR_v0.4.24.exe
       - name: Record QA-only build manifest
         env:
           CODE_SIGNED: ${{ steps.codesign.outputs.signed }}
         run: |
           $json = @{
             application = "ChatLens OCR"
-            version = "0.4.23"
+            version = "0.4.24"
             qa_round = "nightly-development"
             developer = "2bornot"
             released_publicly = $false
@@ -360,7 +362,7 @@ jobs:
         with:
           name: ChatLensOCR-Daily-${{ github.run_number }}-Windows-x64
           path: |
-            dist/ChatLensOCR_v0.4.23_Windows_x64.zip
+            dist/ChatLensOCR_v0.4.24_Windows_x64.zip
             dist/SHA256SUMS.txt
             dist/LICENSE.txt
             dist/NOTICE.md
@@ -383,8 +385,8 @@ jobs:
       - name: Prepare stable single-page beta distribution
         if: success()
         run: |
-          $exe = "dist/ChatLensOCR_v0.4.23.exe"
-          $zip = "dist/ChatLensOCR_v0.4.23_Windows_x64.zip"
+          $exe = "dist/ChatLensOCR_v0.4.24.exe"
+          $zip = "dist/ChatLensOCR_v0.4.24_Windows_x64.zip"
           Copy-Item $exe "dist/ChatLensOCR.exe" -Force
           Copy-Item $zip "dist/ChatLensOCR-Windows-x64.zip" -Force
           $shaExe=(Get-FileHash "dist/ChatLensOCR.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -398,7 +400,7 @@ jobs:
           @"
           # ChatLens OCR — 무료 공개 테스트판 (Beta)
 
-          **최신 개발 빌드: v0.4.23 | $stamp | 개발자: 2bornot**
+          **최신 개발 빌드: v0.4.24 | $stamp | 개발자: 2bornot**
 
           **개발 중이며 문자 인식 정확도는 아직 불안정합니다.** 복잡한 화면의 글자 오인식과 일부 문장 누락이 발생할 수 있습니다. 정확도와 안정성을 계속 개선하고 있습니다. 중요한 내용은 원본 이미지와 대조해 주세요.
 
@@ -429,6 +431,7 @@ jobs:
           - v0.4.21: 공개 테스트판과 동일한 오프라인 Windows EXE에서 사용자 로컬 검증 이미지 폴더를 직접 판독하는 비공개 JSONL 전수 감사, 중단 재개 및 인간 정답 CER/무문자 환각률 측정 도구 추가. 개인 자료는 공개 저장소·Actions에 포함하지 않음
           - v0.4.22: 확대된 짧은 범용 텍스트의 원본 1행 레이아웃을 인식 엔진에 보존(PSM7), 기존 FF14·다중 행 유지. 비공개 실제 이미지 QA에 화면 유형별 CER·빈 화면 환각·최악 오독 재검수 목록·중복 인간 GT 검증 추가 (166장 실제 Windows CER는 별도 측정)
           - v0.4.23: 비동기 OCR 완료 시 활성 이미지 검증(단건/ROI/일괄), 밝은 회색 픽셀 UI의 버튼·라벨 별도 OCR, 구조 미확인 화면 기존 경로 유지. 새로운 합성 회귀 2종 추가. 개인 166장 원본·인간 GT는 공개 저장소·Actions·릴리스에 포함하지 않음
+          - v0.4.24: 실제 픽셀 UI 레이블의 한 줄 PSM7 판독 우선 및 오른쪽 글자 잘림 방지. 기존 버튼 OCR·지원하지 않는 UI fallback 유지, 인식 문구 임의 사전 치환 금지. 공개 합성 회귀 검증 추가. 개인 166장 원본·인간 GT는 공개 저장소 및 GitHub CI/릴리스 미포함
           - Windows 오프라인 EXE 자체실행 및 ZIP SHA256 검증 통과
           - 프로그램 소스: $head
           - 이전 버전은 Releases의 개별 버전 태그에 보존
@@ -440,10 +443,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Source archive creation failed" }
           Get-Content "dist/SHA256SUMS-LATEST.txt"
           if ($shaExe -ne (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()) {
-            throw "Stable EXE does not match verified v0.4.23 binary"
+            throw "Stable EXE does not match verified v0.4.24 binary"
           }
           if ($shaZip -ne (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()) {
-            throw "Stable ZIP does not match verified v0.4.23 archive"
+            throw "Stable ZIP does not match verified v0.4.24 archive"
           }
       - name: Publish one permanent GitHub beta download page
         if: success()
