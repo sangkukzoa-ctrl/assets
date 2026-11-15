@@ -82,11 +82,33 @@ def _read_roi(roi,kind,reader,cache,language):
         text,items,confidence=reader(target,'범용',language,psm=psm,tess_lang='eng')
         text=' '.join(str(text).strip().strip('|').split())
         if not text or not any(c.isalnum() for c in text):continue
-        candidates.append((text,items,float(confidence),factor))
+        candidates.append((text,items,float(confidence),factor,psm))
     if not candidates:
         result=(None,[],0.,False,1)
+    elif kind=='label':
+        # PSM 7 is the OCR mode for an actual single text row. Repeated
+        # PSM 8 readings must not outweigh the native pixel font.
+        native=next((v for v in candidates if v[3]==1 and v[4]==7),None)
+        enlarged=next((v for v in candidates if v[3]==3 and v[4]==7),None)
+        if native and enlarged:
+            if native[0]==enlarged[0]:
+                chosen=max((native,enlarged),key=lambda v:v[2]);agreed=True
+            elif (len(native[0])==len(enlarged[0]) and
+                  sum(a!=b for a,b in zip(native[0],enlarged[0]))==1 and
+                  native[2]>=35):
+                # Preserve the native literal glyph for a one-character
+                # enlargement mismatch; do not insert guessed spellings.
+                chosen=native;agreed=False
+            else:
+                chosen=enlarged if enlarged[2]>=40 else None
+                agreed=False
+        else:
+            chosen=native or enlarged
+            agreed=False
+        result=((chosen[0],chosen[1],chosen[2],agreed,chosen[3]) if chosen
+                else (None,[],0.,False,1))
     else:
-        scores=Counter(value for value,_,_,_ in candidates)
+        scores=Counter(value for value,_,_,_,_ in candidates)
         count=max(scores.values())
         if count>=2:
             # Preserve the earliest literal OCR candidate on a tie;
@@ -125,8 +147,16 @@ def analyze(image,language='한국어',precise=True,reader=None):
         for x,y,w,h in controls:
             top=max(0,int(center)-19);bottom=min(image.height,int(center)+19)
             if x-left>45:
+                # Only extend a label into the 4-pixel button border when
+                # its original right edge contains visible glyph pixels.
+                # Expanding every label can corrupt already readable text.
                 label_box=(left,top,x,bottom)
                 roi=image.crop(label_box)
+                edge=np.asarray(roi.convert('L'))<100
+                if (x+4<=image.width and edge.shape[1]>=4 and
+                    int(edge[:,-4:].sum())>=10):
+                    label_box=(left,top,x+4,bottom)
+                    roi=image.crop(label_box)
                 ink=np.asarray(roi.convert('L'))<105
                 if ink.sum()>=max(6,roi.width*roi.height*.004):
                     value,parts,confidence,agreed,factor=_read_roi(
