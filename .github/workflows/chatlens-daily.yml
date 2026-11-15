@@ -34,6 +34,10 @@ jobs:
           architecture: x64
       - name: Python syntax gate before expensive OCR dependencies
         run: python -m compileall -q ChatLensOCR
+      - name: Refuse private screenshot and human-GT files in public source
+        run: |
+          $unsafe = @(git ls-files ChatLensOCR | Where-Object { $_ -match 'Human_GT_|_PRIVATE\\.|166_original_images' })
+          if ($unsafe.Count -gt 0) { throw "Private OCR input must not be distributed: $($unsafe -join ', ')" }
       - name: Verify versioned result export before dependency installation
         run: python ChatLensOCR/test_export_v0373_regression.py
       - name: Early v0.4.24 feature and release metadata contract (no OCR dependency install)
