@@ -4,6 +4,7 @@ on:
     branches: [rgb-blocks-legacy-compat-audit]
     paths:
       - 'rgb-blocks-compat/inject_ci_mixed_cnb_probe.py'
+      - 'rgb-blocks-compat/test_mc1211_neoforge_two_clients.py'
       - '.github/workflows/rgb-blocks-1211-neoforge-cnb-mixed.yml'
   workflow_dispatch:
 permissions:
