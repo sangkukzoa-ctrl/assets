@@ -145,7 +145,7 @@ def change(old,new):
     assert probe.count(old)==1,(old,probe.count(old))
     probe=probe.replace(old,new,1)
 change("private static int tickCallbackCount = 0;",
-       "private static int tickCallbackCount = 0;\\nprivate static boolean mixedPassed = false;")
+       "private static int tickCallbackCount = 0;\nprivate static boolean mixedPassed = false;")
 # Existing dual-client probe must not terminate before the mixed fixture test.
 guard="if (passed && cnbPassed && "
 idx=probe.find(guard)
@@ -209,6 +209,6 @@ mixed=r'''
  }
 '''
 mixed=mixed.replace("{{BLUE_BLOCK}}",blue_block).replace("{{GETTER}}",getter)
-change(anchor,anchor+"\\n"+mixed)
+change(anchor,anchor+"\n"+mixed)
 probe_path.write_text(probe,encoding="utf-8")
 print("CI_ONLY_MIXED_CNB_RGB_GLASS",target,len(server),len(probe),flush=True)
