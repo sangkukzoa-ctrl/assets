@@ -39,7 +39,7 @@ def proc_reader(proc,label,path):
         with path.open("w",encoding="utf-8") as f:
             for line in proc.stdout:
                 lines.append(line);f.write(line);f.flush()
-                if any(x in line for x in ("Done (","joined the game","lost connection","ERROR","FATAL","RGB mode","Render thread","Failed","RGB_PORT_NEO_PEER_","RGB_PORT_LIGHT_PROBE_PASS","RGB_PORT_CNB_LIGHT_PROBE_PASS")):
+                if any(x in line for x in ("Done (","joined the game","lost connection","ERROR","FATAL","RGB mode","Render thread","Failed","RGB_PORT_NEO_PEER_","RGB_PORT_LIGHT_PROBE_PASS","RGB_PORT_CNB_LIGHT_PROBE_PASS","RGB_PORT_CNB_MIXED_","Caused by","Exception")):
                     info(label+" "+line.rstrip()[:340])
     t=threading.Thread(target=read,daemon=True);t.start();return lines,t
 def await_line(lines,needle,proc,limit):
@@ -48,6 +48,10 @@ def await_line(lines,needle,proc,limit):
         if needle in "".join(lines[-1000:]):return True
         if proc.poll() is not None:break
         time.sleep(.7)
+    if needle=="RGB_PORT_CNB_MIXED_FIXTURE_PASS":
+        for line in lines:
+            if "RGB_PORT_CNB_MIXED_" in line or "Caused by" in line or "Exception" in line:
+                info("NEO_MIXED_SERVER_DIAG "+line.rstrip()[-950:])
     info("MISSING "+needle+" after "+str(time.monotonic()-start))
     return False
 def await_new_line(lines,needle,start_index,proc,limit,label):
