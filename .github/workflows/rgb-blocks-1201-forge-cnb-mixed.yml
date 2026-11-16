@@ -4,6 +4,7 @@ on:
     branches: [rgb-blocks-legacy-compat-audit]
     paths:
       - 'rgb-blocks-compat/inject_ci_mixed_cnb_probe.py'
+      - 'rgb-blocks-compat/test_mc1201_forge_two_clients.py'
       - '.github/workflows/rgb-blocks-1201-forge-cnb-mixed.yml'
   workflow_dispatch:
 permissions:
