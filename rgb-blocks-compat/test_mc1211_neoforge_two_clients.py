@@ -49,6 +49,14 @@ def await_line(lines,needle,proc,limit):
         time.sleep(.7)
     info("MISSING "+needle+" after "+str(time.monotonic()-start))
     return False
+def await_new_line(lines,needle,start_index,proc,limit,label):
+    start=time.monotonic()
+    while time.monotonic()-start<limit:
+        if any(needle in line for line in lines[start_index:]):return True
+        if proc.poll() is not None:break
+        time.sleep(.7)
+    info("MISSING NEW "+label+" : "+needle+" process="+str(proc.poll()))
+    return False
 def cmd(p,s):
     p.stdin.write(s+"\n");p.stdin.flush();info("SERVER "+s)
 def terminate(p):
@@ -121,7 +129,12 @@ result={"minecraft":"1.21.1","loader":"NeoForge 21.1.265","scope":"Strict CI-onl
         "green_block":green,"primary_rgb_verified":False,"primary_cnb_rgb_verified":False,
         "peer_joined":False,"peer_rgb_verified":False,"peer_cnb_rgb_verified":False,
         "both_manual_sync":False,"both_auto_sync":False,"both_green_update":False,
-        "both_source_removal":False,"both_clients_alive_after_edits":False}
+        "both_source_removal":False,"both_clients_alive_after_edits":False,
+        "both_manual_deferred":False,"both_manual_baked":False,
+        "peer_logout_snapshot_saved":False,"peer_rejoin_verified":False,
+        "peer_snapshot_loaded":False,"peer_world_id_unchanged":False,
+        "peer_reconnected_rgb_cnb":False,"peer_chunk_unloaded":False,
+        "peer_chunk_returned":False,"primary_alive_through_reconnect":False}
 try:
     result["server_ready"]=await_line(slog,"Done (",server,180)
     if not result["server_ready"]:raise AssertionError("NeoForge server failed to become ready")
@@ -252,6 +265,76 @@ try:
     assert result["both_source_removal"],"NeoForge two-client GREEN->AIR did not clear stale green cache"
     assert result["both_clients_alive_after_edits"],"At least one client closed during multiplayer source edits"
 
+    # MANUAL must suppress GREEN light propagation from a real server edit,
+    # but /rgb bake must then replay the dirty positions to BOTH online users.
+    cmd(server,"rgb manual")
+    time.sleep(4)
+    cmd(server,f"setblock 0 121 7 {green}_glow")
+    frozen_first=await_line(clog,"RGB_PORT_NEO_MANUAL_DEFER_PASS",client,110)
+    frozen_peer=await_line(peerlog,"RGB_PORT_NEO_MANUAL_DEFER_PASS",peer,110)
+    result["both_manual_deferred"]=frozen_first and frozen_peer
+    assert result["both_manual_deferred"],"NeoForge MANUAL failed to freeze old red-dominant light on both clients"
+    cmd(server,"rgb setbake all")
+    cmd(server,"rgb bake")
+    baked_first=await_line(clog,"RGB_PORT_NEO_MANUAL_BAKE_PASS",client,155)
+    baked_peer=await_line(peerlog,"RGB_PORT_NEO_MANUAL_BAKE_PASS",peer,155)
+    result["both_manual_baked"]=baked_first and baked_peer
+    assert result["both_manual_baked"],"NeoForge MANUAL /rgb bake did not replay GREEN on both clients"
+    assert client.poll() is None and peer.poll() is None,"NeoForge client quit during dirty manual bake"
+
+    # Save true client-side RGB lightmap on logout, restart exactly the SAME
+    # peer installation and require its persisted color and 4095-bit C&B.
+    original_world_ids=[line.split("worldId=",1)[1].split()[0] for line in peerlog
+        if "RGB_PORT_NEO_PEER_MANUAL_PASS worldId=" in line]
+    assert original_world_ids and original_world_ids[-1],"NeoForge peer did not receive the real world UUID"
+    old_world_id=original_world_ids[-1]
+    cmd(server,"rgb auto")
+    time.sleep(4)
+    before_kick=len(slog);before_save=len(peerlog)
+    cmd(server,"kick RGBPortPeer RGB_PORT_NEO_RECONNECT")
+    assert await_new_line(slog,"RGBPortPeer lost connection",before_kick,server,55,
+                          "peer_disconnect"),"NeoForge peer failed to disconnect"
+    assert await_new_line(peerlog,"Saved RGB lightmap:",before_save,peer,55,
+                          "peer_rgb_snapshot_save"),"NeoForge logout did not save RGB lightmap"
+    files=sorted((PEER/"rgbblocks"/"lightmaps").rglob("*.rgl.gz"))
+    result["peer_logout_snapshot_saved"]=bool(files) and all(p.stat().st_size>100 for p in files)
+    assert result["peer_logout_snapshot_saved"],"NeoForge peer lightmap file absent/empty after logout"
+    info("NEO_PEER_SAVED_SNAPSHOTS "+json.dumps([
+        {"relative":str(p.relative_to(PEER)),"bytes":p.stat().st_size,
+         "sha256":hashlib.sha256(p.read_bytes()).hexdigest()} for p in files]))
+    terminate(peer);peerthread.join(timeout=8)
+    previous=PEER/"logs/latest.log"
+    if previous.is_file():shutil.copy2(previous,EVIDENCE/"minecraft-peer-pre-reconnect.log")
+    before_rejoin=len(slog)
+    reconnect_cmd=list(peer_cmd)+["--jvm-arg=-Drgbport.ci.reconnect=true"]
+    info("NEO_RESTART_PEER_SAME_DIRECTORY "+str(reconnect_cmd))
+    peer=subprocess.Popen(reconnect_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+                          text=True,bufsize=1,env=peer_env,start_new_session=True)
+    peerlog,peerthread=proc_reader(peer,"PEER_RECONNECT",EVIDENCE/"peer-reconnect-launcher.log")
+    result["peer_rejoin_verified"]=await_new_line(slog,"RGBPortPeer joined the game",
+         before_rejoin,server,210,"second_login_of_same_player")
+    assert result["peer_rejoin_verified"],"NeoForge same client directory could not reconnect"
+    cmd(server,"tp RGBPortPeer 1.5 120.0 0.5 facing 0.5 121.5 7.5")
+    result["peer_snapshot_loaded"]=await_line(peerlog,"Loaded RGB lightmap:",peer,105)
+    assert result["peer_snapshot_loaded"],"Fresh NeoForge client did not load saved RGB/C&B lightmap"
+    result["peer_reconnected_rgb_cnb"]=await_line(peerlog,"RGB_PORT_NEO_RECONNECT_LIGHT_PASS",peer,140)
+    assert result["peer_reconnected_rgb_cnb"],"NeoForge reconnect lost real GREEN RGB or RED C&B bit emission"
+    new_world_ids=[line.split("worldId=",1)[1].split()[0] for line in peerlog
+       if "RGB_PORT_NEO_RECONNECT_LIGHT_PASS worldId=" in line]
+    result["peer_world_id_unchanged"]=bool(new_world_ids) and new_world_ids[-1]==old_world_id
+    assert result["peer_world_id_unchanged"],"NeoForge world UUID did not survive disconnect/reconnect"
+    result["primary_alive_through_reconnect"]=client.poll() is None
+    assert result["primary_alive_through_reconnect"],"First client stopped during peer reconnect"
+
+    # Force remote player OUTSIDE view-distance, require real client chunk
+    # eviction, then return and require restored GREEN and C&B colored light.
+    cmd(server,"tp RGBPortPeer 256.5 120.0 0.5")
+    result["peer_chunk_unloaded"]=await_line(peerlog,"RGB_PORT_NEO_CHUNK_UNLOAD_PASS",peer,105)
+    assert result["peer_chunk_unloaded"],"NeoForge never unloaded remote RGB source chunk"
+    cmd(server,"tp RGBPortPeer 1.5 120.0 0.5 facing 0.5 121.5 7.5")
+    result["peer_chunk_returned"]=await_line(peerlog,"RGB_PORT_NEO_CHUNK_RETURN_PASS",peer,150)
+    assert result["peer_chunk_returned"],"NeoForge returned chunk without restoring full and C&B colored light"
+    assert peer.poll() is None and client.poll() is None,"NeoForge real peer exited during chunk restore"
     live=GAME/"logs/latest.log"
     txt=live.read_text(encoding="utf-8",errors="replace") if live.is_file() else ""
     if live.is_file():shutil.copy2(live,EVIDENCE/"minecraft-client.log")
@@ -288,6 +371,11 @@ finally:
     if "cthread" in locals():cthread.join(timeout=5)
     if (PEER/"logs/latest.log").is_file():
         shutil.copy2(PEER/"logs/latest.log",EVIDENCE/"minecraft-peer.log")
+    if (EVIDENCE/"peer-reconnect-launcher.log").is_file():
+        contents=(EVIDENCE/"peer-reconnect-launcher.log").read_text(encoding="utf-8",errors="replace")
+        notices=[line for line in contents.splitlines()
+                 if any(term in line for term in ("RGB_PORT_NEO_","RGB Blocks","ERROR","FATAL","MixinApplyError"))]
+        for line in notices[-55:]:info("NEO_PEER_RECONNECT_DIAG "+line[-900:])
     for name,dir in (("PRIMARY",GAME),("PEER",PEER)):
         p=dir/"logs/latest.log"
         if p.is_file():
@@ -315,6 +403,12 @@ if STRICT_LIGHT_PROBE:
     assert result["both_manual_sync"] and result["both_auto_sync"]
     assert result["both_green_update"] and result["both_source_removal"]
     assert result["both_clients_alive_after_edits"],"NeoForge peer disconnected before live edit finished"
-    info("PASS: TWO simultaneously connected native NeoForge 1.21.1 production clients, C&B 4095-bit RGB, MANUAL/AUTO packets, live RED->GREEN and GREEN->AIR colored light")
+    assert result["both_manual_deferred"] and result["both_manual_baked"],"NeoForge two-client manual bake acceptance failed"
+    assert all(result[key] for key in (
+        "peer_logout_snapshot_saved","peer_rejoin_verified","peer_snapshot_loaded",
+        "peer_world_id_unchanged","peer_reconnected_rgb_cnb",
+        "peer_chunk_unloaded","peer_chunk_returned","primary_alive_through_reconnect"
+    )), "NeoForge strict RGB/C&B saved restart and chunk reload acceptance failed"
+    info("PASS: NeoForge 1.21.1 TWO real clients RGB+C&B, RED->GREEN->AIR, manual bake deferred/replayed, persistent lightmap logout/reconnect and real chunk unload/return")
 else:
     info("PASS: MC1.21.1 NeoForge real client/server join + RGB block scene screenshot + modded render initialization; per-channel RGB/C&B microbits NOT YET VERIFIED")
