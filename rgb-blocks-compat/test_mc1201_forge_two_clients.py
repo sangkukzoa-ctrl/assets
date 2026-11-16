@@ -32,7 +32,7 @@ def runthread(p,label,out):
             for line in p.stdout:
                 lines.append(line)
                 f.write(line);f.flush()
-                if any(q in line for q in ("Done (","joined the game","lost connection","ERROR","FATAL","Fatal","Traceback","Render thread","RGB mode","Server thread","Failed","RGB_PORT_PEER_","RGB_PORT_DIAG_","MixinApplyError","mixin apply","Mixin config","rgbblocks.mixins")):
+                if any(q in line for q in ("Done (","joined the game","lost connection","ERROR","FATAL","Fatal","Traceback","Render thread","RGB mode","Server thread","Failed","RGB_PORT_PEER_","RGB_PORT_DIAG_","RGB_PORT_CNB_MIXED_","Caused by","Exception","MixinApplyError","mixin apply","Mixin config","rgbblocks.mixins")):
                     record(label+" "+line.rstrip()[:450])
     t=threading.Thread(target=reader,daemon=True);t.start()
     return lines,t
@@ -42,6 +42,10 @@ def await_pattern(lines,pat,proc,seconds,label):
         if pat in "".join(lines[-1200:]):return True
         if proc.poll() is not None:break
         time.sleep(0.7)
+    if pat=="RGB_PORT_CNB_MIXED_FIXTURE_PASS":
+        for line in lines:
+            if "RGB_PORT_CNB_MIXED_" in line or "Caused by" in line or "Exception" in line:
+                record("FORGE_MIXED_SERVER_DIAG "+line.rstrip()[-950:])
     record("TIMEOUT/MISSING "+label+" pattern="+pat+" return="+str(proc.poll()))
     return False
 def await_pattern_since(lines,pat,start_index,proc,seconds,label):
