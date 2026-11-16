@@ -1,0 +1,50 @@
+name: RGB Blocks 1.20.1 Forge real C&B MIXED RGB GLOW NORMAL GLASS bits
+on:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths:
+      - 'rgb-blocks-compat/inject_ci_mixed_cnb_probe.py'
+      - '.github/workflows/rgb-blocks-1201-forge-cnb-mixed.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  forge-mixed-real-voxel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preflight mixed C&B and dual-client Python acceptance
+        run: |
+          python3 -m py_compile rgb-blocks-compat/inject_ci_mixed_cnb_probe.py rgb-blocks-compat/inject_ci_two_client_sync_probe.py rgb-blocks-compat/inject_ci_only_light_probe.py rgb-blocks-compat/test_mc1201_forge_two_clients.py
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.8'}
+      - name: Install Xvfb, screenshot and software OpenGL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb scrot mesa-utils libgl1-mesa-dri libgl1 libasound2t64 libxrandr2 libxcursor1 libxinerama1 libxi6
+      - name: Stage original Forge 1.20.1 and CI-only mixed C&B sculpted RGB
+        run: |
+          set -euxo pipefail
+          python3 rgb-blocks-compat/build_mc1211_fabric.py
+          python3 rgb-blocks-compat/build_mc1201_forge.py
+          python3 rgb-blocks-compat/inject_ci_only_light_probe.py forge1201
+          python3 rgb-blocks-compat/inject_ci_two_client_sync_probe.py
+          python3 rgb-blocks-compat/inject_ci_mixed_cnb_probe.py forge1201
+      - name: Compile Forge mixed C&B 16x16x16 RGB+GLASS game JAR
+        working-directory: port-work/mc1201-forge
+        run: gradle --no-daemon build
+      - name: Verify TWO real Forge clients C&B RGB normal/glow/glass micro-voxel mixing
+        env:
+          RGB_PORT_TEST_MIXED_CNB: '1'
+        run: python3 rgb-blocks-compat/test_mc1201_forge_two_clients.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgbblocks-forge-1201-two-client-mixed-rgb-glow-glass-4096bit-evidence
+          path: |
+            mc1201-forge-two-clients/evidence/
+            port-work/mc1201-forge/build/reports/
+          retention-days: 30
