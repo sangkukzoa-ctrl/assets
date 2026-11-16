@@ -10,6 +10,7 @@ import json,os,signal,pathlib,subprocess,threading,time,urllib.request,zipfile,t
 from urllib.parse import urlencode
 from pathlib import Path
 STRICT_LIGHT_PROBE=os.environ.get("RGB_PORT_STRICT_LIGHT_PROBE")=="1"
+MIXED_CNB_PROBE=os.environ.get("RGB_PORT_TEST_MIXED_CNB")=="1"
 SHADER_ON=os.environ.get("RGB_PORT_SHADER_ON")=="1"
 ROOT=Path("mc1211-neoforge-two-clients"); SERVER=ROOT/"server";GAME=ROOT/"client";PEER=ROOT/"peer";EVIDENCE=ROOT/"evidence"
 for p in (SERVER/"mods",GAME/"mods",PEER/"mods",EVIDENCE):p.mkdir(parents=True,exist_ok=True)
@@ -134,7 +135,9 @@ result={"minecraft":"1.21.1","loader":"NeoForge 21.1.265","scope":"Strict CI-onl
         "peer_logout_snapshot_saved":False,"peer_rejoin_verified":False,
         "peer_snapshot_loaded":False,"peer_world_id_unchanged":False,
         "peer_reconnected_rgb_cnb":False,"peer_chunk_unloaded":False,
-        "peer_chunk_returned":False,"primary_alive_through_reconnect":False}
+        "peer_chunk_returned":False,"primary_alive_through_reconnect":False,
+        "mixed_cnb_requested":MIXED_CNB_PROBE,"mixed_cnb_server_sculpted":False,
+        "mixed_cnb_primary_verified":False,"mixed_cnb_peer_verified":False}
 try:
     result["server_ready"]=await_line(slog,"Done (",server,180)
     if not result["server_ready"]:raise AssertionError("NeoForge server failed to become ready")
@@ -150,6 +153,12 @@ try:
     assert await_line(slog,"RGB_NORMAL_FIXTURE_READY",server,50),"RGB normal fixture not present"
     assert await_line(slog,"RGB_GLOW_FIXTURE_READY",server,50),"RGB glow fixture not present"
     assert await_line(slog,"RGB_GLASS_FIXTURE_READY",server,50),"RGB glass fixture not present"
+    if MIXED_CNB_PROBE:
+        # Sculpt an ADDITIONAL real 16^3 C&B object, not a simulated mixed
+        # light, with red/green/blue glow, normal RGB and RGB GLASS voxels.
+        cmd(server,"setblock 6 121 7 chiselsandbits:chiseled")
+        result["mixed_cnb_server_sculpted"]=await_line(slog,"RGB_PORT_CNB_MIXED_FIXTURE_PASS",server,145)
+        assert result["mixed_cnb_server_sculpted"],"Real C&B mixed RGB/normal/glass 4096-voxel fixture failed"
     # Only instrumented strict builds can emit actual microbit fixture evidence.
     result["cnb_sculpted_fixture"]=await_line(slog,"RGB_PORT_CNB_FIXTURE_PASS",server,70) if STRICT_LIGHT_PROBE else False
     result["rgb_commands"]=await_line(slog,"RGB mode: AUTO",server,50)
@@ -205,6 +214,9 @@ try:
     result["primary_rgb_verified"]=await_line(clog,"RGB_PORT_LIGHT_PROBE_PASS",client,100)
     result["primary_cnb_rgb_verified"]=await_line(clog,"RGB_PORT_CNB_LIGHT_PROBE_PASS",client,100)
     assert result["primary_rgb_verified"] and result["primary_cnb_rgb_verified"],"Primary real NeoForge client lacks RGB / C&B colored propagation"
+    if MIXED_CNB_PROBE:
+        result["mixed_cnb_primary_verified"]=await_line(clog,"RGB_PORT_CNB_MIXED_PROBE_PASS",client,145)
+        assert result["mixed_cnb_primary_verified"],"Primary client did not see mixed glow/ordinary/glass C&B bit states and merged RGB light"
 
     # Concurrent SECOND production NeoForge launcher, independent game
     # directory, real FML join to SAME dedicated server and source chunks.
@@ -230,6 +242,9 @@ try:
     result["peer_rgb_verified"]=await_line(peerlog,"RGB_PORT_LIGHT_PROBE_PASS",peer,135)
     result["peer_cnb_rgb_verified"]=await_line(peerlog,"RGB_PORT_CNB_LIGHT_PROBE_PASS",peer,135)
     assert result["peer_rgb_verified"] and result["peer_cnb_rgb_verified"],"Second NeoForge client lacks C&B sculpted microbit RGB illumination"
+    if MIXED_CNB_PROBE:
+        result["mixed_cnb_peer_verified"]=await_line(peerlog,"RGB_PORT_CNB_MIXED_PROBE_PASS",peer,145)
+        assert result["mixed_cnb_peer_verified"],"Second client failed to restore genuine mixed RGB and glass bits"
 
     cmd(server,"rgb manual")
     first_manual=await_line(clog,"RGB_PORT_NEO_PEER_MANUAL_PASS",client,85)
@@ -403,6 +418,8 @@ if STRICT_LIGHT_PROBE:
     assert result["both_manual_sync"] and result["both_auto_sync"]
     assert result["both_green_update"] and result["both_source_removal"]
     assert result["both_clients_alive_after_edits"],"NeoForge peer disconnected before live edit finished"
+    if MIXED_CNB_PROBE:
+        assert result["mixed_cnb_server_sculpted"] and result["mixed_cnb_primary_verified"] and result["mixed_cnb_peer_verified"],"Mixed RGB/C&B/GLASS sculpture gate failed"
     assert result["both_manual_deferred"] and result["both_manual_baked"],"NeoForge two-client manual bake acceptance failed"
     assert all(result[key] for key in (
         "peer_logout_snapshot_saved","peer_rejoin_verified","peer_snapshot_loaded",
