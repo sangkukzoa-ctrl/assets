@@ -1,0 +1,53 @@
+name: RGB Blocks 1.21.1 NeoForge TRUE server restart persisted C&B mixed RGB glass
+on:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths:
+      - 'rgb-blocks-compat/inject_ci_mixed_cnb_probe.py'
+      - 'rgb-blocks-compat/test_mc1211_neoforge_two_clients.py'
+      - '.github/workflows/rgb-blocks-1211-neoforge-world-restart.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-neoforge-server-world-restart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate all CI Python before Gradle
+        run: |
+          python3 -m py_compile rgb-blocks-compat/inject_ci_mixed_cnb_probe.py rgb-blocks-compat/inject_ci_neoforge_two_client_probe.py rgb-blocks-compat/inject_ci_only_light_probe.py rgb-blocks-compat/test_mc1211_neoforge_two_clients.py
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '21'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.10.2'}
+      - name: Install software rendering and screenshots
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb scrot mesa-utils libgl1-mesa-dri libgl1 libasound2t64 libxrandr2 libxcursor1 libxinerama1 libxi6
+      - name: Generate original NeoForge production port and CI-only persisted-bit probes
+        run: |
+          set -euxo pipefail
+          python3 rgb-blocks-compat/build_mc1211_fabric.py
+          python3 rgb-blocks-compat/build_mc1211_neoforge.py
+          python3 rgb-blocks-compat/inject_ci_only_light_probe.py neoforge1211
+          python3 rgb-blocks-compat/inject_ci_neoforge_two_client_probe.py
+          python3 rgb-blocks-compat/inject_ci_mixed_cnb_probe.py neoforge1211
+      - name: Build native NeoForge server/client acceptance JAR
+        working-directory: port-work/mc1211-neoforge
+        run: gradle --no-daemon build
+      - name: Actual two-client RGB+C&B, then full dedicated server restart SAME WORLD with saved 4096bit C&B glass
+        env:
+          RGB_PORT_STRICT_LIGHT_PROBE: '1'
+          RGB_PORT_TEST_MIXED_CNB: '1'
+          RGB_PORT_TEST_WORLD_RESTART: '1'
+        run: python3 rgb-blocks-compat/test_mc1211_neoforge_two_clients.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgbblocks-neoforge-1211-dedicated-server-world-restart-mixed-cnb
+          path: |
+            mc1211-neoforge-two-clients/evidence/
+            port-work/mc1211-neoforge/build/reports/
+          retention-days: 30
