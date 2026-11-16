@@ -10,6 +10,7 @@ import json,os,signal,pathlib,subprocess,threading,time,urllib.request,zipfile,t
 from pathlib import Path
 
 SHADER_ON=False  # This dedicated dual-client acceptance checks vanilla/Embeddium renderer.
+MIXED_CNB_PROBE=os.environ.get("RGB_PORT_TEST_MIXED_CNB")=="1"
 ROOT=Path("mc1201-forge-two-clients")
 SERVER=ROOT/"server";GAME=ROOT/"client";PEER=ROOT/"peer"
 EVIDENCE=ROOT/"evidence";S_MODS=SERVER/"mods";C_MODS=GAME/"mods"
@@ -161,7 +162,11 @@ result.update({"peer_joined":False,"peer_rgb_probe_verified":False,
                "peer_chunk_unload_verified":False,
                "peer_chunk_return_verified":False,
                "primary_alive_during_reconnect":False,
-               "green_block":green})
+               "green_block":green,
+               "mixed_cnb_requested":MIXED_CNB_PROBE,
+               "mixed_cnb_server_sculpted":False,
+               "mixed_cnb_primary_verified":False,
+               "mixed_cnb_peer_verified":False})
 try:
     result["server_ready"]=await_pattern(slog,"Done (",server,180,"server_boot")
     if not result["server_ready"]:raise AssertionError("Forge dedicated server did not reach Ready")
@@ -179,6 +184,11 @@ try:
     assert await_pattern(slog,"RGB_FIXTURE_NORMAL_READY",server,50,"normal_fixture"),"RGB normal block not placed"
     assert await_pattern(slog,"RGB_FIXTURE_GLOW_READY",server,50,"glow_fixture"),"RGB glow block not placed"
     assert await_pattern(slog,"RGB_FIXTURE_GLASS_READY",server,50,"glass_fixture"),"RGB glass block not placed"
+    if MIXED_CNB_PROBE:
+        command(server,"setblock 6 121 7 chiselsandbits:chiseled")
+        result["mixed_cnb_server_sculpted"]=await_pattern(slog,
+            "RGB_PORT_CNB_MIXED_FIXTURE_PASS",server,150,"real_mixed_sculpt_4096")
+        assert result["mixed_cnb_server_sculpted"],"Server could not sculpt real mixed C&B Glow/Normal/Glass 16³ bits"
     result["cnb_sculpted_fixture"]=await_pattern(slog,"RGB_PORT_CNB_FIXTURE_PASS",server,70,"actual_CnB_voxel_setup")
     result["rgb_server_commands"]=await_pattern(slog,"RGB mode: AUTO",server,50,"rgb_command")
     assert result["rgb_server_commands"]
@@ -234,6 +244,10 @@ try:
     result["first_rgb_probe_verified"]=await_pattern(clog,"RGB_PORT_LIGHT_PROBE_PASS",client,100,"first_rgb_source")
     result["first_cnb_rgb_probe_verified"]=await_pattern(clog,"RGB_PORT_CNB_LIGHT_PROBE_PASS",client,100,"first_cnb_rgb")
     assert result["first_rgb_probe_verified"] and result["first_cnb_rgb_probe_verified"],"First client lacks RGB+C&B microbit light"
+    if MIXED_CNB_PROBE:
+        result["mixed_cnb_primary_verified"]=await_pattern(clog,
+            "RGB_PORT_CNB_MIXED_PROBE_PASS",client,145,"primary_true_mixed_bit_states")
+        assert result["mixed_cnb_primary_verified"],"First Forge client could not read all mixed C&B RGB/Glass voxels and emitted light"
 
     (PEER/"mods").mkdir(parents=True,exist_ok=True)
     shutil.copytree(C_MODS,PEER/"mods",dirs_exist_ok=True)
@@ -258,6 +272,10 @@ try:
     result["peer_rgb_probe_verified"]=await_pattern(peerlog,"RGB_PORT_LIGHT_PROBE_PASS",peer,150,"second_rgb_source")
     result["peer_cnb_rgb_probe_verified"]=await_pattern(peerlog,"RGB_PORT_CNB_LIGHT_PROBE_PASS",peer,150,"second_cnb_rgb")
     assert result["peer_rgb_probe_verified"] and result["peer_cnb_rgb_probe_verified"],"Second client lacks RGB/C&B per-channel light"
+    if MIXED_CNB_PROBE:
+        result["mixed_cnb_peer_verified"]=await_pattern(peerlog,
+            "RGB_PORT_CNB_MIXED_PROBE_PASS",peer,145,"peer_true_mixed_bit_states")
+        assert result["mixed_cnb_peer_verified"],"Second Forge client could not read all mixed C&B RGB/Glass voxels and emitted light"
 
     # Server-authoritative RGB modes must reach BOTH simultaneously online users.
     command(server,"rgb manual")
@@ -503,6 +521,8 @@ if SHADER_ON:
     assert result["shader_enabled"],"Oculus failed to activate Complementary in real Forge 1.20.1 game"
 assert result["rgb_light_propagation_verified"],"RGB light propagation runtime pixel-channel probe failed"
 assert result["cnb_sculpted_fixture"],"C&B 4095 RGB microbits fixture was not constructed"
+if MIXED_CNB_PROBE:
+    assert result["mixed_cnb_server_sculpted"] and result["mixed_cnb_primary_verified"] and result["mixed_cnb_peer_verified"],"Forge mixed red/green/blue Glow + normal RGB + glass 16³ acceptance failed"
 assert result["cnb_rgb_propagation_verified"],"C&B chiselled RGB-colored light failed to propagate into adjacent voxel"
 assert result["first_rgb_probe_verified"] and result["first_cnb_rgb_probe_verified"],"First client's light probes absent"
 assert result["peer_joined"] and result["peer_rgb_probe_verified"] and result["peer_cnb_rgb_probe_verified"],"Second client lacks C&B RGB light"
