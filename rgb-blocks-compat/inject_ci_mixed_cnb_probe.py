@@ -83,7 +83,9 @@ public final class RgbPortMixedCnbFixture {
          || !"chiseled".equals(afterId.getPath()) || level.getBlockEntity(pos)!=tile)
          throw new IllegalStateException("Mixed C&B tile collapsed: "+afterId);
       var stats=tile.getClass().getMethod("getStatistics").invoke(tile);
-      var counts=(java.util.Map<?,?>)stats.getClass().getMethod("getStateCounts").invoke(stats);
+      var getCounts=stats.getClass().getMethod("getStateCounts");
+       getCounts.setAccessible(true);
+       var counts=(java.util.Map<?,?>)getCounts.invoke(stats);
       int[] byMaterial=new int[5];
       int other=0;
       for(var e:counts.entrySet()) {
@@ -165,7 +167,9 @@ mixed=r'''
      var tile=mc.level.getBlockEntity(p);
      if(id!=null && "chiselsandbits".equals(id.getNamespace()) && "chiseled".equals(id.getPath()) && tile!=null) {
        var stats=tile.getClass().getMethod("getStatistics").invoke(tile);
-       var counts=(java.util.Map<?,?>)stats.getClass().getMethod("getStateCounts").invoke(stats);
+       var getCounts=stats.getClass().getMethod("getStateCounts");
+       getCounts.setAccessible(true);
+       var counts=(java.util.Map<?,?>)getCounts.invoke(stats);
        int[] byMaterial=new int[5];
        String[] expected={"rgb_red_186_72_96_glow","rgb_green_59_209_25_glow",
             "{{BLUE_BLOCK}}","rgb_green_59_209_25","rgb_green_59_209_25_glass"};
