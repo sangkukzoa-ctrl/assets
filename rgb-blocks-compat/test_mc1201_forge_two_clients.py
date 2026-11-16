@@ -11,6 +11,8 @@ from pathlib import Path
 
 SHADER_ON=False  # This dedicated dual-client acceptance checks vanilla/Embeddium renderer.
 MIXED_CNB_PROBE=os.environ.get("RGB_PORT_TEST_MIXED_CNB")=="1"
+SERVER_RESTART_PROBE=os.environ.get("RGB_PORT_TEST_WORLD_RESTART")=="1"
+assert not SERVER_RESTART_PROBE or MIXED_CNB_PROBE, "True server world restart requires mixed C&B test"
 ROOT=Path("mc1201-forge-two-clients")
 SERVER=ROOT/"server";GAME=ROOT/"client";PEER=ROOT/"peer"
 EVIDENCE=ROOT/"evidence";S_MODS=SERVER/"mods";C_MODS=GAME/"mods"
@@ -170,7 +172,15 @@ result.update({"peer_joined":False,"peer_rgb_probe_verified":False,
                "mixed_cnb_requested":MIXED_CNB_PROBE,
                "mixed_cnb_server_sculpted":False,
                "mixed_cnb_primary_verified":False,
-               "mixed_cnb_peer_verified":False})
+               "mixed_cnb_peer_verified":False,
+               "server_restart_requested":SERVER_RESTART_PROBE,
+               "dedicated_server_restarted":False,
+               "world_restart_green_block":False,
+               "world_restart_mixed_cnb_voxels":False,
+               "world_restart_peer_joined":False,
+               "world_restart_rgb_cnb_light":False,
+               "world_restart_mixed_client_bits":False,
+               "world_restart_same_uuid":False})
 try:
     result["server_ready"]=await_pattern(slog,"Done (",server,180,"server_boot")
     if not result["server_ready"]:raise AssertionError("Forge dedicated server did not reach Ready")
@@ -431,6 +441,62 @@ try:
          "RGB_PORT_PEER_CHUNK_RETURN_PASS",peer,145,"peer_source_chunk_reloaded")
     assert result["peer_chunk_return_verified"],"Chunk returned without restoring RGB + C&B per-channel light"
     assert peer.poll() is None and client.poll() is None,"A client exited during reconnect/chunk reload"
+    if SERVER_RESTART_PROBE:
+        # This tests a real second dedicated-server JVM, preserving the exact
+        # original server/world directory and its saved C&B block entities.
+        # CI-only -Drgbport.ci.restartCheck bans the server fixture from
+        # recreating lost bits after restart.
+        command(server,"save-all flush")
+        time.sleep(4)
+        command(server,"stop")
+        try:server.wait(timeout=90)
+        except subprocess.TimeoutExpired:
+            terminate(server)
+            raise AssertionError("Forge dedicated server did not shut down after save-all")
+        terminate(peer);peerthread.join(timeout=10)
+        terminate(client);cthread.join(timeout=10)
+        sthread.join(timeout=10)
+        jvm=(SERVER/"user_jvm_args.txt").read_text(encoding="utf-8")
+        (SERVER/"user_jvm_args.txt").write_text(jvm+"\n-Drgbport.ci.restartCheck=true\n",encoding="utf-8")
+        record("FORGE_DEDICATED_SERVER_REAL_RESTART sameWorld="+str(SERVER.resolve()))
+        server=subprocess.Popen(["bash","./run.sh","nogui"],cwd=SERVER,
+            stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+            text=True,bufsize=1,start_new_session=True)
+        slog,restartthread=runthread(server,"SERVER_RESTART",EVIDENCE/"server-after-restart.log")
+        result["dedicated_server_restarted"]=await_pattern(
+            slog,"Done (",server,210,"restarted_same_world_forge_server")
+        assert result["dedicated_server_restarted"],"Forge original saved-world server restart failed"
+        result["world_restart_mixed_cnb_voxels"]=await_pattern(
+            slog,"RGB_PORT_CNB_MIXED_WORLD_RESTART_PASS",server,135,
+            "real_saved_cnb_voxels_exactly_unchanged")
+        assert result["world_restart_mixed_cnb_voxels"],"Forge mixed C&B voxels absent after real server restart"
+        command(server,f"execute if block 0 121 7 {green}_glow run say RGB_PORT_FORGE_RESTART_GREEN_BLOCK_PASS")
+        result["world_restart_green_block"]=await_pattern(
+            slog,"RGB_PORT_FORGE_RESTART_GREEN_BLOCK_PASS",server,30,
+            "world_saved_green_glow_block")
+        assert result["world_restart_green_block"],"Forge saved GREEN RGB block absent after server restart"
+        record("FORGE_WORLD_RESTART_LAUNCH_PEER "+str(reconnect_cmd))
+        peer=subprocess.Popen(reconnect_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+             env=peer_env,text=True,bufsize=1,start_new_session=True)
+        peerlog,peerthread=runthread(peer,"PEER_WORLD_RESTART",
+             EVIDENCE/"peer-after-server-restart.log")
+        result["world_restart_peer_joined"]=await_pattern(
+            slog,"RGBPortPeer joined the game",server,210,
+            "reconnected_after_server_restart")
+        assert result["world_restart_peer_joined"],"Client could not connect to restarted Forge server"
+        command(server,"tp RGBPortPeer 1.5 120.0 0.5 facing 0.5 121.5 7.5")
+        result["world_restart_rgb_cnb_light"]=await_pattern(
+            peerlog,"RGB_PORT_PEER_RECONNECT_SOURCE_PASS",peer,150,
+            "full_rgb_and_cnb_light_from_saved_server")
+        result["world_restart_mixed_client_bits"]=await_pattern(
+            peerlog,"RGB_PORT_CNB_MIXED_PROBE_PASS",peer,150,
+            "mixed_real_cnb_glass_source_after_server_world_restart")
+        restart_ids=[line.split("worldId=",1)[1].split()[0] for line in peerlog
+           if "RGB_PORT_PEER_RECONNECT_SOURCE_PASS worldId=" in line]
+        result["world_restart_same_uuid"]=bool(restart_ids) and restart_ids[-1]==initial_peer_world_id
+        assert all(result[k] for k in (
+            "world_restart_rgb_cnb_light","world_restart_mixed_client_bits","world_restart_same_uuid"
+        )), "Forge true server world restart lost saved RGB / C&B 4096bit mixed glass or world UUID"
     client_game=GAME/"logs/latest.log"
     if client_game.is_file():
         txt=client_game.read_text(encoding="utf-8",errors="replace")
@@ -486,6 +552,7 @@ finally:
         try:server.wait(timeout=40)
         except subprocess.TimeoutExpired:terminate(server)
     sthread.join(timeout=5)
+    if "restartthread" in locals():restartthread.join(timeout=5)
     if "cthread" in locals():cthread.join(timeout=5)
     if "peerthread" in locals():peerthread.join(timeout=5)
     if (GAME/"logs/latest.log").is_file():
@@ -527,6 +594,13 @@ assert result["rgb_light_propagation_verified"],"RGB light propagation runtime p
 assert result["cnb_sculpted_fixture"],"C&B 4095 RGB microbits fixture was not constructed"
 if MIXED_CNB_PROBE:
     assert result["mixed_cnb_server_sculpted"] and result["mixed_cnb_primary_verified"] and result["mixed_cnb_peer_verified"],"Forge mixed red/green/blue Glow + normal RGB + glass 16³ acceptance failed"
+if SERVER_RESTART_PROBE:
+    assert all(result[k] for k in (
+       "dedicated_server_restarted","world_restart_green_block",
+       "world_restart_mixed_cnb_voxels","world_restart_peer_joined",
+       "world_restart_rgb_cnb_light","world_restart_mixed_client_bits",
+       "world_restart_same_uuid"
+    )), "Forge true dedicated server world restart mixed 4096-bit C&B/RGB test failed"
 assert result["cnb_rgb_propagation_verified"],"C&B chiselled RGB-colored light failed to propagate into adjacent voxel"
 assert result["first_rgb_probe_verified"] and result["first_cnb_rgb_probe_verified"],"First client's light probes absent"
 assert result["peer_joined"] and result["peer_rgb_probe_verified"] and result["peer_cnb_rgb_probe_verified"],"Second client lacks C&B RGB light"
