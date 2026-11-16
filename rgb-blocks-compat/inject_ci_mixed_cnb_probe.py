@@ -53,6 +53,34 @@ public final class RgbPortMixedCnbFixture {
       var ctor=infoClass.getConstructor(net.minecraft.world.level.block.state.BlockState.class,java.util.Optional.class);
       String[] names={"rgb_red_186_72_96_glow","rgb_green_59_209_25_glow",
          "{{BLUE_BLOCK}}","rgb_green_59_209_25","rgb_green_59_209_25_glass"};
+      // On a dedicated-server second boot, do NOT re-sculpt. Prove that the
+      // exact original mixed material counts survived the game's own disk save.
+      if(Boolean.getBoolean("rgbport.ci.restartCheck")) {
+         var persisted=tile.getClass().getMethod("getStatistics").invoke(tile);
+         var method=persisted.getClass().getMethod("getStateCounts");
+         method.setAccessible(true);
+         var originalCounts=(java.util.Map<?,?>)method.invoke(persisted);
+         int[] stored=new int[names.length];int outside=0;
+         for(var entry:originalCounts.entrySet()) {
+            var actual=(net.minecraft.world.level.block.state.BlockState)entry.getKey()
+              .getClass().getMethod("{{GETTER}}").invoke(entry.getKey());
+            var material=String.valueOf(net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(actual.getBlock()));
+            int total=((Number)entry.getValue()).intValue();
+            boolean matched=false;
+            for(int i=0;i<names.length;i++) if(material.equals("rgbblocks:"+names[i])) {
+               stored[i]+=total;matched=true;break;
+            }
+            if(!matched)outside+=total;
+         }
+         if(stored[0]!=3071 || stored[1]!=256 || stored[2]!=256
+             || stored[3]!=256 || stored[4]!=256 || outside>1)
+             throw new IllegalStateException("Saved world C&B voxel drift: "
+                +java.util.Arrays.toString(stored)+" outside="+outside);
+         System.out.println("RGB_PORT_CNB_MIXED_WORLD_RESTART_PASS"
+           +" voxelCounts="+java.util.Arrays.toString(stored)
+           +" outside="+outside+" unmodified=true");
+         return;
+      }
       Object[] infos=new Object[names.length];
       for(int i=0;i<names.length;i++) {
          var id=net.minecraft.resources.ResourceLocation.{{ID_CREATE}}("rgbblocks",names[i]);
