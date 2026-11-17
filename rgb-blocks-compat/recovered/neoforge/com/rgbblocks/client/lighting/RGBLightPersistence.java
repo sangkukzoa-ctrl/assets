@@ -54,6 +54,13 @@ final class RGBLightPersistence {
             if (!worldId.equals(loadedWorldId) || !dimension.equals(loadedDimension)) {
                boolean switchingLoadedContext = !loadedWorldId.isBlank() || !loadedDimension.isBlank();
                if (switchingLoadedContext) {
+                  // The active RGB section/C&B/source caches still represent
+                  // the departing dimension here. Persist that dimension's
+                  // snapshot BEFORE clearing it and loading the next one.
+                  // Previously only the client-disconnect path saved these
+                  // caches, so Nether -> Overworld silently lost the Nether
+                  // .rgl.gz file despite correct transient RGB illumination.
+                  saveCurrentBlocking();
                   RGBRealLightEngine.prepareForPersistenceDimensionSwitch();
                }
 
