@@ -1548,7 +1548,13 @@ public final class RGBRealLightEngine {
          Long key = CNB_RECONCILE_CURSOR.next();
          if (key == null || CNB_PENDING.containsKey(key)) continue;
          BlockPos pos = BlockPos.of(key.longValue());
-         if (!isPositionLoaded(pos) || !isStillChiseledBlock(pos)) continue;
+         if (!isPositionLoaded(pos)) continue;
+         if (!isStillChiseledBlock(pos)) {
+            // A lost client removal event would otherwise leave ghost light.
+            // The existing validation pass removes this in AUTO next tick.
+            STALE_CNB_CLEANUP.add(key);
+            continue;
+         }
          Object tile = currentBlockEntity(pos);
          if (tile == null) continue;
          RGBRealLightEngine.CnbSource cached = CNB_CACHE.get(key);
