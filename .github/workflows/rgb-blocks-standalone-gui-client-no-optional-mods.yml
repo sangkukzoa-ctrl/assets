@@ -11,6 +11,7 @@ permissions:
   contents: read
 jobs:
   neo-client-no-mods:
+    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
     name: NeoForge 1.21.1 real GUI and server ONLY RGB Blocks
     runs-on: ubuntu-latest
     timeout-minutes: 75
@@ -28,6 +29,8 @@ jobs:
           sudo apt-get install -y -qq xvfb scrot mesa-utils libgl1-mesa-dri libgl1 libasound2t64 libxrandr2 libxcursor1 libxinerama1 libxi6
       - name: Generate real NeoForge port and CI-only RGB light measurement
         run: |
+          RGB_OWNER_SOURCE_RELEASE_TAG=rgbblocks-131-private-original-source GITHUB_TOKEN="${{ github.token }}" python3 rgb-blocks-compat/stage_owner_original.py
+          python3 rgb-blocks-compat/verify_owner_runtime_migration.py
           python3 rgb-blocks-compat/build_mc1211_fabric.py
           python3 rgb-blocks-compat/build_mc1211_neoforge.py
           python3 rgb-blocks-compat/inject_ci_only_light_probe.py neoforge1211
@@ -46,6 +49,7 @@ jobs:
           path: mc1211-neoforge-inworld/evidence/
           retention-days: 30
   forge-client-no-mods:
+    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
     name: Forge 1.20.1 real GUI and server ONLY RGB Blocks
     runs-on: ubuntu-latest
     timeout-minutes: 75
@@ -63,6 +67,8 @@ jobs:
           sudo apt-get install -y -qq xvfb scrot mesa-utils libgl1-mesa-dri libgl1 libasound2t64 libxrandr2 libxcursor1 libxinerama1 libxi6
       - name: Generate real Forge port and CI-only RGB light measurement
         run: |
+          RGB_OWNER_SOURCE_RELEASE_TAG=rgbblocks-131-private-original-source GITHUB_TOKEN="${{ github.token }}" python3 rgb-blocks-compat/stage_owner_original.py
+          python3 rgb-blocks-compat/verify_owner_runtime_migration.py
           python3 rgb-blocks-compat/build_mc1211_fabric.py
           python3 rgb-blocks-compat/build_mc1201_forge.py
           python3 rgb-blocks-compat/inject_ci_only_light_probe.py forge1201

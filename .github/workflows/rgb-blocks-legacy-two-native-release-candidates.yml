@@ -15,6 +15,7 @@ permissions:
   contents: read
 jobs:
   neoforge1211:
+    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
     name: Build native NeoForge 1.21.1 RGB + full source + ecosystem
     runs-on: ubuntu-latest
     timeout-minutes: 75
@@ -33,6 +34,8 @@ jobs:
       - name: Generate uninstrumented NATIVE 1.21.1 NeoForge source from original 1.3.1
         run: |
           set -euxo pipefail
+          RGB_OWNER_SOURCE_RELEASE_TAG=rgbblocks-131-private-original-source GITHUB_TOKEN="${{ github.token }}" python3 rgb-blocks-compat/stage_owner_original.py
+          python3 rgb-blocks-compat/verify_owner_runtime_migration.py
           python3 rgb-blocks-compat/build_mc1211_fabric.py
           python3 rgb-blocks-compat/build_mc1211_neoforge.py
       - name: Compile production JAR and standalone source Gradle wrapper
@@ -57,6 +60,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
   forge1201:
+    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
     name: Build native Forge 1.20.1 RGB + full source + ecosystem
     runs-on: ubuntu-latest
     timeout-minutes: 75
@@ -75,6 +79,8 @@ jobs:
       - name: Generate uninstrumented NATIVE 1.20.1 Forge source from original 1.3.1
         run: |
           set -euxo pipefail
+          RGB_OWNER_SOURCE_RELEASE_TAG=rgbblocks-131-private-original-source GITHUB_TOKEN="${{ github.token }}" python3 rgb-blocks-compat/stage_owner_original.py
+          python3 rgb-blocks-compat/verify_owner_runtime_migration.py
           python3 rgb-blocks-compat/build_mc1211_fabric.py
           python3 rgb-blocks-compat/build_mc1201_forge.py
       - name: Compile production JAR and standalone source Gradle wrapper
@@ -99,6 +105,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
   both-native-candidate-bundle:
+    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
     name: Bundle two fully validated, independent native versions
     runs-on: ubuntu-latest
     needs: [neoforge1211, forge1201]

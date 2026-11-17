@@ -14,6 +14,7 @@ permissions:
   contents: read
 jobs:
   no-cnb-neoforge1211:
+    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
     name: Actual NeoForge server ONE RGB JAR only, all RGB blocks and persistent commands
     runs-on: ubuntu-latest
     timeout-minutes: 70
@@ -30,6 +31,8 @@ jobs:
           gradle-version: '8.10.2'
       - name: Compile native NeoForge RGB-only JAR (no mod dependency)
         run: |
+          RGB_OWNER_SOURCE_RELEASE_TAG=rgbblocks-131-private-original-source GITHUB_TOKEN="${{ github.token }}" python3 rgb-blocks-compat/stage_owner_original.py
+          python3 rgb-blocks-compat/verify_owner_runtime_migration.py
           python3 rgb-blocks-compat/build_mc1211_fabric.py
           python3 rgb-blocks-compat/build_mc1211_neoforge.py
           cd port-work/mc1211-neoforge
@@ -47,6 +50,7 @@ jobs:
             mc1211-neoforge-runtime/result.json
           retention-days: 30
   no-cnb-forge1201:
+    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
     name: Actual Forge server ONE RGB JAR only, all RGB blocks and persistent commands
     runs-on: ubuntu-latest
     timeout-minutes: 70
@@ -63,6 +67,8 @@ jobs:
           gradle-version: '8.8'
       - name: Compile native Forge RGB-only JAR (no mod dependency)
         run: |
+          RGB_OWNER_SOURCE_RELEASE_TAG=rgbblocks-131-private-original-source GITHUB_TOKEN="${{ github.token }}" python3 rgb-blocks-compat/stage_owner_original.py
+          python3 rgb-blocks-compat/verify_owner_runtime_migration.py
           python3 rgb-blocks-compat/build_mc1211_fabric.py
           python3 rgb-blocks-compat/build_mc1201_forge.py
           cd port-work/mc1201-forge

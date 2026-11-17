@@ -11,6 +11,7 @@ permissions:
   contents: read
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -25,6 +26,8 @@ jobs:
       - name: Generate faithful 1.21.1 common resources and NeoForge native port code
         run: |
           set -euxo pipefail
+          RGB_OWNER_SOURCE_RELEASE_TAG=rgbblocks-131-private-original-source GITHUB_TOKEN="${{ github.token }}" python3 rgb-blocks-compat/stage_owner_original.py
+          python3 rgb-blocks-compat/verify_owner_runtime_migration.py
           python3 rgb-blocks-compat/build_mc1211_fabric.py
           python3 rgb-blocks-compat/build_mc1211_neoforge.py
       - name: Build the native NeoForge RGB Blocks 1.21.1 JAR
