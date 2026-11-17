@@ -1,0 +1,55 @@
+name: RGB Blocks NeoForge 1.21.1 REAL Nether vs Overworld RGB+C&B isolation
+on:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths:
+      - 'rgb-blocks-compat/inject_ci_dimension_probe.py'
+      - 'rgb-blocks-compat/inject_ci_neoforge_two_client_probe.py'
+      - 'rgb-blocks-compat/test_mc1211_neoforge_two_clients.py'
+      - '.github/workflows/rgb-blocks-1211-neoforge-two-dimensions.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  live-two-dimensions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify CI-only and game test source syntax
+        run: |
+          python3 -m py_compile rgb-blocks-compat/inject_ci_dimension_probe.py rgb-blocks-compat/inject_ci_mixed_cnb_probe.py rgb-blocks-compat/inject_ci_only_light_probe.py rgb-blocks-compat/inject_ci_neoforge_two_client_probe.py rgb-blocks-compat/test_mc1211_neoforge_two_clients.py
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '21'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.10.2'}
+      - name: Install real graphical client environment
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb scrot mesa-utils libgl1-mesa-dri libgl1 libasound2t64 libxrandr2 libxcursor1 libxinerama1 libxi6
+      - name: Generate genuine target loader source and CI-only Nether probe
+        run: |
+          set -euxo pipefail
+          python3 rgb-blocks-compat/build_mc1211_fabric.py
+          python3 rgb-blocks-compat/build_mc1211_neoforge.py
+          python3 rgb-blocks-compat/inject_ci_only_light_probe.py neoforge1211
+          python3 rgb-blocks-compat/inject_ci_neoforge_two_client_probe.py
+          python3 rgb-blocks-compat/inject_ci_mixed_cnb_probe.py neoforge1211
+          python3 rgb-blocks-compat/inject_ci_dimension_probe.py neoforge1211
+      - name: Compile full palette + true mixed C&B game artifacts
+        working-directory: port-work/mc1211-neoforge
+        run: gradle --no-daemon build
+      - name: TWO real clients test Nether BLUE, Overworld GREEN and mixed C&B, independent dimensional snapshots
+        env:
+          RGB_PORT_STRICT_LIGHT_PROBE: '1'
+          RGB_PORT_TEST_MIXED_CNB: '1'
+          RGB_PORT_TEST_DIMENSIONS: '1'
+        run: python3 rgb-blocks-compat/test_mc1211_neoforge_two_clients.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgbblocks-neoforge-1211-real-nether-overworld-mixed-cnb-rgb-evidence
+          path: |
+            mc1211-neoforge-two-clients/evidence/
+            port-work/mc1211-neoforge/build/reports/
+          retention-days: 30
