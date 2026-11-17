@@ -81,6 +81,15 @@ public final class RGBRealLightEngine {
    private static int BATCH_SKIPPED_UNLOADED;
    private static final int BATCH_CNB_WAIT_TICKS = 64;
    private static final int BATCH_STABILIZATION_TICKS = 24;
+   // Chaos reproduction: C&B already contains 4095 GREEN bits and 12 mesh
+   // quads on BOTH clients, but its RGB source cache remains the previous
+   // BLUE for over two minutes when fast teardown loses the live-edit event.
+   // Walk a bounded slice of loaded cached microvoxel sources each second.
+   // No full-world scan, no changed voxel data, NO MANUAL bake bypass.
+   private static final int CNB_RECONCILE_INTERVAL_TICKS = 20;
+   private static final int CNB_RECONCILE_POSITIONS_PER_PASS = 32;
+   private static int CNB_RECONCILE_TICKS;
+   private static Iterator<Long> CNB_RECONCILE_CURSOR;
 
    private RGBRealLightEngine() {
    }
@@ -108,6 +117,8 @@ public final class RGBRealLightEngine {
       RGBLightEngine.invalidateAll();
       RGBSourceIndex.clear();
       CNB_CACHE.clear();
+      CNB_RECONCILE_CURSOR = null;
+      CNB_RECONCILE_TICKS = 0;
       CNB_PENDING.clear();
       CNB_EMPTY_STRIKES.clear();
       CNB_WEAK_STRIKES.clear();
@@ -121,6 +132,8 @@ public final class RGBRealLightEngine {
    public static void onClientDisconnect() {
       RGBLightPersistence.saveCurrentBlocking();
       CNB_CACHE.clear();
+      CNB_RECONCILE_CURSOR = null;
+      CNB_RECONCILE_TICKS = 0;
       CNB_PENDING.clear();
       CNB_EMPTY_STRIKES.clear();
       CNB_WEAK_STRIKES.clear();
@@ -534,6 +547,10 @@ public final class RGBRealLightEngine {
 
             processCnbValidationAndCleanup();
             processPendingCnbRemovals();
+            // Unlike geometry, the actual C&B voxel colors can be fresh while
+            // a dropped/overwritten model packet leaves the source cache stale.
+            // Only AUTO scans; frozen MANUAL snapshots remain untouched.
+            reconcileLoadedCnbSources();
             // RGB light may still be correct when C&B's asynchronous
             // baked model loses all geometry after distant rapid bakes.
             // Check only loaded active C&B RGB sources, 12 per 40 ticks;
@@ -555,6 +572,17 @@ public final class RGBRealLightEngine {
                   Map<Long, Integer> empty = shadow ? MANUAL_CNB_EMPTY_STRIKES : CNB_EMPTY_STRIKES;
                   Map<Long, Integer> weak = shadow ? MANUAL_CNB_WEAK_STRIKES : CNB_WEAK_STRIKES;
                   long key = cnbKey(pending.pos);
+                  // A fast AIR -> C&B replacement creates a NEW entity at
+                  // the same coordinates. Never let its old pending BLUE tile
+                  // overwrite the newly sculpted GREEN material after ABA.
+                  Object currentEntity = isPositionLoaded(pending.pos)
+                        ? currentBlockEntity(pending.pos) : null;
+                  if (currentEntity != null && currentEntity != pending.blockEntity) {
+                     entry.setValue(new RGBRealLightEngine.PendingCnbRefresh(
+                        pending.pos, currentEntity, 0,
+                        Math.max(pending.attemptsLeft, CNB_REFRESH_ATTEMPTS)));
+                     continue;
+                  }
                   RGBRealLightEngine.CnbSource previous = sourceFrom(cache, pending.pos);
                   RGBRealLightEngine.CnbSource source = computeCnbSourceFromAccessor(pending.blockEntity);
                   RGBRealLightEngine.CnbCommit commit = putCnbSourceInto(pending.pos, source, cache, empty, weak, !shadow);
@@ -1492,6 +1520,51 @@ public final class RGBRealLightEngine {
       REPLAY_TO_AUTO = false;
       MANUAL_BOOTSTRAP_SECTIONS.clear();
       RGBLightEngine.clearPendingBootstrapWork();
+   }
+
+   /**
+    * Bound the RGB source cache's age against ACTUAL loaded C&B voxel stats.
+    * Chiseling/teardown packet storms can deliver the current C&B tile and
+    * fully valid baked geometry while losing the RGB source notification.
+    *
+    * A source-only mismatch is repaired by the EXISTING pending tile path,
+    * which refreshes RGBSourceIndex, light propagation, and render dirtiness.
+    * In MANUAL the same change MUST remain frozen until a user Bake command.
+    */
+   private static void reconcileLoadedCnbSources() {
+      if (++CNB_RECONCILE_TICKS < CNB_RECONCILE_INTERVAL_TICKS) return;
+      CNB_RECONCILE_TICKS = 0;
+      if (!RGBRuntime.clientTargetAuto()
+          || EFFECTIVE_MODE != RGBRealLightEngine.EffectiveMode.AUTO
+          || !ACTIVE_BATCH.isEmpty()
+          || CNB_CACHE.isEmpty()) return;
+      if (CNB_RECONCILE_CURSOR == null || !CNB_RECONCILE_CURSOR.hasNext()) {
+         CNB_RECONCILE_CURSOR = CNB_CACHE.keySet().iterator();
+      }
+
+      int visited = 0;
+      while (CNB_RECONCILE_CURSOR.hasNext()
+             && visited++ < CNB_RECONCILE_POSITIONS_PER_PASS) {
+         Long key = CNB_RECONCILE_CURSOR.next();
+         if (key == null || CNB_PENDING.containsKey(key)) continue;
+         BlockPos pos = BlockPos.of(key.longValue());
+         if (!isPositionLoaded(pos) || !isStillChiseledBlock(pos)) continue;
+         Object tile = currentBlockEntity(pos);
+         if (tile == null) continue;
+         RGBRealLightEngine.CnbSource cached = CNB_CACHE.get(key);
+         if (cached == null || !cached.active()) continue;
+         RGBRealLightEngine.CnbSource actual = computeCnbSourceFromAccessor(tile);
+         if (actual == null || !actual.active()) continue;
+         // Energy may vary with C&B statistics rounding. A DIFFERENT RGB
+         // color with actual non-air bits is the decisive reproducible bug.
+         if (actual.rgb != cached.rgb) {
+            System.out.println("[RGB Blocks] C&B live RGB source mismatch at "
+               + pos + " cached=0x" + Integer.toHexString(cached.rgb)
+               + " actual=0x" + Integer.toHexString(actual.rgb)
+               + " scheduling real tile relight (AUTO)");
+            scheduleCnbBlockEntity(tile, 0, CNB_REFRESH_ATTEMPTS);
+         }
+      }
    }
 
    private static void processCnbValidationAndCleanup() {
