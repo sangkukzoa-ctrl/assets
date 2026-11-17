@@ -110,12 +110,13 @@ def stage(fabric,neo_core,code_only=False):
             name=member.name
             if "/src/client/resources/" in name:
                 rel=name.split("/src/client/resources/",1)[1]
-                if not code_only:
-                    put_cached(OUT/"fabric/resources",rel,tf.extractfile(member).read())
+                # Client mixin metadata is small and required by the
+                # source-only integrity gate as well as the full build.
+                put_cached(OUT/"fabric/resources",rel,tf.extractfile(member).read())
             elif "/src/main/resources/" in name:
                 rel=name.split("/src/main/resources/",1)[1]
                 stat["resources"]+=1
-                if not code_only:
+                if not code_only or rel in ("fabric.mod.json","rgbblocks.mixins.json"):
                     root=OUT/"fabric/resources" if rel in ("fabric.mod.json","rgbblocks.mixins.json") else OUT/"shared/resources"
                     put_cached(root,rel,tf.extractfile(member).read())
             elif "/src/" in name and name.endswith(".java"):
