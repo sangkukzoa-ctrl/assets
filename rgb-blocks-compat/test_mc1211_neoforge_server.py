@@ -7,6 +7,7 @@ save/stop and reopening. This does NOT validate client pixels, sculpted bits,
 two-client synchronization or shaders.
 """
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -18,6 +19,7 @@ import zipfile
 ROOT = pathlib.Path("mc1211-neoforge-runtime")
 MODS = ROOT / "mods"
 MODS.mkdir(parents=True, exist_ok=True)
+STANDALONE = os.environ.get("RGB_PORT_STANDALONE_NO_CNB") == "1"
 BUILD = pathlib.Path("port-work/mc1211-neoforge/build/libs")
 JARS = [p for p in BUILD.glob("*.jar") if not p.name.endswith(("-sources.jar", "-dev.jar"))]
 assert JARS, "Native NeoForge JAR missing; build the mod before server test"
@@ -44,8 +46,12 @@ def fetch(url, destination):
 
 fetch("https://maven.neoforged.net/releases/net/neoforged/neoforge/21.1.265/neoforge-21.1.265-installer.jar",
       ROOT / "neoforge-installer.jar")
-fetch("https://mediafilez.forgecdn.net/files/7405/270/chisels-and-bits-neoforge-21.1.32.jar",
-      MODS / "chisels-and-bits-neoforge-21.1.32.jar")
+if not STANDALONE:
+    fetch("https://mediafilez.forgecdn.net/files/7405/270/chisels-and-bits-neoforge-21.1.32.jar",
+          MODS / "chisels-and-bits-neoforge-21.1.32.jar")
+else:
+    assert len(list(MODS.glob("*.jar"))) == 1, "Standalone mode must contain ONLY RGB Blocks"
+    print("STANDALONE_NO_OPTIONAL_MODS: actual NeoForge RGB Blocks only", flush=True)
 
 installed = subprocess.run(["java", "-jar", "neoforge-installer.jar", "--installServer"],
     cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=450)
@@ -144,7 +150,10 @@ result = {
 (ROOT / "result.json").write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
 assert first["started"], "NeoForge+RGB+C&B dedicated server did not reach READY"
 assert first["exit_code"] == 0, "First server shutdown failed"
-assert first["cnb_loaded"], "Chisels & Bits not detected in runtime log"
+if STANDALONE:
+    assert not first["cnb_loaded"], "Standalone test accidentally installed Chisels & Bits"
+else:
+    assert first["cnb_loaded"], "Chisels & Bits not detected in runtime log"
 assert not first["fatal_patterns"], "Fatal classloading/mixin issue"
 assert first["palette_16687"], "RGB full palette registration absent"
 assert first["rgb_command_response"], "RGB command not registered"
@@ -157,4 +166,6 @@ assert "Unknown or incomplete command" not in log_first + log_second, "Original 
 assert "Unknown command" not in log_first + log_second, "An original RGB command was not recognized"
 assert "RGB mode: MANUAL" in log_second, "Manual mode was not saved"
 assert "Bake scope: ALL" in log_second, "Bake scope was not saved"
-print("PASS: Native NeoForge 1.21.1 + RGB Blocks 1.3.1 + C&B 21.1.32 dedicated server", flush=True)
+print("PASS: Native NeoForge 1.21.1 + RGB Blocks 1.3.1 " +
+      ("STANDALONE WITHOUT C&B/OPTIONAL MODS" if STANDALONE else "+ C&B 21.1.32") +
+      " dedicated server and world restart", flush=True)
