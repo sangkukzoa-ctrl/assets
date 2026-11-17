@@ -8,6 +8,7 @@ on:
       - 'rgb-blocks-compat/recovered/fabric/com/rgbblocks/client/cnb/RGBCnbMeshIntegrity.java'
       - 'rgb-blocks-compat/recovered/fabric/com/rgbblocks/client/lighting/RGBRealLightEngine.java'
       - 'rgb-blocks-compat/stage_owner_original.py'
+      - 'rgb-blocks-compat/verify_native_owner_mixin_inventory.py'
       - 'rgb-blocks-compat/verify_owner_runtime_migration.py'
       - 'rgb-blocks-compat/build_mc1211_fabric.py'
       - 'rgb-blocks-compat/build_mc1201_forge.py'
@@ -49,7 +50,7 @@ jobs:
           python3 rgb-blocks-compat/verify_baseline_assets.py
       - name: Strict syntax gate for genuine live C&B packet and distant mesh checks
         run: |
-          python3 -m py_compile rgb-blocks-compat/build_mc1211_fabric.py rgb-blocks-compat/build_mc1201_forge.py rgb-blocks-compat/build_mc1211_neoforge.py rgb-blocks-compat/inject_ci_only_light_probe.py rgb-blocks-compat/inject_ci_mixed_cnb_probe.py rgb-blocks-compat/inject_ci_live_cnb_edit_probe.py rgb-blocks-compat/inject_ci_cnb_bake_stress_probe.py rgb-blocks-compat/test_mc1201_forge_two_clients.py rgb-blocks-compat/test_mc1211_neoforge_two_clients.py
+          python3 -m py_compile rgb-blocks-compat/stage_owner_original.py rgb-blocks-compat/verify_owner_runtime_migration.py rgb-blocks-compat/verify_native_owner_mixin_inventory.py rgb-blocks-compat/build_mc1211_fabric.py rgb-blocks-compat/build_mc1201_forge.py rgb-blocks-compat/build_mc1211_neoforge.py rgb-blocks-compat/inject_ci_only_light_probe.py rgb-blocks-compat/inject_ci_mixed_cnb_probe.py rgb-blocks-compat/inject_ci_live_cnb_edit_probe.py rgb-blocks-compat/inject_ci_cnb_bake_stress_probe.py rgb-blocks-compat/test_mc1201_forge_two_clients.py rgb-blocks-compat/test_mc1211_neoforge_two_clients.py
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '${{ matrix.java }}'}
       - uses: gradle/actions/setup-gradle@v4
@@ -64,10 +65,12 @@ jobs:
           python3 rgb-blocks-compat/build_mc1211_fabric.py
           if [ "${{ matrix.target }}" = "forge1201" ]; then
             python3 rgb-blocks-compat/build_mc1201_forge.py
+            python3 rgb-blocks-compat/verify_native_owner_mixin_inventory.py forge1201
             python3 rgb-blocks-compat/inject_ci_only_light_probe.py forge1201
             python3 rgb-blocks-compat/inject_ci_two_client_sync_probe.py
           else
             python3 rgb-blocks-compat/build_mc1211_neoforge.py
+            python3 rgb-blocks-compat/verify_native_owner_mixin_inventory.py neoforge1211
             python3 rgb-blocks-compat/inject_ci_only_light_probe.py neoforge1211
             python3 rgb-blocks-compat/inject_ci_neoforge_two_client_probe.py
           fi
