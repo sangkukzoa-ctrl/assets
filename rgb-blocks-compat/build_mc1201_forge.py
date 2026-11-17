@@ -919,7 +919,31 @@ jar {
  ])
 }
 """)
-# Remove generated 1.21 Fabric mixin runtime metadata and patch original config
+# The OWNER Fabric source has separate common/client Mixin files.
+# Native Forge's build.gradle + JAR manifest load ONLY rgbblocks.mixins.json.
+# Without merging BOTH original configs, 12 of the owner's client renderer,
+# C&B voxel, persistence and light hooks silently disappear from Forge.
+owner_common=RES/"rgbblocks.mixins.json"
+owner_client=RES/"rgbblocks.client.mixins.json"
+assert owner_common.is_file() and owner_client.is_file(), (
+    "Missing authentic Fabric Mixin sources for the native Forge port")
+common_mixin=json.loads(owner_common.read_text(encoding="utf-8"))
+client_mixin=json.loads(owner_client.read_text(encoding="utf-8"))
+assert len(common_mixin.get("mixins",[]))==2
+assert len(client_mixin.get("client",[]))>=11
+merged_client=list(dict.fromkeys(
+    common_mixin.get("client",[])+client_mixin.get("client",[])))
+assert "client.ClientLevelMixin" in merged_client
+assert "client.CnbChiseledBlockModelDataManagerMixin" in merged_client
+assert "client.CnbChiseledBlockStateModelMixin" in merged_client
+common_mixin["client"]=merged_client
+owner_common.write_text(json.dumps(common_mixin,indent=2),encoding="utf-8")
+owner_client.unlink()
+assert len(list(RES.glob("*mixins*.json")))==1, (
+    "Forge must use exactly one native Mixin config")
+print("FORGE_OWNER_SOURCE_UNIFIED_MIXINS",len(merged_client),flush=True)
+
+# Remove obsolete Sodium06 renderer and adapt Forge-only Mixin targets.
 for file in RES.glob("*mixin*.json"):
     data=json.loads(file.read_text(encoding="utf-8"))
     data["compatibilityLevel"]="JAVA_17"
