@@ -43,7 +43,7 @@ def proc_reader(proc,label,path):
         with path.open("w",encoding="utf-8") as f:
             for line in proc.stdout:
                 lines.append(line);f.write(line);f.flush()
-                if any(x in line for x in ("Done (","joined the game","lost connection","ERROR","FATAL","RGB mode","Render thread","Failed","RGB_PORT_NEO_PEER_","RGB_PORT_LIGHT_PROBE_PASS","RGB_PORT_CNB_LIGHT_PROBE_PASS","RGB_PORT_CNB_MIXED_","Caused by","Exception")):
+                if any(x in line for x in ("Done (","joined the game","lost connection","ERROR","FATAL","RGB mode","Render thread","Failed","RGB_PORT_NEO_PEER_","RGB_PORT_LIGHT_PROBE_PASS","RGB_PORT_CNB_LIGHT_PROBE_PASS","RGB_PORT_CNB_MIXED_","RGB_PORT_DIM_","Saved RGB lightmap","Loaded RGB lightmap","Caused by","Exception")):
                     info(label+" "+line.rstrip()[:340])
     t=threading.Thread(target=read,daemon=True);t.start();return lines,t
 def await_line(lines,needle,proc,limit):
