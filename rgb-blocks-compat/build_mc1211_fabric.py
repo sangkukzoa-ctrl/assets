@@ -132,10 +132,10 @@ def pr(s):
     # In the OWNER'S authentic source, StatePayload and BakePayload precede
     # RuntimeData. The decompiled copy put RuntimeData before StatePayload.
     # Never delete packet records based on source-order assumptions.
-    match=re.search(r"\\bpublic\\s+static\\s+final\\s+class\\s+RuntimeData\\s+extends\\s+SavedData\\s*\\{",s)
+    match=re.search(r"\bpublic\s+static\s+final\s+class\s+RuntimeData\s+extends\s+SavedData\s*\{",s)
     if match is None:
         raise RuntimeError("Original owner's RuntimeData class declaration not found")
-    a=s.rfind("\\n",0,match.start())+1
+    a=s.rfind("\n",0,match.start())+1
     opening=s.index("{",match.start())
     depth=0
     b=None
