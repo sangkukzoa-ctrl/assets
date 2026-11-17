@@ -68,6 +68,8 @@ public final class RgbPortChaosOracle {
  private static int ticks=0;
  private static final int[] stable=new int[4];
  private static final boolean[] verified=new boolean[4];
+ private static int absentSamples=0;
+ private static boolean ghostRemovalPassed=false;
  @{{SUBSCRIBE}} public static void tick({{CLIENT_EVENT}} event){
    {{CLIENT_GUARD}}
    if(++ticks%12!=0)return;
@@ -76,6 +78,28 @@ public final class RgbPortChaosOracle {
    var pos=new net.minecraft.core.BlockPos(166,121,7);
    if(!mc.level.isLoaded(pos))return;
    var tile=mc.level.getBlockEntity(pos);
+   // A more hostile invariant: no ghost RGB source after real C&B deletion.
+   var ghostMarker=new net.minecraft.core.BlockPos(166,120,17);
+   if(!ghostRemovalPassed && mc.level.isLoaded(ghostMarker) &&
+       mc.level.getBlockState(ghostMarker).is(net.minecraft.world.level.block.Blocks.GOLD_BLOCK)){
+      var source=com.rgbblocks.client.lighting.RGBRealLightEngine.sourceColorAt(mc.level,pos);
+      var neighbor=new net.minecraft.core.BlockPos(166,121,6);
+      com.rgbblocks.client.lighting.RGBLightEngine.ensureBootstrapped(mc.level,neighbor);
+      var near=com.rgbblocks.client.lighting.RGBLightEngine.lightColorAt(
+                        neighbor,0.5f,0.5f,0.5f);
+      boolean noTint=!near.active() || (near.r()==near.g() && near.g()==near.b());
+      boolean noGhost=tile==null && mc.level.getBlockState(pos).is(
+                      net.minecraft.world.level.block.Blocks.AIR) && !source.active() && noTint;
+      absentSamples=noGhost?absentSamples+1:0;
+      if(absentSamples>=3){
+         ghostRemovalPassed=true;
+         System.out.println("RGB_PORT_CHAOS_NO_GHOST_LIGHT_PASS tileAbsent=true source="+
+                source+" adjacent="+near+" consecutive="+absentSamples);
+      }else if(ticks%120==0){
+         System.out.println("RGB_PORT_CHAOS_GHOST_WAIT tile="+tile+
+                " source="+source+" adjacent="+near+" noGhost="+noGhost);
+      }
+   }
    if(tile==null)return;
    for(int round=0;round<4;round++){
       if(verified[round])continue;
