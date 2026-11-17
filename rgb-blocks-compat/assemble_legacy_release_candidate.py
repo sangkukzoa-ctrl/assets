@@ -218,7 +218,7 @@ def master_bundle(paths):
         "Import the correct .mrpack or install the single matching RGB .jar.\n"
         "Each contains a FULL-SOURCE ZIP, tests/provenance and SHA256 sums.\n"
         "Do not mix Minecraft versions or Forge/NeoForge loader families.\n",encoding="utf-8")
-    dest = root.with_suffix(".zip")
+    dest = Path(str(root) + ".zip")
     with zipfile.ZipFile(dest,"w",compression=zipfile.ZIP_DEFLATED,compresslevel=6,allowZip64=True) as z:
         for p in sorted(root.rglob("*")):
             if p.is_file():
