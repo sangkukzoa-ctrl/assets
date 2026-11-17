@@ -148,7 +148,7 @@ if neo:
     args={
         "SERVER_IMPORTS":"import net.neoforged.bus.api.SubscribeEvent;\nimport net.neoforged.fml.common.EventBusSubscriber;\nimport net.neoforged.neoforge.event.tick.ServerTickEvent;",
         "SERVER_ANNOTATION":'EventBusSubscriber(modid="rgbblocks")',
-        "SERVER_EVENT":"ServerTickEvent.Post","SERVER_GUARD":"","SERVER_OBJECT":"event.getServer()",
+        "SERVER_EVENT":"ServerTickEvent.Post","SUBSCRIBE":"SubscribeEvent","SERVER_GUARD":"","SERVER_OBJECT":"event.getServer()",
         "BLOCK_ID":"net.minecraft.resources.ResourceLocation.fromNamespaceAndPath",
         "INFO":"mod.chiselsandbits.api.blockinformation.BlockInformation",
         "CONTRACT":"mod.chiselsandbits.api.blockinformation.BlockInformation",
@@ -159,7 +159,7 @@ else:
     args={
         "SERVER_IMPORTS":"import net.minecraftforge.eventbus.api.SubscribeEvent;\nimport net.minecraftforge.event.TickEvent;\nimport net.minecraftforge.fml.common.Mod;\nimport net.minecraftforge.server.ServerLifecycleHooks;",
         "SERVER_ANNOTATION":'Mod.EventBusSubscriber(modid="rgbblocks")',
-        "SERVER_EVENT":"TickEvent.ServerTickEvent","SERVER_GUARD":"if(event.phase!=TickEvent.Phase.END)return;",
+        "SERVER_EVENT":"TickEvent.ServerTickEvent","SUBSCRIBE":"SubscribeEvent","SERVER_GUARD":"if(event.phase!=TickEvent.Phase.END)return;",
         "SERVER_OBJECT":"ServerLifecycleHooks.getCurrentServer()",
         "BLOCK_ID":"new net.minecraft.resources.ResourceLocation",
         "INFO":"mod.chiselsandbits.blockinformation.BlockInformation",
