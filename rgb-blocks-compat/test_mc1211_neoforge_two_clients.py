@@ -160,6 +160,9 @@ result={"minecraft":"1.21.1","loader":"NeoForge 21.1.265","scope":"Strict CI-onl
         "world_restart_same_uuid":False,
         "primary_loader_retry_used":False,
         "primary_loader_retry_recovered":False,
+        "peer_texture_atlas_ready":False,
+        "peer_loader_retry_used":False,
+        "peer_loader_retry_recovered":False,
         "dimension_requested":DIMENSION_PROBE,
         "dimension_nether_entered":False,
         "dimension_nether_blue_verified":False,
@@ -312,6 +315,31 @@ try:
     peerlog,peerthread=proc_reader(peer,"PEER",EVIDENCE/"peer-launcher.log")
     result["peer_joined"]=await_line(slog,"RGBPortPeer joined the game",server,210)
     assert result["peer_joined"],"Second NeoForge production client did not join the same dedicated server"
+    result["peer_texture_atlas_ready"]=await_line(peerlog,"Created:",peer,115)
+    if not result["peer_texture_atlas_ready"]:
+        # A bounded REAL second-client restart if GL texture atlas creation
+        # stalls on overloaded CI software rendering. A successful FML join
+        # alone is not enough to prove native client RGB/C&B propagation.
+        result["peer_loader_retry_used"]=True
+        info("NEO_PEER_ATLAS_STALL restarting real peer process once; poll="+str(peer.poll()))
+        for candidate in (PEER/"logs/latest.log",EVIDENCE/"peer-launcher.log"):
+            if candidate.is_file():
+                dest=EVIDENCE/("peer-failed-"+candidate.name)
+                shutil.copy2(candidate,dest)
+                info("NEO_PEER_STALL_LOG "+str(dest)+" bytes="+str(dest.stat().st_size))
+        terminate(peer);peerthread.join(timeout=10)
+        pre_retry=len(slog)
+        peer=subprocess.Popen(peer_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+            text=True,bufsize=1,env=peer_env,start_new_session=True)
+        peerlog,peerthread=proc_reader(peer,"PEER_RETRY",EVIDENCE/"peer-launcher-retry.log")
+        peer_rejoined=await_new_line(slog,"RGBPortPeer joined the game",
+            pre_retry,server,210,"real_second_peer_rejoined_after_atlas_stall")
+        assert peer_rejoined,"Second real NeoForge peer could not reconnect after graphics startup retry"
+        result["peer_texture_atlas_ready"]=await_line(peerlog,"Created:",peer,200)
+        result["peer_loader_retry_recovered"]=result["peer_texture_atlas_ready"]
+        assert result["peer_loader_retry_recovered"], (
+            "Second NeoForge client stalled on atlas on both attempts; see both preserved launch logs")
+
     cmd(server,"tp RGBPortTester -1.5 120.0 0.5 facing 0.5 121.5 7.5")
     cmd(server,"tp RGBPortPeer 1.5 120.0 0.5 facing 0.5 121.5 7.5")
     cmd(server,"gamemode creative RGBPortPeer")
