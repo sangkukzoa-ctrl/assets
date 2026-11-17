@@ -1,0 +1,45 @@
+name: RGB Blocks owner-original source first OFFLINE syntax and migration gate
+on:
+  workflow_dispatch:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths:
+      - 'rgb-blocks-compat/stage_owner_original.py'
+      - 'rgb-blocks-compat/build_mc1211_fabric.py'
+      - 'rgb-blocks-compat/build_mc1211_neoforge.py'
+      - 'rgb-blocks-compat/build_mc1201_forge.py'
+      - 'rgb-blocks-compat/verify_owner_runtime_migration.py'
+      - 'rgb-blocks-compat/verify_native_owner_mixin_inventory.py'
+      - 'rgb-blocks-compat/test_source_first_pipeline_static.py'
+      - '.github/workflows/rgb-blocks-owner-source-static-offline.yml'
+concurrency:
+  group: rgbblocks-owner-source-static-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  offline-static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Compile every owner source staging, migration and test script
+        run: |
+          python3 -m py_compile \
+            rgb-blocks-compat/stage_owner_original.py \
+            rgb-blocks-compat/build_mc1211_fabric.py \
+            rgb-blocks-compat/build_mc1211_neoforge.py \
+            rgb-blocks-compat/build_mc1201_forge.py \
+            rgb-blocks-compat/verify_owner_runtime_migration.py \
+            rgb-blocks-compat/verify_native_owner_mixin_inventory.py \
+            rgb-blocks-compat/test_source_first_pipeline_static.py
+      - name: Execute ORIGINAL-SOURCE-FIRST migration and mixin regression selftest
+        run: python3 rgb-blocks-compat/test_source_first_pipeline_static.py
+      - name: Confirm the original RGB Blocks Modrinth source URL is absent from the active build
+        run: |
+          ! grep -E 'cdn.modrinth.com/data/A48MxLWx|api.modrinth.com/v2/project/A48MxLWx' \
+            rgb-blocks-compat/build_mc1211_fabric.py \
+            rgb-blocks-compat/stage_owner_original.py \
+            rgb-blocks-compat/recover_author_sources.py
