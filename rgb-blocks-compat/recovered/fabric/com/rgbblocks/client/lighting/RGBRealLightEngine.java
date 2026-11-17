@@ -2,6 +2,7 @@ package com.rgbblocks.client.lighting;
 
 import com.mojang.blaze3d.vertex.QuadInstance;
 import com.rgbblocks.client.cnb.RGBCnbGeometryBakeDebouncer;
+import com.rgbblocks.client.cnb.RGBCnbMeshIntegrity;
 import com.rgbblocks.client.cnb.RGBCnbReloadWakeup;
 import com.rgbblocks.client.config.RGBClientConfig;
 import com.rgbblocks.runtime.RGBRuntime;
@@ -533,6 +534,11 @@ public final class RGBRealLightEngine {
 
             processCnbValidationAndCleanup();
             processPendingCnbRemovals();
+            // RGB light may still be correct when C&B's asynchronous
+            // baked model loses all geometry after distant rapid bakes.
+            // Check only loaded active C&B RGB sources, 12 per 40 ticks;
+            // never modify block bits, persistence or colored light.
+            RGBCnbMeshIntegrity.check(CNB_CACHE.keySet());
             int processed = 0;
             Iterator<Entry<Long, RGBRealLightEngine.PendingCnbRefresh>> iterator = CNB_PENDING.entrySet().iterator();
 
