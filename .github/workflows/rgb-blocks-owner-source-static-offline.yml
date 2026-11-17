@@ -16,6 +16,8 @@ on:
       - '.github/workflows/rgb-blocks-*.yml'
       - 'rgb-blocks-compat/test_source_first_workflow_guard.py'
       - 'rgb-blocks-compat/test_cnb_mesh_oracle_javac.py'
+      - 'rgb-blocks-compat/test_cnb_live_source_reconcile_javac.py'
+      - 'rgb-blocks-compat/recovered/fabric/com/rgbblocks/client/lighting/RGBRealLightEngine.java'
       - 'rgb-blocks-compat/recovered/fabric/com/rgbblocks/client/cnb/RGBCnbMeshIntegrity.java'
 concurrency:
   group: rgbblocks-owner-source-static-${{ github.ref }}
@@ -45,7 +47,8 @@ jobs:
             rgb-blocks-compat/clone_owner_resources.py \
             rgb-blocks-compat/test_clone_owner_resources.py \
             rgb-blocks-compat/test_source_first_workflow_guard.py \
-            rgb-blocks-compat/test_cnb_mesh_oracle_javac.py
+            rgb-blocks-compat/test_cnb_mesh_oracle_javac.py \
+            rgb-blocks-compat/test_cnb_live_source_reconcile_javac.py
       - name: Execute ORIGINAL-SOURCE-FIRST migration and mixin regression selftest
         run: python3 rgb-blocks-compat/test_source_first_pipeline_static.py
       - name: PROVE converted glass, pack, and Mixin resources never mutate author source
@@ -54,6 +57,8 @@ jobs:
         run: python3 rgb-blocks-compat/test_source_first_workflow_guard.py
       - name: Run actual production C&B voxel AIR/nonAIR, Forge and Neo Java reflection
         run: python3 rgb-blocks-compat/test_cnb_mesh_oracle_javac.py
+      - name: Reproduce REAL Forge BLUE->GREEN C&B stale source and ensure AUTO repair on Java17/21
+        run: python3 rgb-blocks-compat/test_cnb_live_source_reconcile_javac.py
       - name: Confirm the original RGB Blocks Modrinth source URL is absent from the active build
         run: |
           ! grep -E 'cdn.modrinth.com/data/A48MxLWx|api.modrinth.com/v2/project/A48MxLWx' \
