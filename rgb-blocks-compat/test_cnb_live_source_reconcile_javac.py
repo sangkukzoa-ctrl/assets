@@ -34,7 +34,7 @@ guard_start=code.find("Object currentEntity = isPositionLoaded(pending.pos)")
 guard_end=code.find("RGBRealLightEngine.CnbSource previous = sourceFrom(cache, pending.pos)",guard_start)
 assert guard_start>=0 and guard_end>guard_start
 stale_tile_guard=code[guard_start:guard_end]
-removed_start=code.find("long key = cnbKey(pending.pos);\\n                  // A queued old C&B update")
+removed_start=code.find("long key = cnbKey(pending.pos);\n                  // A queued old C&B update")
 removed_end=code.find("// A fast AIR -> C&B replacement",removed_start)
 assert removed_start>=0 and removed_end>removed_start
 removed_tile_guard=code[removed_start:removed_end]
