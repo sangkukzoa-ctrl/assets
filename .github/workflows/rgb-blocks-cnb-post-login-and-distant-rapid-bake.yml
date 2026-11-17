@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {target: forge1201, mode: live, java: '17', gradle: '8.8', workdir: 'mc1201-forge', test: 'test_mc1201_forge_two_clients.py', shader: '0', live: '1', stress: '0'}
+          - {target: forge1201, mode: live, java: '17', gradle: '8.8', workdir: 'mc1201-forge', test: 'test_mc1201_forge_two_clients.py', shader: '1', live: '1', stress: '0'}
           - {target: forge1201, mode: stress, java: '17', gradle: '8.8', workdir: 'mc1201-forge', test: 'test_mc1201_forge_two_clients.py', shader: '1', live: '0', stress: '1'}
           - {target: neoforge1211, mode: live, java: '21', gradle: '8.10.2', workdir: 'mc1211-neoforge', test: 'test_mc1211_neoforge_two_clients.py', shader: '0', live: '1', stress: '0'}
           - {target: neoforge1211, mode: stress, java: '21', gradle: '8.10.2', workdir: 'mc1211-neoforge', test: 'test_mc1211_neoforge_two_clients.py', shader: '1', live: '0', stress: '1'}
@@ -68,6 +68,7 @@ jobs:
           RGB_PORT_TEST_LIVE_CNB: '${{ matrix.live }}'
           RGB_PORT_TEST_BAKE_STRESS: '${{ matrix.stress }}'
           RGB_PORT_SHADER_ON: '${{ matrix.shader }}'
+          RGB_PORT_SHADER_VARIANT: 'unbound'
         run: python3 rgb-blocks-compat/${{ matrix.test }}
       - uses: actions/upload-artifact@v4
         if: always()
