@@ -11,19 +11,25 @@ permissions:
   contents: read
 jobs:
   recover:
+    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
           ref: rgb-blocks-legacy-compat-audit
-          persist-credentials: true
+          persist-credentials: false
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
       - name: Validate exact owner-supplied Java source inventory (no public RGB downloads)
-        run: python3 rgb-blocks-compat/recover_author_sources.py
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RGB_OWNER_SOURCE_RELEASE_TAG: rgbblocks-131-private-original-source
+        run: |
+          python3 rgb-blocks-compat/recover_author_sources.py
+          python3 rgb-blocks-compat/test_source_first_pipeline_static.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
