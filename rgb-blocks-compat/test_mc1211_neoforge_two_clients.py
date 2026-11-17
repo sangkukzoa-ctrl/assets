@@ -11,6 +11,8 @@ from urllib.parse import urlencode
 from pathlib import Path
 STRICT_LIGHT_PROBE=os.environ.get("RGB_PORT_STRICT_LIGHT_PROBE")=="1"
 MIXED_CNB_PROBE=os.environ.get("RGB_PORT_TEST_MIXED_CNB")=="1"
+LIVE_CNB_PROBE=os.environ.get("RGB_PORT_TEST_LIVE_CNB")=="1"
+assert not LIVE_CNB_PROBE or MIXED_CNB_PROBE, "Live after-login C&B probe requires original mixed C&B fixture"
 SERVER_RESTART_PROBE=os.environ.get("RGB_PORT_TEST_WORLD_RESTART")=="1"
 DIMENSION_PROBE=os.environ.get("RGB_PORT_TEST_DIMENSIONS")=="1"
 INTEGRATED_PROBE=os.environ.get("RGB_PORT_TEST_INTEGRATED")=="1"
@@ -149,6 +151,10 @@ result={"minecraft":"1.21.1","loader":"NeoForge 21.1.265","scope":"Strict CI-onl
         "peer_chunk_returned":False,"primary_alive_through_reconnect":False,
         "mixed_cnb_requested":MIXED_CNB_PROBE,"mixed_cnb_server_sculpted":False,
         "mixed_cnb_primary_verified":False,"mixed_cnb_peer_verified":False,
+        "live_cnb_requested":LIVE_CNB_PROBE,
+        "live_cnb_server_blue":False,"live_cnb_blue_both":False,
+        "live_cnb_server_green":False,"live_cnb_green_both":False,
+        "live_cnb_server_manual_red":False,"live_cnb_manual_red_both":False,
         "shader_mixed_screenshot":False,
         "server_restart_requested":SERVER_RESTART_PROBE,
         "dedicated_server_restarted":False,
@@ -350,6 +356,22 @@ try:
         result["mixed_cnb_peer_verified"]=await_line(peerlog,"RGB_PORT_CNB_MIXED_PROBE_PASS",peer,145)
         assert result["mixed_cnb_peer_verified"],"Second client failed to restore genuine mixed RGB and glass bits"
 
+
+    if LIVE_CNB_PROBE:
+        cmd(server,"setblock 12 121 7 minecraft:gold_block")
+        result["live_cnb_server_blue"]=await_line(slog,"RGB_PORT_LIVE_CNB_SERVER_BLUE_PASS",server,65)
+        assert result["live_cnb_server_blue"],"NeoForge blue live C&B fixture unavailable"
+        ba=await_line(clog,"RGB_PORT_LIVE_CNB_BLUE_PASS",client,135)
+        bb=await_line(peerlog,"RGB_PORT_LIVE_CNB_BLUE_PASS",peer,135)
+        result["live_cnb_blue_both"]=ba and bb
+        assert result["live_cnb_blue_both"],"NeoForge actual after-login chiseled C&B BLUE glow missing light"
+        cmd(server,"setblock 13 121 7 minecraft:gold_block")
+        result["live_cnb_server_green"]=await_line(slog,"RGB_PORT_LIVE_CNB_SERVER_GREEN_PASS",server,65)
+        assert result["live_cnb_server_green"],"NeoForge second C&B re-chisel failed"
+        ga=await_line(clog,"RGB_PORT_LIVE_CNB_GREEN_PASS",client,135)
+        gb=await_line(peerlog,"RGB_PORT_LIVE_CNB_GREEN_PASS",peer,135)
+        result["live_cnb_green_both"]=ga and gb
+        assert result["live_cnb_green_both"],"NeoForge source failed to update GREEN for two online players"
     cmd(server,"rgb manual")
     first_manual=await_line(clog,"RGB_PORT_NEO_PEER_MANUAL_PASS",client,85)
     peer_manual=await_line(peerlog,"RGB_PORT_NEO_PEER_MANUAL_PASS",peer,85)
@@ -393,12 +415,24 @@ try:
     frozen_peer=await_line(peerlog,"RGB_PORT_NEO_MANUAL_DEFER_PASS",peer,110)
     result["both_manual_deferred"]=frozen_first and frozen_peer
     assert result["both_manual_deferred"],"NeoForge MANUAL failed to freeze old red-dominant light on both clients"
+
+    if LIVE_CNB_PROBE:
+        cmd(server,"setblock 14 121 7 minecraft:gold_block")
+        result["live_cnb_server_manual_red"]=await_line(slog,"RGB_PORT_LIVE_CNB_SERVER_MANUAL_RED_PASS",server,65)
+        assert result["live_cnb_server_manual_red"],"NeoForge C&B third chisel edit failed in MANUAL"
+        time.sleep(7)
     cmd(server,"rgb setbake all")
     cmd(server,"rgb bake")
     baked_first=await_line(clog,"RGB_PORT_NEO_MANUAL_BAKE_PASS",client,155)
     baked_peer=await_line(peerlog,"RGB_PORT_NEO_MANUAL_BAKE_PASS",peer,155)
     result["both_manual_baked"]=baked_first and baked_peer
     assert result["both_manual_baked"],"NeoForge MANUAL /rgb bake did not replay GREEN on both clients"
+    if LIVE_CNB_PROBE:
+        ma=await_line(clog,"RGB_PORT_LIVE_CNB_MANUAL_RED_BAKE_PASS",client,150)
+        mb=await_line(peerlog,"RGB_PORT_LIVE_CNB_MANUAL_RED_BAKE_PASS",peer,150)
+        result["live_cnb_manual_red_both"]=ma and mb
+        assert result["live_cnb_manual_red_both"],"NeoForge MANUAL baked C&B tile RGB source failed"
+
     assert client.poll() is None and peer.poll() is None,"NeoForge client quit during dirty manual bake"
 
     # Save true client-side RGB lightmap on logout, restart exactly the SAME
