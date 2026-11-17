@@ -12,6 +12,8 @@ from pathlib import Path
 SHADER_ON=os.environ.get("RGB_PORT_SHADER_ON")=="1"  # Optional strict Oculus+Complementary shader test; OFF by default.
 MIXED_CNB_PROBE=os.environ.get("RGB_PORT_TEST_MIXED_CNB")=="1"
 LIVE_CNB_PROBE=os.environ.get("RGB_PORT_TEST_LIVE_CNB")=="1"
+BAKE_STRESS_PROBE=os.environ.get("RGB_PORT_TEST_BAKE_STRESS")=="1"
+assert not BAKE_STRESS_PROBE or MIXED_CNB_PROBE, "Distant bake stress requires genuine mixed C&B voxel source"
 assert not LIVE_CNB_PROBE or MIXED_CNB_PROBE, "Live after-login C&B probe requires original mixed C&B fixture"
 SERVER_RESTART_PROBE=os.environ.get("RGB_PORT_TEST_WORLD_RESTART")=="1"
 DIMENSION_PROBE=os.environ.get("RGB_PORT_TEST_DIMENSIONS")=="1"
@@ -184,6 +186,10 @@ result.update({"peer_joined":False,"peer_rgb_probe_verified":False,
         "live_cnb_server_blue":False,"live_cnb_blue_both":False,
         "live_cnb_server_green":False,"live_cnb_green_both":False,
         "live_cnb_server_manual_red":False,"live_cnb_manual_red_both":False,
+        "bake_stress_requested":BAKE_STRESS_PROBE,
+        "bake_stress_far_sculpted":False,
+        "bake_stress_near_both_models_visible":False,
+        "bake_stress_far_both_models_visible":False,
                "shader_mixed_screenshot":False,
                "server_restart_requested":SERVER_RESTART_PROBE,
                "dedicated_server_restarted":False,
@@ -249,6 +255,8 @@ try:
              "start","forge::1.20.1-47.4.28","--mc-dir",str(GAME.resolve()),
              "-u","RGBPortTester","--join-server","127.0.0.1","--join-server-port","25566","--resolution","1280x720", "--jvm-arg=-Dforge.logging.markers=NETWORK,-Dforge.logging.console.level=debug"]
     launchcmd.append("--jvm-arg=-Xmx1600M")
+    if BAKE_STRESS_PROBE:
+        launchcmd.append("--jvm-arg=-Drgbport.ci.bakeStress=true")
     if LIVE_CNB_PROBE:
         launchcmd.append("--jvm-arg=-Drgbport.ci.liveCnb=true")
     record("LAUNCH "+str(launchcmd))
@@ -450,6 +458,53 @@ try:
         assert result["live_cnb_manual_red_both"],"Forge MANUAL baked edited C&B tile still emits no actual RGB light"
 
     assert result["both_clients_alive_after_manual_bake"],"Client exited during manual dirty-position bake"
+    if BAKE_STRESS_PROBE:
+        # Keep two real C&B voxel sculptures 128 blocks apart. Both players
+        # travel back/forth during rapid location-scoped manual bakes.
+        # This is a rendering test, not merely a preserved light-source test.
+        command(server,"forceload add 128 0")
+        command(server,"fill 126 119 -3 142 119 12 minecraft:stone")
+        command(server,"setblock 134 121 7 chiselsandbits:chiseled")
+        command(server,"execute if block 134 121 7 chiselsandbits:chiseled run say RGB_PORT_BAKE_FAR_REAL_TILE")
+        result["bake_stress_far_sculpted"]=await_pattern(slog,"RGB_PORT_BAKE_STRESS_FAR_SETUP_PASS",server,110,"far_real_CnB_voxel_sculpture")
+        assert result["bake_stress_far_sculpted"],"Distant genuine C&B 4095-red-voxel sculpture could not be created"
+        command(server,"rgb manual")
+        command(server,"rgb setbake 24")
+        for cycle in range(4):
+            for x in (1.5,132.5):
+                command(server,f"tp RGBPortTester {x} 120.0 0.5 facing {x} 121.5 7.5")
+                command(server,f"tp RGBPortPeer {x} 120.0 0.5 facing {x} 121.5 7.5")
+                time.sleep(0.75)
+                command(server,"rgb bake")
+                time.sleep(0.35)
+                command(server,"rgb bake")
+                time.sleep(0.35)
+        # After 16 real remote-location bake requests, verify that C&B's
+        # actual baked mesh has quads, not just intact RGB lightmap data.
+        command(server,"setblock 0 120 9 minecraft:gold_block")
+        command(server,"tp RGBPortTester 1.5 120.0 0.5 facing 6.5 121.5 7.5")
+        command(server,"tp RGBPortPeer 1.5 120.0 0.5 facing 6.5 121.5 7.5")
+        visible_a=await_pattern(clog,"RGB_PORT_BAKE_STRESS_NEAR_MESH_PASS",client,170,"primary_mixed_geometry_after_rapid_bake")
+        visible_b=await_pattern(peerlog,"RGB_PORT_BAKE_STRESS_NEAR_MESH_PASS",peer,170,"peer_mixed_geometry_after_rapid_bake")
+        result["bake_stress_near_both_models_visible"]=visible_a and visible_b
+        assert result["bake_stress_near_both_models_visible"],"C&B mixed sculpture retained light but its near-region baked mesh is EMPTY/transparent after rapid bakes"
+        command(server,"setblock 134 120 9 minecraft:gold_block")
+        command(server,"tp RGBPortTester 132.5 120.0 0.5 facing 134.5 121.5 7.5")
+        command(server,"tp RGBPortPeer 132.5 120.0 0.5 facing 134.5 121.5 7.5")
+        far_a=await_pattern(clog,"RGB_PORT_BAKE_STRESS_FAR_MESH_PASS",client,170,"primary_far_CnB_mesh")
+        far_b=await_pattern(peerlog,"RGB_PORT_BAKE_STRESS_FAR_MESH_PASS",peer,170,"peer_far_CnB_mesh")
+        result["bake_stress_far_both_models_visible"]=far_a and far_b
+        assert result["bake_stress_far_both_models_visible"],"C&B far-region sculpture geometry became transparent after repeated manual bakes while light remained"
+        image=EVIDENCE/"forge-far-cnb-real-baked-mesh-after-16-remote-manual-bakes.png"
+        snap=subprocess.run(["scrot",str(image.resolve())],env=env,
+                            stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=40)
+        assert snap.returncode==0 and image.is_file() and image.stat().st_size>10000, (
+            "Real rendered remote-region C&B screenshot missing")
+        result["screenshots"].append({"file":image.name,"size":image.stat().st_size})
+        command(server,"tp RGBPortTester -1.5 120.0 0.5 facing 0.5 121.5 7.5")
+        command(server,"tp RGBPortPeer 1.5 120.0 0.5 facing 0.5 121.5 7.5")
+        command(server,"rgb auto")
+        time.sleep(3)
     # After the actual MANUAL bake, return to AUTO and exercise a FULL
     # offline→reconnect cycle for the same production peer installation.
     # Keep the first client online on the same dedicated server throughout.
