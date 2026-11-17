@@ -2,7 +2,7 @@
 """Prepare MC 1.21.1 Fabric port build, retaining original game logic.
 Generated project is a migration workspace. A JAR build alone is not a release gate.
 """
-import json, pathlib, re, shutil, sys, zipfile
+import hashlib, json, pathlib, re, shutil, sys, zipfile
 from clone_owner_resources import clone_resources
 HERE=pathlib.Path("rgb-blocks-compat")
 WORK=pathlib.Path("port-work/mc1211-fabric")
@@ -34,36 +34,58 @@ for original in (ORIGINAL/"fabric/resources").rglob("*"):
 # Guard source provenance even if a downstream patch changes Minecraft
 # APIs: every original Java is present BEFORE intentional compatibility edits.
 assert len(list(CODE.rglob("*.java")))==32, "Author source Java inventory mismatch"
-# Record carefully scoped backport/bugfix deltas already under verification;
-# never silently overwrite all owner's files with recovered/decompiled code.
+# Source authority is the author's original 1.3.1 Java. Each remaining
+# incompatible old-version correction is explicitly enumerated below.
+# Distinguish changes to 7 original classes from ONE port-only watchdog
+# addition, instead of claiming a new class replaces an original.
 PROVEN_NATIVE_COMPAT_OVERLAYS=(
-    "client/lighting/RGBLightPersistence.java",  # dimension switch and same-world load
-    "client/lighting/RGBRealLightEngine.java",    # live C&B packet and mesh light cache
-    "client/lighting/RGBLightEngine.java",
-    "client/lighting/RGBRenderInvalidator.java",
-    # RGBSourceIndex.java is original-author source: old decompiler only
-    # changed formatting, not behavior. Keep owner's original implementation.
-    "client/cnb/RGBCnbGeometryBakeDebouncer.java",
-    # RGBCnbReloadWakeup.java: original author logic already includes
-    # login/restore delayed bake and world guards; prefer owner source.
-    "client/cnb/RGBCnbMeshIntegrity.java",        # new port-only recovery class
-    "mixin/client/ClientLevelMixin.java",
+    "client/lighting/RGBLightPersistence.java",          # dimension snapshot
+    "client/lighting/RGBRealLightEngine.java",           # C&B light and packets
+    "client/lighting/RGBLightEngine.java",               # source bootstrap
+    "client/lighting/RGBRenderInvalidator.java",         # 1.21 renderer API
+    "client/cnb/RGBCnbGeometryBakeDebouncer.java",       # distant mesh rescue
+    "mixin/client/ClientLevelMixin.java",                # world receive packet
     "mixin/client/CnbChiseledBlockModelDataManagerMixin.java",
 )
-for rel in PROVEN_NATIVE_COMPAT_OVERLAYS:
+PORT_ONLY_COMPAT_ADDITIONS=(
+    "client/cnb/RGBCnbMeshIntegrity.java",               # not in author's 1.3.1
+)
+def source_sha256(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+delta_receipts=[]
+for rel in PROVEN_NATIVE_COMPAT_OVERLAYS+PORT_ONLY_COMPAT_ADDITIONS:
+    source=FROM/"com/rgbblocks"/rel
     native=HERE/"recovered/fabric/com/rgbblocks"/rel
     if not native.is_file():
         raise RuntimeError("Missing explicitly recorded compatibility patch "+str(native))
+    if rel in PROVEN_NATIVE_COMPAT_OVERLAYS and not source.is_file():
+        raise RuntimeError("Original author file missing; refusing to replace "+rel)
+    if rel in PORT_ONLY_COMPAT_ADDITIONS and source.exists():
+        raise RuntimeError("Port-only addition unexpectedly overwrote owner file "+rel)
     destination=CODE/"com/rgbblocks"/rel
     destination.parent.mkdir(parents=True,exist_ok=True)
+    delta_receipts.append({
+       "path":rel,
+       "kind":"original-class-delta" if source.is_file() else "new-compatibility-class",
+       "owner_source_sha256":source_sha256(source) if source.is_file() else None,
+       "port_compat_sha256":source_sha256(native),
+    })
     shutil.copy2(native,destination)
+assert len(list(CODE.rglob("*.java")))==33, (
+    "32 authentic original Java classes plus one port-only mesh watchdog expected")
 (WORK/"owner-source-overlays.json").write_text(
-    json.dumps({"source":"original owner Fabric 1.3.1 Java",
-                "overrides":PROVEN_NATIVE_COMPAT_OVERLAYS,
-                "note":"Temporary explicit native backport deltas; remaining original Java stays author-provided."},
+    json.dumps({"source":"verified ORIGINAL 1.3.1 Fabric owner Java",
+                "original_java_count":32,
+                "original_overrides":list(PROVEN_NATIVE_COMPAT_OVERLAYS),
+                "port_only_additions":list(PORT_ONLY_COMPAT_ADDITIONS),
+                "delta_receipts":delta_receipts,
+                "unmodified_author_java_count":25,
+                "note":"Original sources retained except 7 annotated backports; one new port-only watchdog."},
                ensure_ascii=False,indent=2),encoding="utf-8")
-print("RGB_OWNER_ORIGINAL_SOURCE_ACTIVE Java=32 compatibility_overlays="+
-      str(len(PROVEN_NATIVE_COMPAT_OVERLAYS)),flush=True)
+print("RGB_OWNER_ORIGINAL_SOURCE_ACTIVE original_java=32 original_deltas="+
+      str(len(PROVEN_NATIVE_COMPAT_OVERLAYS))+" additions="+
+      str(len(PORT_ONLY_COMPAT_ADDITIONS))+" original_preserved=25",flush=True)
 
 def patch(p,func):
     x=p.read_text(encoding="utf-8")
