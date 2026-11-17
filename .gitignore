@@ -1,0 +1,14 @@
+# Never automatically publish author-supplied source archives or staged trees.
+# These are provided privately through the project's accepted source channel.
+rgb-blocks-compat/owner-archives/
+rgb-blocks-compat/owner-source/
+
+# Native build output and Minecraft test worlds; keep source-only Git diffs.
+port-work/
+mc1201-forge-two-clients/
+mc1211-neoforge-two-clients/
+source-recovery-cache/
+audit-output/
+.gradle/
+build/
+__pycache__/
