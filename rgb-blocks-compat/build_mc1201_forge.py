@@ -509,9 +509,16 @@ patch(cnb_emission_mixin, forge_cnb_emission_api)
 cnb_live_packet=CODE/"com/rgbblocks/mixin/client/ForgeCnbLivePacketMixin.java"
 cnb_live_packet.write_text('''package com.rgbblocks.mixin.client;
 import com.rgbblocks.client.lighting.RGBRealLightEngine;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import org.spongepowered.asm.mixin.Dynamic;
 import org.spongepowered.asm.mixin.Mixin;
@@ -519,31 +526,53 @@ import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-/** Forge C&B 20.1.20 real packet path; 26.x receivePayload does not exist here. */
+/**
+ * Actual Forge C&B 20.1.20 live route (not 26.x receivePayload).
+ * C&B packet data is decompressed asynchronously. The first getStatistics()
+ * may still be the OLD blue sculpture after a green edit; schedule bounded
+ * follow-ups on the client thread, without modifying C&B voxel data.
+ */
 @Pseudo
 @Mixin(targets="mod.chiselsandbits.network.handlers.ClientPacketHandlers",remap=false)
 public abstract class ForgeCnbLivePacketMixin {
+  private static final AtomicLong NEXT_SEQUENCE=new AtomicLong();
+  private static final Map<Long,Long> ACTIVE_SEQUENCE=new ConcurrentHashMap<>();
+  private static final ScheduledExecutorService SCHEDULER=Executors.newSingleThreadScheduledExecutor(r->{
+     Thread worker=new Thread(r,"RGB Blocks Forge C&B late payload refresh");
+     worker.setDaemon(true);return worker;
+  });
   @Inject(method="handleTileEntityUpdatedPacket(Lnet/minecraft/core/BlockPos;Lnet/minecraft/nbt/CompoundTag;)V",
       at=@At("TAIL"),require=0,remap=false)
-  @Dynamic("C&B Forge 20.1.20 authoritative TileEntityUpdatedPacket")
+  @Dynamic("C&B Forge 20.1.20 TileEntityUpdatedPacket -> ClientPacketHandlers")
   private static void rgbblocks$afterLiveChiselPacket(BlockPos pos,CompoundTag update,CallbackInfo ci){
     if(pos==null)return;
-    Minecraft mc=Minecraft.getInstance();
-    if(mc==null)return;
-    mc.execute(()->{
-      try{
-        if(mc.level==null || !mc.level.isLoaded(pos))return;
-        BlockEntity tile=mc.level.getBlockEntity(pos);
-        if(tile!=null && tile.getClass().getName().contains("chiselsandbits")){
-          // The C&B storage decompresses asynchronously AFTER its packet.
-          // The original 16-attempt/2-tick queue reads the final statistics;
-          // immediately invalidating with a stale source is incorrect.
-          RGBRealLightEngine.refreshCnbBlockEntity(tile);
-        }
-      }catch(Throwable failure){
-        System.err.println("[RGB Blocks] Forge C&B live packet refresh: "+failure);
-      }
-    });
+    Minecraft client=Minecraft.getInstance();
+    if(client==null || client.level==null)return;
+    Level expectedWorld=client.level;
+    BlockPos immutable=pos.immutable();
+    long packed=immutable.asLong();
+    long sequence=NEXT_SEQUENCE.incrementAndGet();
+    if(ACTIVE_SEQUENCE.size()>65536)ACTIVE_SEQUENCE.clear();
+    ACTIVE_SEQUENCE.put(packed,sequence);
+    for(long delay:new long[]{0L,200L,650L,1500L,3000L}){
+       SCHEDULER.schedule(()->{
+         Minecraft current=Minecraft.getInstance();
+         if(current==null)return;
+         current.execute(()->{
+           if(current.level!=expectedWorld || !expectedWorld.isLoaded(immutable)
+              || !Long.valueOf(sequence).equals(ACTIVE_SEQUENCE.get(packed)))return;
+           try {
+             BlockEntity tile=expectedWorld.getBlockEntity(immutable);
+             if(tile!=null && !tile.isRemoved()
+                && tile.getClass().getName().contains("chiselsandbits")){
+                RGBRealLightEngine.refreshCnbBlockEntity(tile);
+             }
+           }catch(Throwable failure){
+             System.err.println("[RGB Blocks] Forge C&B delayed live update: "+failure);
+           }
+         });
+       },delay,TimeUnit.MILLISECONDS);
+    }
   }
 }
 ''',encoding="utf-8")
