@@ -8,6 +8,7 @@ permissions:
   contents: read
 jobs:
   gui:
+    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 55
     steps:
@@ -23,6 +24,8 @@ jobs:
           xvfb-run -a glxinfo -B | tail -n 12
       - name: Generate RGB 1.21.1 source and compile
         run: |
+          RGB_OWNER_SOURCE_RELEASE_TAG=rgbblocks-131-private-original-source GITHUB_TOKEN="${{ github.token }}" python3 rgb-blocks-compat/stage_owner_original.py
+          python3 rgb-blocks-compat/verify_owner_runtime_migration.py
           python3 rgb-blocks-compat/build_mc1211_fabric.py
           cd port-work/mc1211-fabric
           gradle --no-daemon classes

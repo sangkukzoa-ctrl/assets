@@ -12,6 +12,7 @@ permissions:
   contents: read
 jobs:
   minecraft-real-integrated-singleplayer:
+    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 95
     steps:
@@ -30,6 +31,8 @@ jobs:
       - name: Generate original full RGB/C&B build and CI-only integrated world probe
         run: |
           set -euxo pipefail
+          RGB_OWNER_SOURCE_RELEASE_TAG=rgbblocks-131-private-original-source GITHUB_TOKEN="${{ github.token }}" python3 rgb-blocks-compat/stage_owner_original.py
+          python3 rgb-blocks-compat/verify_owner_runtime_migration.py
           python3 rgb-blocks-compat/build_mc1211_fabric.py
           python3 rgb-blocks-compat/build_mc1211_neoforge.py
           python3 rgb-blocks-compat/inject_ci_only_light_probe.py neoforge1211
