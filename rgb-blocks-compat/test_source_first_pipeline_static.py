@@ -42,7 +42,16 @@ overlay_nodes=[x.value for x in ast_fabric.body if isinstance(x,ast.Assign)
                        for t in x.targets)]
 assert len(overlay_nodes)==1
 overlays=ast.literal_eval(overlay_nodes[0])
-assert len(overlays)==8 and len(set(overlays))==8
+assert len(overlays)==7 and len(set(overlays))==7
+addition_nodes=[x.value for x in ast_fabric.body if isinstance(x,ast.Assign)
+               and any(isinstance(t,ast.Name) and t.id=="PORT_ONLY_COMPAT_ADDITIONS"
+                       for t in x.targets)]
+assert len(addition_nodes)==1
+additions=ast.literal_eval(addition_nodes[0])
+assert additions==("client/cnb/RGBCnbMeshIntegrity.java",)
+assert additions[0] not in overlays
+assert "delta_receipts" in fabric and "owner_source_sha256" in fabric
+assert "unmodified_author_java_count" in fabric
 assert "client/lighting/RGBSourceIndex.java" not in overlays
 assert "client/cnb/RGBCnbReloadWakeup.java" not in overlays
 assert "client/lighting/RGBLightPersistence.java" in overlays
@@ -96,5 +105,7 @@ print("RGB_SOURCE_FIRST_OFFLINE_STATIC_PASS",json.dumps({
     "source_resume_byte_check":True,
     "source_java_sha256_locked":63,
     "source_asset_sha256_sentinels":42,
-    "original_java_overlays_remaining":8,
+    "original_java_overlays_remaining":7,
+    "port_only_java_additions":1,
+    "unmodified_author_java_count":25,
     "test_type":"static_not_game"}),flush=True)
