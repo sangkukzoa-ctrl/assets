@@ -27,6 +27,9 @@ permissions:
   contents: write
 jobs:
   chaos:
+    # Avoid repeated early 404 on automatic pushes before author-source bootstrap.
+    # Explicit dispatch still reports any missing/invalid original package.
+    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
     name: ${{ matrix.target }} hostile edits / 2 real players / genuine peer JVM restart
     runs-on: ubuntu-latest
     timeout-minutes: 110
