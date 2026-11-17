@@ -1,6 +1,12 @@
 package com.rgbblocks.client.cnb;
 
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.client.Minecraft;
@@ -13,11 +19,21 @@ public final class RGBCnbGeometryBakeDebouncer {
    private static final long PAYLOAD_ACTIVE_WINDOW_MS = 350L;
    private static final Map<Long, RGBCnbGeometryBakeDebouncer.Entry> ENTRIES = new ConcurrentHashMap<>();
    private static final ThreadLocal<Boolean> BYPASS = ThreadLocal.withInitial(() -> Boolean.FALSE);
+   // C&B model compilation is asynchronous. Suppressing bursts without
+   // replaying their LAST request can leave the old or empty mesh on screen,
+   // while the actual C&B voxels and RGB light are still intact.
+   private static final AtomicLong WORLD_EPOCH = new AtomicLong();
+   private static final ScheduledExecutorService TRAILING_BAKES = Executors.newSingleThreadScheduledExecutor(task -> {
+      Thread worker = new Thread(task, "RGB Blocks last C&B model bake");
+      worker.setDaemon(true);
+      return worker;
+   });
 
    private RGBCnbGeometryBakeDebouncer() {
    }
 
    public static void reset() {
+      WORLD_EPOCH.incrementAndGet();
       ENTRIES.clear();
       BYPASS.remove();
    }
@@ -64,12 +80,14 @@ public final class RGBCnbGeometryBakeDebouncer {
             long previousRequest = entry.lastRequestMillis;
             long previousAllowed = entry.lastAllowedBakeMillis;
             entry.lastRequestMillis = now;
+            long requestSerial = ++entry.requestSerial;
             if (previousRequest == 0L || now - previousRequest > 70L) {
                entry.lastAllowedBakeMillis = now;
                return false;
             }
 
             if (previousAllowed != 0L && now - previousAllowed < 90L) {
+               scheduleTrailingBake(tileEntity, pos, entry, requestSerial);
                return true;
             }
 
@@ -83,6 +101,45 @@ public final class RGBCnbGeometryBakeDebouncer {
       } else {
          return false;
       }
+   }
+
+   private static void scheduleTrailingBake(Object tileEntity, BlockPos pos, Entry entry, long serial) {
+      Minecraft mc = Minecraft.getInstance();
+      if (mc == null || mc.level == null || !(tileEntity instanceof BlockEntity blockEntity)) {
+         return;
+      }
+      WeakReference<BlockEntity> captured = new WeakReference<>(blockEntity);
+      WeakReference<Level> expectedWorld = new WeakReference<>(mc.level);
+      long epoch = WORLD_EPOCH.get();
+      TRAILING_BAKES.schedule(() -> {
+         Minecraft client = Minecraft.getInstance();
+         if (client == null || epoch != WORLD_EPOCH.get()) {
+            return;
+         }
+         client.execute(() -> {
+            if (epoch != WORLD_EPOCH.get() || entry.requestSerial != serial) {
+               return;
+            }
+            Level level = expectedWorld.get();
+            BlockEntity live = captured.get();
+            if (level == null || client.level != level || live == null
+                || !level.isLoaded(pos) || level.getBlockEntity(pos) != live || live.isRemoved()) {
+               return;
+            }
+            // The latest C&B tile payload has settled. Force exactly ONE
+            // non-debounced model build so an obsolete async future cannot
+            // permanently keep the mesh invisible after rapid bakes.
+            runUndebounced(() -> {
+               try {
+                  Method update = live.getClass().getMethod("updateModelData");
+                  update.invoke(live);
+                  level.sendBlockUpdated(pos, level.getBlockState(pos), level.getBlockState(pos), 3);
+               } catch (Throwable failure) {
+                  System.err.println("[RGB Blocks] C&B trailing mesh rebuild failed: " + failure);
+               }
+            });
+         });
+      }, 180L, TimeUnit.MILLISECONDS);
    }
 
    private static boolean isRemoteClientWorld(Object tileEntity) {
@@ -123,6 +180,7 @@ public final class RGBCnbGeometryBakeDebouncer {
    }
 
    private static final class Entry {
+      private volatile long requestSerial;
       private volatile long lastPayloadMillis;
       private volatile long lastRequestMillis;
       private volatile long lastAllowedBakeMillis;
