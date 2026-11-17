@@ -34,3 +34,14 @@ Write-Host "Original source SHA256 verified, uploaded to GitHub draft release (N
 Write-Host "Artifact: $filename"
 Write-Host "Release tag: $tag"
 Write-Host "The CI now downloads only this pinned author source; no RGB Blocks Modrinth JAR."
+# Resume both exact 1.20.1/1.21.1 regression matrices immediately.
+foreach ($workflow in @(
+    "rgb-blocks-cnb-post-login-and-distant-rapid-bake.yml",
+    "rgb-blocks-cnb-seeded-chaos-real-clients.yml"
+)) {
+    & gh workflow run $workflow --repo $repo --ref rgb-blocks-legacy-compat-audit
+    if ($LASTEXITCODE -ne 0) {
+        throw "Source upload succeeded, but cannot start CI workflow: $workflow"
+    }
+    Write-Host "Started strict source-first CI: $workflow" -ForegroundColor Cyan
+}
