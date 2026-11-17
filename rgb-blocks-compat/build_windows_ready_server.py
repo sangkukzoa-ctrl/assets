@@ -342,7 +342,7 @@ with zipfile.ZipFile(out) as z:
     assert any(n.endswith("/run.bat") for n in names)
     assert any(n.endswith("/runtime/java/bin/java.exe") for n in names)
     assert any(n.endswith("/"+c["args"]) for n in names)
-    assert sum(n.endswith(".jar") and "/mods/" in n for n in names)==1
+    assert sum(n.startswith(foldername+"/mods/") and n.endswith(".jar") for n in names)==1, ("Root mods/ should contain only RGB Blocks", [n for n in names if n.startswith(foldername+"/mods/") and n.endswith(".jar")])
 assert out.stat().st_size>20_000_000, "Unexpected tiny server archive"
 print("WINDOWS_READY_SERVER_ZIP_PASS",target,out,out.stat().st_size,
       "SHA256",sha(out),"FILES",len(names),flush=True)
