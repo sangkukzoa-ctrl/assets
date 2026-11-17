@@ -49,3 +49,8 @@
 - Both native two-client launchers run chaos after real 2-player connection; kick/shutdown/relaunch real peer JVM afterward and require most recent C&B mesh+RGB again (Forge 1d7690d, NeoForge be208ef).
 - New isolated two-loader Complementary UNBOUND r5.9.3 shader-ON workflow: [#44107365810](https://github.com/sangkukzoa-ctrl/assets/actions/runs/44107365810), source .github/workflows/rgb-blocks-cnb-seeded-chaos-real-clients.yml (3226c52), seeds Forge 1313131 / NeoForge 2718281. CI-only classes NEVER ship in owner release JAR.
 - NEXT: inspect both jobs compile and gameplay, retain failing JSONL and screenshots; repair real production code without weakening oracles. Separate true server stop/restart workflows already exist, not claimed as part of new chaos test. NO RELEASE.
+
+
+### Chaos intensity increment, 2026-11-17 23:xx KST
+- Commit [2d86ad2](https://github.com/sangkukzoa-ctrl/assets/commit/2d86ad2142d524154ca206835db0b1a8875d51a3) increases chaos workload from 24 to **64 unpredictable operations per round** (4 rounds = 256), with an added burst of **24 near-zero-interval MANUAL /rgb bake commands per round** (96 additional bake requests) on each loader. Seed and every operation/pause recorded as JSONL. Optional environment RGB_PORT_CHAOS_ACTIONS_PER_ROUND allows 24 to 500 per round without modifying source.
+- **Most recent CI** [#44108002874](https://github.com/sangkukzoa-ctrl/assets/actions/runs/44108002874), targets both Forge and Neo with UNBOUND r5.9.3; earlier first smaller seed run #44107365810 also exists. Both were queued when this note was written. Do NOT confuse queued with PASS or claim production defect fixed yet.
