@@ -1,0 +1,64 @@
+name: RGB Blocks verify both ready server ZIPs on genuine Windows with bundled Java
+on:
+  workflow_dispatch:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths:
+      - '.github/workflows/rgb-blocks-two-windows-ready-servers-native-windows-smoke.yml'
+      - 'rgb-blocks-compat/test_windows_ready_server.py'
+permissions:
+  actions: read
+  contents: read
+jobs:
+  forge-real-windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: RGBBlocks-1.3.1-Forge-1.20.1-47.4.28-WINDOWS-READY-SERVER-ZIP
+          run-id: 44072353473
+          github-token: ${{ github.token }}
+          path: input/forge1201
+      - name: Actually start the distributed server using its bundled Windows Java 17 and win_args.txt, prove RGB and restart
+        shell: pwsh
+        run: python rgb-blocks-compat/test_windows_ready_server.py forge1201
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: RGBBlocks-Forge-47.4.28-verified-real-Windows-launch-logs
+          path: |
+            windows-smoke/forge1201/*log
+            windows-smoke/forge1201/result.json
+          retention-days: 30
+          if-no-files-found: warn
+  neoforge-real-windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: RGBBlocks-1.3.1-NeoForge-1.21.1-21.1.265-WINDOWS-READY-SERVER-ZIP
+          run-id: 44072353473
+          github-token: ${{ github.token }}
+          path: input/neoforge1211
+      - name: Actually start the distributed server using its bundled Windows Java 21 and win_args.txt, prove RGB and restart
+        shell: pwsh
+        run: python rgb-blocks-compat/test_windows_ready_server.py neoforge1211
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: RGBBlocks-NeoForge-21.1.265-verified-real-Windows-launch-logs
+          path: |
+            windows-smoke/neoforge1211/*log
+            windows-smoke/neoforge1211/result.json
+          retention-days: 30
+          if-no-files-found: warn
