@@ -6,7 +6,7 @@ Generate it once from the actual supplied Fabric TAR and NeoForge ZIP.
 Original Java remains the authority; 1.20.1/1.21.1 modifications are separate.
 """
 from pathlib import Path
-import hashlib, json, os, shutil, subprocess, tarfile, tempfile, zipfile
+import hashlib, json, os, shutil, subprocess, tarfile, tempfile, zipfile, urllib.request
 
 HERE=Path("rgb-blocks-compat")
 OUT=HERE/"owner-source"
@@ -109,12 +109,58 @@ def stage(fabric,neo_core,code_only=False):
     marker.unlink(missing_ok=True)
     print("RGB_PORT_ORIGINAL_OWNER_SOURCE_STAGED",json.dumps(stat),flush=True)
 
+def private_owner_source_release(archive):
+    """Optional private draft GitHub Release storage for owner's input JAR-free source.
+
+    Runs ONLY when owner explicitly provisioned a draft release, AND a
+    readable repo token was injected. Public Modrinth/CurseForge is never
+    accessed. A SHA-256 mismatch aborts instead of trying public fallback.
+    """
+    tag=os.environ.get("RGB_OWNER_SOURCE_RELEASE_TAG","").strip()
+    if not tag:
+        return False
+    token=os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if not token:
+        raise RuntimeError("Author source release configured but GitHub token not passed")
+    from urllib.parse import quote
+    repository=os.environ.get("GITHUB_REPOSITORY","sangkukzoa-ctrl/assets")
+    if repository!="sangkukzoa-ctrl/assets":
+        raise RuntimeError("Refusing owner archive from unexpected GitHub repository")
+    headers={"Authorization":"Bearer "+token,
+             "Accept":"application/vnd.github+json",
+             "X-GitHub-Api-Version":"2022-11-28",
+             "User-Agent":"RGBBlocks-original-source-131-private-CI"}
+    url=("https://api.github.com/repos/"+repository+"/releases/tags/"+quote(tag,safe=""))
+    with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=45) as response:
+        release=json.load(response)
+    if not release.get("draft"):
+        raise RuntimeError("The author-source GitHub Release MUST remain a private DRAFT")
+    files=[asset for asset in release.get("assets",[]) if asset.get("name")==CANONICAL_NAME]
+    if len(files)!=1:
+        raise RuntimeError("Owner source draft release missing exact canonical archive")
+    url="https://api.github.com/repos/"+repository+"/releases/assets/"+str(files[0]["id"])
+    binary_headers={**headers,"Accept":"application/octet-stream"}
+    archive.parent.mkdir(parents=True,exist_ok=True)
+    temp=archive.with_name(archive.name+".partial")
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url,headers=binary_headers),timeout=120) as response:
+            with temp.open("wb") as out:
+                shutil.copyfileobj(response,out)
+        if hash_file(temp)!=EXPECTED_BUNDLE:
+            raise RuntimeError("Private owner source release SHA-256 mismatch; refuse corrupted/stale data")
+        os.replace(temp,archive)
+    finally:
+        temp.unlink(missing_ok=True)
+    print("RGB_OWNER_SOURCE_PRIVATE_GITHUB_DRAFT_VERIFIED",archive,flush=True)
+    return True
+
 def main():
     archive=Path(os.environ.get("RGB_OWNER_SOURCE_COMPLETE",
                  str(HERE/"owner-archives"/CANONICAL_NAME)))
-    if not archive.is_file():
+    if not archive.is_file() and not private_owner_source_release(archive):
         raise SystemExit("RGB BLOCKS AUTHOR SOURCE MISSING: "+str(archive)+
-           ". Supply owner's original source bundle once. Public Modrinth JAR fallback is DISABLED.")
+           ". Provision the author's private draft GitHub Release or pass "
+           "RGB_OWNER_SOURCE_COMPLETE. Public RGB Blocks JAR fallback is DISABLED.")
     if hash_file(archive)!=EXPECTED_BUNDLE:
         raise RuntimeError("Unrecognized author-supplied source archive SHA-256")
     with tempfile.TemporaryDirectory(prefix="rgb-owner-") as d:
