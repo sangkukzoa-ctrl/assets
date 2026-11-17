@@ -41,7 +41,8 @@ PROVEN_NATIVE_COMPAT_OVERLAYS=(
     "client/lighting/RGBRealLightEngine.java",    # live C&B packet and mesh light cache
     "client/lighting/RGBLightEngine.java",
     "client/lighting/RGBRenderInvalidator.java",
-    "client/lighting/RGBSourceIndex.java",
+    # RGBSourceIndex.java is original-author source: old decompiler only
+    # changed formatting, not behavior. Keep owner's original implementation.
     "client/cnb/RGBCnbGeometryBakeDebouncer.java",
     "client/cnb/RGBCnbReloadWakeup.java",
     "client/cnb/RGBCnbMeshIntegrity.java",        # new port-only recovery class
