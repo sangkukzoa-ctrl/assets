@@ -34,6 +34,12 @@ guard_start=code.find("Object currentEntity = isPositionLoaded(pending.pos)")
 guard_end=code.find("RGBRealLightEngine.CnbSource previous = sourceFrom(cache, pending.pos)",guard_start)
 assert guard_start>=0 and guard_end>guard_start
 stale_tile_guard=code[guard_start:guard_end]
+removed_start=code.find("long key = cnbKey(pending.pos);\\n                  // A queued old C&B update")
+removed_end=code.find("// A fast AIR -> C&B replacement",removed_start)
+assert removed_start>=0 and removed_end>removed_start
+removed_tile_guard=code[removed_start:removed_end]
+assert "executeRealCnbRemoval(pending.pos, true)" in removed_tile_guard
+assert "deferShadowRemoval(pending.pos)" in removed_tile_guard
 assert "currentEntity != pending.blockEntity" in stale_tile_guard
 assert "entry.setValue" in stale_tile_guard
 assert "continue;" in stale_tile_guard
@@ -52,6 +58,7 @@ public final class RGBRealLightEngine {
  static Map<Long,CnbSource> CNB_CACHE=new ConcurrentHashMap<>();
  static Map<Long,PendingCnbRefresh> CNB_PENDING=new ConcurrentHashMap<>();
  static Set<Long> STALE_CNB_CLEANUP=ConcurrentHashMap.newKeySet();
+ static Set<Long> DEFERRED_MANUAL_REMOVALS=ConcurrentHashMap.newKeySet();
  static ArrayDeque<Object> ACTIVE_BATCH=new ArrayDeque<>();
  static Map<Long,Tile> WORLD=new HashMap<>();
  static enum EffectiveMode {AUTO, MANUAL_IDLE, MANUAL_BAKING, CATCHING_UP}
@@ -100,6 +107,11 @@ public final class RGBRealLightEngine {
  }
  static Object currentBlockEntity(BlockPos pos){return WORLD.get(pos.asLong());}
  static CnbSource computeCnbSourceFromAccessor(Object tile){return ((Tile)tile).live;}
+ static void deferShadowRemoval(BlockPos pos){DEFERRED_MANUAL_REMOVALS.add(pos.asLong());}
+ static void executeRealCnbRemoval(BlockPos pos,boolean flag){
+   CNB_CACHE.remove(pos.asLong());
+ }
+ static void markClean(BlockPos pos){}
  /* REAL_RECONCILE_METHOD */
  /* REAL_SCHEDULE_METHOD */
  static void flushPendingOnce(){
@@ -107,6 +119,9 @@ public final class RGBRealLightEngine {
    while(iterator.hasNext()){
      Map.Entry<Long,PendingCnbRefresh> entry=iterator.next();
      PendingCnbRefresh pending=entry.getValue();
+     boolean shadow=EFFECTIVE_MODE==EffectiveMode.MANUAL_IDLE ||
+                    EFFECTIVE_MODE==EffectiveMode.MANUAL_BAKING;
+     /* REAL_REMOVED_TILE_GUARD */
      /* REAL_STALE_TILE_GUARD */
      CnbSource actual=computeCnbSourceFromAccessor(pending.blockEntity);
      CNB_CACHE.put(entry.getKey(),actual);
@@ -114,7 +129,8 @@ public final class RGBRealLightEngine {
    }
  }
  static void reset(){
-   CNB_CACHE.clear();CNB_PENDING.clear();STALE_CNB_CLEANUP.clear();WORLD.clear();
+   CNB_CACHE.clear();CNB_PENDING.clear();STALE_CNB_CLEANUP.clear();
+   DEFERRED_MANUAL_REMOVALS.clear();WORLD.clear();
    ACTIVE_BATCH.clear();CNB_RECONCILE_CURSOR=null;CNB_RECONCILE_TICKS=0;
    EFFECTIVE_MODE=EffectiveMode.AUTO;RGBRuntime.auto=true;
  }
@@ -193,14 +209,31 @@ public final class RGBRealLightEngine {
    require(CNB_PENDING.get(key).delayTicks==5,
            "Reconcile overwrote a legitimate in-flight C&B source request");
 
+   // The real pending-packet implementation must NOT resurrect an RGB
+   // emitter when its C&B tile has been deleted and the loaded block is AIR.
+   reset();Tile gone=new Tile(key,red);gone.chiseled=false;
+   WORLD.put(key,gone);CNB_CACHE.put(key,red);
+   CNB_PENDING.put(key,new PendingCnbRefresh(new BlockPos(key),gone,0,16));
+   flushPendingOnce();
+   require(!CNB_CACHE.containsKey(key) && !CNB_PENDING.containsKey(key),
+           "Deleted C&B still has cached RGB light after stale pending packet");
+   reset();gone=new Tile(key,red);gone.chiseled=false;
+   WORLD.put(key,gone);CNB_CACHE.put(key,red);
+   EFFECTIVE_MODE=EffectiveMode.MANUAL_IDLE;RGBRuntime.auto=false;
+   CNB_PENDING.put(key,new PendingCnbRefresh(new BlockPos(key),gone,0,16));
+   flushPendingOnce();
+   require(CNB_CACHE.containsKey(key)&&DEFERRED_MANUAL_REMOVALS.contains(key),
+           "MANUAL stale-air removal must be deferred, not published before Bake");
+
    System.out.println("RGB_PORT_CNB_RGB_AUTO_RECONCILE_REAL_JAVAC_PASS"+
       " blue_to_green=true manual_frozen=true catching_up_safe=true"+
       " old_tile_aba_retargeted=true ghost_air_cleanup=true"+
-      " in_flight_request_preserved=true");
+      " in_flight_request_preserved=true stale_air_packet_rejected=true");
  }
 }'''
 java=java.replace("/* REAL_RECONCILE_METHOD */",reconcile).replace(
     "/* REAL_SCHEDULE_METHOD */",schedule).replace(
+    "/* REAL_REMOVED_TILE_GUARD */",removed_tile_guard).replace(
     "/* REAL_STALE_TILE_GUARD */",stale_tile_guard)
 
 with tempfile.TemporaryDirectory(prefix="rgb-live-reconcile-") as tmp:
