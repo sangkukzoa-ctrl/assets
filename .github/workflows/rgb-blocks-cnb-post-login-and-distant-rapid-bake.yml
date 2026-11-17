@@ -13,6 +13,9 @@ on:
       - 'rgb-blocks-compat/test_mc1201_forge_two_clients.py'
       - 'rgb-blocks-compat/test_mc1211_neoforge_two_clients.py'
       - '.github/workflows/rgb-blocks-cnb-post-login-and-distant-rapid-bake.yml'
+concurrency:
+  group: rgbblocks-remote-bake-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
