@@ -13,7 +13,8 @@ on:
       - 'rgb-blocks-compat/test_source_first_pipeline_static.py'
       - 'rgb-blocks-compat/clone_owner_resources.py'
       - 'rgb-blocks-compat/test_clone_owner_resources.py'
-      - '.github/workflows/rgb-blocks-owner-source-static-offline.yml'
+      - '.github/workflows/rgb-blocks-*.yml'
+      - 'rgb-blocks-compat/test_source_first_workflow_guard.py'
 concurrency:
   group: rgbblocks-owner-source-static-${{ github.ref }}
   cancel-in-progress: true
@@ -38,11 +39,14 @@ jobs:
             rgb-blocks-compat/verify_native_owner_mixin_inventory.py \
             rgb-blocks-compat/test_source_first_pipeline_static.py \
             rgb-blocks-compat/clone_owner_resources.py \
-            rgb-blocks-compat/test_clone_owner_resources.py
+            rgb-blocks-compat/test_clone_owner_resources.py \
+            rgb-blocks-compat/test_source_first_workflow_guard.py
       - name: Execute ORIGINAL-SOURCE-FIRST migration and mixin regression selftest
         run: python3 rgb-blocks-compat/test_source_first_pipeline_static.py
       - name: PROVE converted glass, pack, and Mixin resources never mutate author source
         run: python3 rgb-blocks-compat/test_clone_owner_resources.py
+      - name: Check all 31 legacy build workflows against source-first and bounded CI policy
+        run: python3 rgb-blocks-compat/test_source_first_workflow_guard.py
       - name: Confirm the original RGB Blocks Modrinth source URL is absent from the active build
         run: |
           ! grep -E 'cdn.modrinth.com/data/A48MxLWx|api.modrinth.com/v2/project/A48MxLWx' \
