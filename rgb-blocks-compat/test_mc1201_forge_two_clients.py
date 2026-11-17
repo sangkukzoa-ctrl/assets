@@ -11,6 +11,8 @@ from pathlib import Path
 
 SHADER_ON=os.environ.get("RGB_PORT_SHADER_ON")=="1"  # Optional strict Oculus+Complementary shader test; OFF by default.
 MIXED_CNB_PROBE=os.environ.get("RGB_PORT_TEST_MIXED_CNB")=="1"
+LIVE_CNB_PROBE=os.environ.get("RGB_PORT_TEST_LIVE_CNB")=="1"
+assert not LIVE_CNB_PROBE or MIXED_CNB_PROBE, "Live after-login C&B probe requires original mixed C&B fixture"
 SERVER_RESTART_PROBE=os.environ.get("RGB_PORT_TEST_WORLD_RESTART")=="1"
 DIMENSION_PROBE=os.environ.get("RGB_PORT_TEST_DIMENSIONS")=="1"
 INTEGRATED_PROBE=os.environ.get("RGB_PORT_TEST_INTEGRATED")=="1"
@@ -178,6 +180,10 @@ result.update({"peer_joined":False,"peer_rgb_probe_verified":False,
                "mixed_cnb_server_sculpted":False,
                "mixed_cnb_primary_verified":False,
                "mixed_cnb_peer_verified":False,
+        "live_cnb_requested":LIVE_CNB_PROBE,
+        "live_cnb_server_blue":False,"live_cnb_blue_both":False,
+        "live_cnb_server_green":False,"live_cnb_green_both":False,
+        "live_cnb_server_manual_red":False,"live_cnb_manual_red_both":False,
                "shader_mixed_screenshot":False,
                "server_restart_requested":SERVER_RESTART_PROBE,
                "dedicated_server_restarted":False,
@@ -243,6 +249,8 @@ try:
              "start","forge::1.20.1-47.4.28","--mc-dir",str(GAME.resolve()),
              "-u","RGBPortTester","--join-server","127.0.0.1","--join-server-port","25566","--resolution","1280x720", "--jvm-arg=-Dforge.logging.markers=NETWORK,-Dforge.logging.console.level=debug"]
     launchcmd.append("--jvm-arg=-Xmx1600M")
+    if LIVE_CNB_PROBE:
+        launchcmd.append("--jvm-arg=-Drgbport.ci.liveCnb=true")
     record("LAUNCH "+str(launchcmd))
     client=subprocess.Popen(launchcmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,env=env,text=True,
          start_new_session=True,bufsize=1)
@@ -309,6 +317,24 @@ try:
             "RGB_PORT_CNB_MIXED_PROBE_PASS",peer,145,"peer_true_mixed_bit_states")
         assert result["mixed_cnb_peer_verified"],"Second Forge client could not read all mixed C&B RGB/Glass voxels and emitted light"
 
+
+    if LIVE_CNB_PROBE:
+        # The two real clients are ALREADY ONLINE. Force C&B's real 20.1
+        # TileEntityUpdatedPacket and async load; never fake source refresh.
+        command(server,"setblock 12 121 7 minecraft:gold_block")
+        result["live_cnb_server_blue"]=await_pattern(slog,"RGB_PORT_LIVE_CNB_SERVER_BLUE_PASS",server,65,"live_after_login_cnb_from_full_glow")
+        assert result["live_cnb_server_blue"],"Forge server did not chisel a real BLUE RGB glow block after login"
+        blue_a=await_pattern(clog,"RGB_PORT_LIVE_CNB_BLUE_PASS",client,135,"primary_blue_chisel_light")
+        blue_b=await_pattern(peerlog,"RGB_PORT_LIVE_CNB_BLUE_PASS",peer,135,"peer_blue_chisel_light")
+        result["live_cnb_blue_both"]=blue_a and blue_b
+        assert result["live_cnb_blue_both"],"Forge after-login live C&B BLUE geometry/source emitted no colored light"
+        command(server,"setblock 13 121 7 minecraft:gold_block")
+        result["live_cnb_server_green"]=await_pattern(slog,"RGB_PORT_LIVE_CNB_SERVER_GREEN_PASS",server,65,"live_cnb_green_network_packet")
+        assert result["live_cnb_server_green"],"Forge server did not edit same already-loaded C&B tile"
+        green_a=await_pattern(clog,"RGB_PORT_LIVE_CNB_GREEN_PASS",client,140,"primary_green_chisel_update")
+        green_b=await_pattern(peerlog,"RGB_PORT_LIVE_CNB_GREEN_PASS",peer,140,"peer_green_chisel_update")
+        result["live_cnb_green_both"]=green_a and green_b
+        assert result["live_cnb_green_both"],"Forge after-login C&B chisel change failed actual peer RGB propagation"
     # Server-authoritative RGB modes must reach BOTH simultaneously online users.
     command(server,"rgb manual")
     manual_first=await_pattern(clog,"RGB_PORT_PEER_MANUAL_SYNC_PASS",client,75,"primary_manual_packet")
@@ -404,6 +430,12 @@ try:
     manual_held_peer=await_pattern(peerlog,"RGB_PORT_PEER_MANUAL_DEFER_PASS",peer,95,"peer_manual_deferred")
     result["two_clients_manual_defer_verified"]=manual_held_first and manual_held_peer
     assert result["two_clients_manual_defer_verified"],"MANUAL mode changed stored RGB light before bake on a real client"
+
+    if LIVE_CNB_PROBE:
+        command(server,"setblock 14 121 7 minecraft:gold_block")
+        result["live_cnb_server_manual_red"]=await_pattern(slog,"RGB_PORT_LIVE_CNB_SERVER_MANUAL_RED_PASS",server,65,"third_real_chisel_during_manual")
+        assert result["live_cnb_server_manual_red"],"C&B tile failed third chisel edit in MANUAL"
+        time.sleep(7)
     command(server,"rgb setbake all")
     command(server,"rgb bake")
     manual_bake_first=await_pattern(clog,"RGB_PORT_PEER_MANUAL_BAKE_PASS",client,145,"primary_manual_bake")
@@ -411,6 +443,12 @@ try:
     result["two_clients_manual_bake_verified"]=manual_bake_first and manual_bake_peer
     result["both_clients_alive_after_manual_bake"]=client.poll() is None and peer.poll() is None
     assert result["two_clients_manual_bake_verified"],"Manual /rgb bake did not replay RGB light on both clients"
+    if LIVE_CNB_PROBE:
+        ma=await_pattern(clog,"RGB_PORT_LIVE_CNB_MANUAL_RED_BAKE_PASS",client,145,"primary_manual_CNB_red_light")
+        mb=await_pattern(peerlog,"RGB_PORT_LIVE_CNB_MANUAL_RED_BAKE_PASS",peer,145,"peer_manual_CNB_red_light")
+        result["live_cnb_manual_red_both"]=ma and mb
+        assert result["live_cnb_manual_red_both"],"Forge MANUAL baked edited C&B tile still emits no actual RGB light"
+
     assert result["both_clients_alive_after_manual_bake"],"Client exited during manual dirty-position bake"
     # After the actual MANUAL bake, return to AUTO and exercise a FULL
     # offline→reconnect cycle for the same production peer installation.
