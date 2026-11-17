@@ -113,7 +113,7 @@ def change(a,b):
   s=s.replace(a,b,1)
 change("private static int tickCallbackCount = 0;",'''private static int tickCallbackCount = 0;
 private static boolean liveBluePassed = false;
-private static boolean liveGreenPassed = false;
+private static boolean liveCnbGreenPassed = false;
 private static boolean liveManualRedPassed = false;''')
 needle="if (passed && cnbPassed && "
 i=s.index(needle); end=s.index(") return;",i)
@@ -151,15 +151,15 @@ logic=r'''
            System.out.println("RGB_PORT_LIVE_CNB_BLUE_PASS counts="+java.util.Arrays.toString(materialCounts)
              +" source="+source+" adjacent="+illumination);
        }
-       if(liveBluePassed && !liveGreenPassed && materialCounts[1]==4095 && source.active()
+       if(liveBluePassed && !liveCnbGreenPassed && materialCounts[1]==4095 && source.active()
              && source.g()>source.r() && source.g()>source.b()
              && illumination.active() && illumination.g()>illumination.r()
              && illumination.g()>illumination.b()){
-           liveGreenPassed=true;
+           liveCnbGreenPassed=true;
            System.out.println("RGB_PORT_LIVE_CNB_GREEN_PASS counts="+java.util.Arrays.toString(materialCounts)
              +" source="+source+" adjacent="+illumination);
        }
-       if(liveGreenPassed && !liveManualRedPassed && materialCounts[2]==4095
+       if(liveCnbGreenPassed && !liveManualRedPassed && materialCounts[2]==4095
             && source.active() && source.r()>source.g() && source.r()>source.b()
             && illumination.active() && illumination.r()>illumination.g()
             && illumination.r()>illumination.b()){
@@ -169,7 +169,7 @@ logic=r'''
        } else if(ticks%120==0) {
           System.out.println("RGB_PORT_LIVE_CNB_WAIT counts="+java.util.Arrays.toString(materialCounts)
             +" source="+source+" adjacent="+illumination+" blue="+liveBluePassed
-            +" green="+liveGreenPassed+" redBake="+liveManualRedPassed);
+            +" green="+liveCnbGreenPassed+" redBake="+liveManualRedPassed);
        }
      }
    }catch(Throwable err){if(ticks%120==0)System.out.println("RGB_PORT_LIVE_CNB_PROBE_ERROR "+err);}
