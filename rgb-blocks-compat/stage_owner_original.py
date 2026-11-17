@@ -30,6 +30,36 @@ def write_file(root,relative,data):
     path.parent.mkdir(parents=True,exist_ok=True)
     path.write_bytes(data)
 
+# Stable hashes of high-impact original files from the user-provided
+# archives. A previously written provenance JSON alone is NOT a valid cache.
+SOURCE_SENTINELS={
+    "fabric/com/rgbblocks/runtime/RGBRuntime.java":"06906da29ece71a9b4d80ee256b216a72f9cd3067e573e2f7586a0d1b3eff40c",
+    "fabric/com/rgbblocks/client/lighting/RGBRealLightEngine.java":"65415885e0ba47617cc505f69e10733cbe8e353f60ec5fc0c8113b5327bb537d",
+    "neoforge/com/rgbblocks/RgbBlocksMod.java":"ae258c25762366a2b5701e7d6689ce2873f50a80904ac82afb24455fd080ec17",
+    "fabric/resources/rgbblocks.mixins.json":"d4b9458c82c81ae034be51fba7469b4caf25aeb875c91b47465c954e3c2aecc8",
+    "fabric/resources/rgbblocks.client.mixins.json":"8f5a2e90836cce588e4fe1ffe4c703414ec0ae12fe80f6128413c0cf50664b8e",
+    "fabric/resources/fabric.mod.json":"cd2df4c3bffc0b59c08c676d70e46c4e105ad0fc63f2497b8eadd35d3cc6c073",
+    "neoforge/resources/rgbblocks.mixins.json":"e941bbf54eb1772263ee2a00ddfc6a8dc6645f0a01c19d406bbecdce45ea9ebd",
+}
+RESOURCE_SENTINELS={
+    "shared/resources/assets/rgbblocks/palette.json":"e94c52deb1cf167c9633ae7477bc8e3e91e112531805175427dba8013c241dde",
+    "shared/resources/assets/rgbblocks/lang/en_us.json":"99195086f03946134829b8d54e35a96952edf19c2f64953c50fea968f02390b3",
+}
+def verified_stage_cache(code_only):
+    """Provenance + exact source hashes + file counts, never JSON trust alone."""
+    for relative,digest in SOURCE_SENTINELS.items():
+        actual=OUT/relative
+        if not actual.is_file() or hash_file(actual)!=digest:return False
+    if sum(p.is_file() for p in (OUT/"fabric/com").rglob("*.java"))!=32:return False
+    if sum(p.is_file() for p in (OUT/"neoforge/com").rglob("*.java"))!=31:return False
+    if not code_only:
+        for relative,digest in RESOURCE_SENTINELS.items():
+            actual=OUT/relative
+            if not actual.is_file() or hash_file(actual)!=digest:return False
+        if sum(p.is_file() for p in (OUT/"shared/resources").rglob("*"))!=233627:
+            return False
+    return True
+
 def stage(fabric,neo_core,code_only=False):
     if hash_file(fabric)!=EXPECTED_FABRIC:
         raise RuntimeError("Wrong owner Fabric 1.3.1 source TAR fingerprint")
@@ -46,7 +76,8 @@ def stage(fabric,neo_core,code_only=False):
         if (all(existing.get(k)==v for k,v in wanted.items())
             and existing.get("fabric_java")==32 and existing.get("neo_java")==31
             and existing.get("resources")==233629
-            and (code_only or existing.get("resources_extracted"))):
+            and (code_only or existing.get("resources_extracted"))
+            and verified_stage_cache(code_only)):
             print("RGB_PORT_ORIGINAL_OWNER_SOURCE_CACHE_HIT",str(provenance),flush=True)
             return
     marker=OUT/".source-stage-in-progress.json"
@@ -62,7 +93,9 @@ def stage(fabric,neo_core,code_only=False):
         target=root/rel
         # The original archive SHA was validated and the marker binds this
         # interrupted tree to these EXACT two original author archives.
-        if target.is_file() and target.stat().st_size==len(data):
+        # Same-length corruption is real (including interrupted writes);
+        # compare original bytes, never merely the length.
+        if target.is_file() and target.stat().st_size==len(data) and target.read_bytes()==data:
             reused+=1
         else:
             write_file(root,rel,data)
@@ -103,6 +136,8 @@ def stage(fabric,neo_core,code_only=False):
     if (stat["fabric_java"],stat["neo_java"],stat["resources"])!=(32,31,233629):
         raise RuntimeError("Owner source inventory mismatch "+str(stat))
     stat["reused_existing_files"]=reused
+    if not verified_stage_cache(code_only):
+        raise RuntimeError("Author-original staged file bytes or inventory failed integrity gate")
     # Write only on COMPLETE extraction. An interrupted job retains its
     # marker and resumes missing assets without discarding previous work.
     (OUT/"source-provenance.json").write_text(json.dumps(stat,indent=2),encoding="utf-8")
