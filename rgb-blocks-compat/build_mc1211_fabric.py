@@ -581,6 +581,12 @@ for entry in manifest.get("mixins",[]):
     if file.is_file():
         cfg=json.loads(file.read_text(encoding="utf-8"))
         cfg["compatibilityLevel"]="JAVA_21"
+        # Owner Fabric has TWO distinct configs. Client-only callbacks are
+        # registered only in rgbblocks.client.mixins.json; inserting them
+        # into rgbblocks.mixins.json duplicates injections on the client.
+        if config!="rgbblocks.client.mixins.json":
+            file.write_text(json.dumps(cfg,indent=2),encoding="utf-8")
+            continue
         cfg.setdefault("client",[])
         if "client.LevelBlockEntityAttachedMixin" not in cfg["client"]:
             cfg["client"].append("client.LevelBlockEntityAttachedMixin")
@@ -632,5 +638,4 @@ tasks.withType(JavaCompile).configureEach { options.release=21; options.encoding
 tasks.withType(Zip).configureEach { zip64=true }
 java { sourceCompatibility=JavaVersion.VERSION_21; targetCompatibility=JavaVersion.VERSION_21 }
 """)
-jpath.unlink()
 print("STAGED",len(list(CODE.rglob("*.java"))),"Java files; resource files",len(list(RES.rglob("*"))),flush=True)
