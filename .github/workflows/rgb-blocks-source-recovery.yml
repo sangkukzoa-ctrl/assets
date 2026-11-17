@@ -1,13 +1,14 @@
-name: RGB Blocks owner-code recovery for legacy port
+name: RGB Blocks author-original source inventory validation
 on:
   push:
     branches: [rgb-blocks-legacy-compat-audit]
     paths:
       - 'rgb-blocks-compat/recover_author_sources.py'
+      - 'rgb-blocks-compat/stage_owner_original.py'
       - '.github/workflows/rgb-blocks-source-recovery.yml'
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 jobs:
   recover:
     runs-on: ubuntu-latest
@@ -21,20 +22,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Recover reference Java from author's published 1.3.1 binaries
+      - name: Validate exact owner-supplied Java source inventory (no public RGB downloads)
         run: python3 rgb-blocks-compat/recover_author_sources.py
-      - name: Commit small Java reference sources only (not assets or jars)
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add rgb-blocks-compat/recovered/
-          if ! git diff --cached --quiet; then
-            git commit -m "Recover RGB 1.3.1 Java API reference from owner-published releases"
-            git push origin HEAD:rgb-blocks-legacy-compat-audit
-          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rgb-131-author-jar-java-recovery
-          path: rgb-blocks-compat/recovered/
+          name: rgb-131-original-owner-source-verification
+          path: rgb-blocks-compat/owner-source/source-provenance.json
           retention-days: 30
