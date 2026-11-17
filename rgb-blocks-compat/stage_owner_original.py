@@ -46,7 +46,11 @@ def stage(fabric,neo_core,code_only=False):
         for member in tf:
             if not member.isfile():continue
             name=member.name
-            if "/src/main/resources/" in name:
+            if "/src/client/resources/" in name:
+                rel=name.split("/src/client/resources/",1)[1]
+                if not code_only:
+                    write_file(OUT/"fabric/resources",rel,tf.extractfile(member).read())
+            elif "/src/main/resources/" in name:
                 rel=name.split("/src/main/resources/",1)[1]
                 stat["resources"]+=1
                 if not code_only:
