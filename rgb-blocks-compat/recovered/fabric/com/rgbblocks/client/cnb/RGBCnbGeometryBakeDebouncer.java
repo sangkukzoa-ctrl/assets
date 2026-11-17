@@ -80,7 +80,7 @@ public final class RGBCnbGeometryBakeDebouncer {
             long previousRequest = entry.lastRequestMillis;
             long previousAllowed = entry.lastAllowedBakeMillis;
             entry.lastRequestMillis = now;
-            long requestSerial = ++entry.requestSerial;
+            long requestSerial = entry.requestSerial.incrementAndGet();
             if (previousRequest == 0L || now - previousRequest > 70L) {
                entry.lastAllowedBakeMillis = now;
                return false;
@@ -117,7 +117,7 @@ public final class RGBCnbGeometryBakeDebouncer {
             return;
          }
          client.execute(() -> {
-            if (epoch != WORLD_EPOCH.get() || entry.requestSerial != serial) {
+            if (epoch != WORLD_EPOCH.get() || entry.requestSerial.get() != serial) {
                return;
             }
             Level level = expectedWorld.get();
@@ -192,7 +192,7 @@ public final class RGBCnbGeometryBakeDebouncer {
    }
 
    private static final class Entry {
-      private volatile long requestSerial;
+      private final AtomicLong requestSerial = new AtomicLong();
       private volatile long lastPayloadMillis;
       private volatile long lastRequestMillis;
       private volatile long lastAllowedBakeMillis;
