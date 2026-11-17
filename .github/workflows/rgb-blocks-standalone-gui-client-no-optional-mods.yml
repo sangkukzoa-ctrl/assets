@@ -1,0 +1,81 @@
+name: RGB Blocks genuine standalone GUI CLIENT + server no C&B or rendering mods
+on:
+  workflow_dispatch:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths:
+      - '.github/workflows/rgb-blocks-standalone-gui-client-no-optional-mods.yml'
+      - 'rgb-blocks-compat/test_mc1211_neoforge_inworld.py'
+      - 'rgb-blocks-compat/test_mc1201_forge_inworld.py'
+permissions:
+  contents: read
+jobs:
+  neo-client-no-mods:
+    name: NeoForge 1.21.1 real GUI and server ONLY RGB Blocks
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preflight client script
+        run: python3 -m py_compile rgb-blocks-compat/test_mc1211_neoforge_inworld.py rgb-blocks-compat/inject_ci_only_light_probe.py
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '21'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.10.2'}
+      - name: Install real graphical Minecraft dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb scrot mesa-utils libgl1-mesa-dri libgl1 libasound2t64 libxrandr2 libxcursor1 libxinerama1 libxi6
+      - name: Generate real NeoForge port and CI-only RGB light measurement
+        run: |
+          python3 rgb-blocks-compat/build_mc1211_fabric.py
+          python3 rgb-blocks-compat/build_mc1211_neoforge.py
+          python3 rgb-blocks-compat/inject_ci_only_light_probe.py neoforge1211
+      - name: Build mod JAR with CI-only light source color assertions
+        working-directory: port-work/mc1211-neoforge
+        run: gradle --no-daemon build
+      - name: Real CLIENT and SERVER join, RGB light, screenshots with ZERO optional mods
+        env:
+          RGB_PORT_STANDALONE_NO_CNB: '1'
+          RGB_PORT_STRICT_LIGHT_PROBE: '1'
+        run: python3 rgb-blocks-compat/test_mc1211_neoforge_inworld.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgb-standalone-no-cnb-neoforge-REAL-CLIENT-evidence
+          path: mc1211-neoforge-inworld/evidence/
+          retention-days: 30
+  forge-client-no-mods:
+    name: Forge 1.20.1 real GUI and server ONLY RGB Blocks
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preflight client script
+        run: python3 -m py_compile rgb-blocks-compat/test_mc1201_forge_inworld.py rgb-blocks-compat/inject_ci_only_light_probe.py
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.8'}
+      - name: Install real graphical Minecraft dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb scrot mesa-utils libgl1-mesa-dri libgl1 libasound2t64 libxrandr2 libxcursor1 libxinerama1 libxi6
+      - name: Generate real Forge port and CI-only RGB light measurement
+        run: |
+          python3 rgb-blocks-compat/build_mc1211_fabric.py
+          python3 rgb-blocks-compat/build_mc1201_forge.py
+          python3 rgb-blocks-compat/inject_ci_only_light_probe.py forge1201
+      - name: Build mod JAR with CI-only light source color assertions
+        working-directory: port-work/mc1201-forge
+        run: gradle --no-daemon build
+      - name: Real CLIENT and SERVER join, RGB light, screenshots with ZERO optional mods
+        env:
+          RGB_PORT_STANDALONE_NO_CNB: '1'
+        run: python3 rgb-blocks-compat/test_mc1201_forge_inworld.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgb-standalone-no-cnb-forge-REAL-CLIENT-evidence
+          path: mc1201-forge-inworld/evidence/
+          retention-days: 30
