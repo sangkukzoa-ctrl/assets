@@ -15,6 +15,8 @@ on:
       - 'rgb-blocks-compat/test_clone_owner_resources.py'
       - '.github/workflows/rgb-blocks-*.yml'
       - 'rgb-blocks-compat/test_source_first_workflow_guard.py'
+      - 'rgb-blocks-compat/test_cnb_mesh_oracle_javac.py'
+      - 'rgb-blocks-compat/recovered/fabric/com/rgbblocks/client/cnb/RGBCnbMeshIntegrity.java'
 concurrency:
   group: rgbblocks-owner-source-static-${{ github.ref }}
   cancel-in-progress: true
@@ -28,6 +30,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '21'}
       - name: Compile every owner source staging, migration and test script
         run: |
           python3 -m py_compile \
@@ -40,13 +44,16 @@ jobs:
             rgb-blocks-compat/test_source_first_pipeline_static.py \
             rgb-blocks-compat/clone_owner_resources.py \
             rgb-blocks-compat/test_clone_owner_resources.py \
-            rgb-blocks-compat/test_source_first_workflow_guard.py
+            rgb-blocks-compat/test_source_first_workflow_guard.py \
+            rgb-blocks-compat/test_cnb_mesh_oracle_javac.py
       - name: Execute ORIGINAL-SOURCE-FIRST migration and mixin regression selftest
         run: python3 rgb-blocks-compat/test_source_first_pipeline_static.py
       - name: PROVE converted glass, pack, and Mixin resources never mutate author source
         run: python3 rgb-blocks-compat/test_clone_owner_resources.py
       - name: Check all 31 legacy build workflows against source-first and bounded CI policy
         run: python3 rgb-blocks-compat/test_source_first_workflow_guard.py
+      - name: Run actual production C&B voxel AIR/nonAIR, Forge and Neo Java reflection
+        run: python3 rgb-blocks-compat/test_cnb_mesh_oracle_javac.py
       - name: Confirm the original RGB Blocks Modrinth source URL is absent from the active build
         run: |
           ! grep -E 'cdn.modrinth.com/data/A48MxLWx|api.modrinth.com/v2/project/A48MxLWx' \
