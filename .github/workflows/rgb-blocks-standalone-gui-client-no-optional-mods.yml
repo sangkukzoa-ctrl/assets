@@ -11,7 +11,7 @@ permissions:
   contents: read
 jobs:
   neo-client-no-mods:
-    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
+    if: github.event_name == 'workflow_dispatch' || (vars.RGB_OWNER_SOURCE_READY == 'true' && vars.RGB_FULL_MATRIX == 'true')
     name: NeoForge 1.21.1 real GUI and server ONLY RGB Blocks
     runs-on: ubuntu-latest
     timeout-minutes: 75
@@ -49,7 +49,7 @@ jobs:
           path: mc1211-neoforge-inworld/evidence/
           retention-days: 30
   forge-client-no-mods:
-    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
+    if: github.event_name == 'workflow_dispatch' || (vars.RGB_OWNER_SOURCE_READY == 'true' && vars.RGB_FULL_MATRIX == 'true')
     name: Forge 1.20.1 real GUI and server ONLY RGB Blocks
     runs-on: ubuntu-latest
     timeout-minutes: 75

@@ -14,7 +14,7 @@ permissions:
   contents: read
 jobs:
   no-cnb-neoforge1211:
-    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
+    if: github.event_name == 'workflow_dispatch' || (vars.RGB_OWNER_SOURCE_READY == 'true' && vars.RGB_FULL_MATRIX == 'true')
     name: Actual NeoForge server ONE RGB JAR only, all RGB blocks and persistent commands
     runs-on: ubuntu-latest
     timeout-minutes: 70
@@ -50,7 +50,7 @@ jobs:
             mc1211-neoforge-runtime/result.json
           retention-days: 30
   no-cnb-forge1201:
-    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
+    if: github.event_name == 'workflow_dispatch' || (vars.RGB_OWNER_SOURCE_READY == 'true' && vars.RGB_FULL_MATRIX == 'true')
     name: Actual Forge server ONE RGB JAR only, all RGB blocks and persistent commands
     runs-on: ubuntu-latest
     timeout-minutes: 70
