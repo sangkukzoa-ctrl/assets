@@ -404,6 +404,24 @@ try:
             0,peer,150,"chaos_restarted_peer_actual_CNB_mesh_and_light"),(
             "Restarted peer lost real 4095-bit C&B geometry or RGB light")
         result["chaos"]["peer_process_restarted_and_verified"]=True
+        # The opposite of ghost geometry: delete the last glow sculpture after
+        # rapid edits/relogin and insist that its RGB light vanishes on BOTH
+        # independent clients, not merely that the tile became air on server.
+        cmd(server,"tp RGBPortTester 161.5 120 0.5 facing 166.5 121.5 7.5")
+        cmd(server,"rgb auto")
+        cmd(server,"setblock 166 121 7 minecraft:air")
+        cmd(server,"rgb setbake all")
+        cmd(server,"rgb bake")
+        before_primary_ghost=len(clog);before_peer_ghost=len(peerlog)
+        cmd(server,"setblock 166 120 17 minecraft:gold_block")
+        assert await_new_line(clog,"RGB_PORT_CHAOS_NO_GHOST_LIGHT_PASS",
+               before_primary_ghost,client,140,"chaos_primary_removed_glow_no_ghost"),(
+               "CHAOS: primary RGB source remained after actual C&B deletion")
+        assert await_new_line(peerlog,"RGB_PORT_CHAOS_NO_GHOST_LIGHT_PASS",
+               before_peer_ghost,peer,140,"chaos_restarted_peer_removed_glow_no_ghost"),(
+               "CHAOS: restarted peer RGB light survived after C&B removal")
+        result["chaos"]["zero_ghost_rgb_both_clients"]=True
+        cmd(server,"tp RGBPortTester -1.5 120 0.5 facing 0.5 121.5 7.5")
         cmd(server,"tp RGBPortPeer 1.5 120 0.5 facing 0.5 121.5 7.5")
 
     if LIVE_CNB_PROBE:
