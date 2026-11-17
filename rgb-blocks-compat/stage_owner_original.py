@@ -59,7 +59,7 @@ def owner_java_tree_hash(loader):
     h=hashlib.sha256()
     for file in files:
         relative=file.relative_to(root).as_posix()
-        h.update((relative+"\\t"+hash_file(file)+"\\n").encode("utf-8"))
+        h.update((relative+"\t"+hash_file(file)+"\n").encode("utf-8"))
     return len(files),h.hexdigest()
 
 def verified_stage_cache(code_only):
