@@ -112,7 +112,7 @@ def cycle(label, commands):
     result = {
         "phase": label, "started": ready, "exit_code": process.returncode,
         "palette_16687": "16687" in log, "rgb_command_response": "RGB mode:" in log,
-        "cnb_loaded": ("chiselsandbits" in log.lower() or "chisels-and-bits" in log.lower()),
+        "cnb_loaded": any(("chiselsandbits" in p.name.lower() or "chisels-and-bits" in p.name.lower()) for p in MODS.glob("*.jar")),
         "fatal_patterns": fatal, "world_created": (ROOT / "world").exists(),
         "log": label + ".log"
     }
