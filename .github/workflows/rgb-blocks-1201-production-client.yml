@@ -12,7 +12,7 @@ permissions:
   contents: read
 jobs:
   client:
-    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
+    if: github.event_name == 'workflow_dispatch' || (vars.RGB_OWNER_SOURCE_READY == 'true' && vars.RGB_FULL_MATRIX == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 58
     steps:
