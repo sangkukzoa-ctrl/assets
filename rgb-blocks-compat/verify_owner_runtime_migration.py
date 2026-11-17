@@ -51,7 +51,7 @@ def record_body(source, record):
     The owner's source and ported source need not use the same whitespace
     before the NEXT Java class, but the actual codec body must be identical.
     """
-    found=re.search(r"\\bpublic\\s+record\\s+"+re.escape(record)+r"\\s*\\(",source)
+    found=re.search(r"\bpublic\s+record\s+"+re.escape(record)+r"\s*\(",source)
     if not found:
         raise AssertionError("Missing author-original packet "+record)
     opening=source.find("{",found.end())
