@@ -26,6 +26,27 @@ assert 'fabric_client_mixin.unlink()' in neo
 assert "target.read_bytes()==data" in stage
 assert "verified_stage_cache(code_only)" in stage
 assert "RGB_OWNER_SOURCE_COMPLETE" in stage
+owner_asset_lock=json.loads((HERE/"owner-resource-sentinels.json").read_text("utf-8"))
+assert owner_asset_lock["source_archive_sha256"]==(
+    "ae5fffb7b37d7376f4e579491af878b7ed74fbe386b8691751e6d1c538bcb39c")
+assert len(owner_asset_lock["samples"])==42
+assert all(len(digest)==64 and all(c in "0123456789abcdef" for c in digest)
+           for digest in owner_asset_lock["samples"].values())
+for family in ("blockstates/","models/block/","models/item/","items/","textures/block/"):
+    assert sum(family in p for p in owner_asset_lock["samples"])==8, family
+assert "def owner_java_tree_hash(loader):" in stage
+assert "if not verify_owner_resource_samples():" in stage
+ast_fabric=ast.parse(fabric)
+overlay_nodes=[x.value for x in ast_fabric.body if isinstance(x,ast.Assign)
+               and any(isinstance(t,ast.Name) and t.id=="PROVEN_NATIVE_COMPAT_OVERLAYS"
+                       for t in x.targets)]
+assert len(overlay_nodes)==1
+overlays=ast.literal_eval(overlay_nodes[0])
+assert len(overlays)==8 and len(set(overlays))==8
+assert "client/lighting/RGBSourceIndex.java" not in overlays
+assert "client/cnb/RGBCnbReloadWakeup.java" not in overlays
+assert "client/lighting/RGBLightPersistence.java" in overlays
+assert "client/lighting/RGBRealLightEngine.java" in overlays
 for loader,script in (("Fabric",fabric),("Forge",forge),("NeoForge",neo)):
     assert "from clone_owner_resources import clone_resources" in script, (
         loader+" must stage immutable assets with copy-on-write-safe clones")
@@ -73,4 +94,7 @@ print("RGB_SOURCE_FIRST_OFFLINE_STATIC_PASS",json.dumps({
     "state_and_bake_packet_records_retained":2,
     "native_mixin_sources_merged":True,
     "source_resume_byte_check":True,
+    "source_java_sha256_locked":63,
+    "source_asset_sha256_sentinels":42,
+    "original_java_overlays_remaining":8,
     "test_type":"static_not_game"}),flush=True)
