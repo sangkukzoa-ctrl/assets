@@ -12,9 +12,11 @@ RES=WORK/"src/main/resources"
 # Fabric 1.3.1 source, not a Modrinth-distributed JAR or decompilation.
 ORIGINAL=HERE/"owner-source"
 FROM=ORIGINAL/"fabric"
+if not (ORIGINAL/"source-provenance.json").is_file():
+    import subprocess
+    subprocess.run([sys.executable,str(HERE/"stage_owner_original.py")],check=True)
 assert (ORIGINAL/"source-provenance.json").is_file(), (
-    "Stage the ORIGINAL author sources with stage_owner_original.py first. "
-    "Public Modrinth/JAR fallback is intentionally disabled.")
+    "Original owner's RGB 1.3.1 source must be present; public JAR fallback disabled.")
 provenance=json.loads((ORIGINAL/"source-provenance.json").read_text(encoding="utf-8"))
 assert provenance.get("fabric_java")==32 and provenance.get("neo_java")==31
 assert provenance.get("resources_extracted"), (
