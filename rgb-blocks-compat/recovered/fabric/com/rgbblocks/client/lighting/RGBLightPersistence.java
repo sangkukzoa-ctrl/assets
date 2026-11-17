@@ -54,6 +54,11 @@ final class RGBLightPersistence {
             if (!worldId.equals(loadedWorldId) || !dimension.equals(loadedDimension)) {
                boolean switchingLoadedContext = !loadedWorldId.isBlank() || !loadedDimension.isBlank();
                if (switchingLoadedContext) {
+                  // Persist the departing dimension BEFORE replacing its
+                  // colored-light sections, C&B bit-source cache and index.
+                  // Without this, Nether -> Overworld loses the Nether
+                  // snapshot even though live per-channel lighting works.
+                  saveCurrentBlocking();
                   RGBRealLightEngine.prepareForPersistenceDimensionSwitch();
                }
 
