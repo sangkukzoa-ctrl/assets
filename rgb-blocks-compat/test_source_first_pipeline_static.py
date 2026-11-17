@@ -26,6 +26,10 @@ assert 'fabric_client_mixin.unlink()' in neo
 assert "target.read_bytes()==data" in stage
 assert "verified_stage_cache(code_only)" in stage
 assert "RGB_OWNER_SOURCE_COMPLETE" in stage
+for loader,script in (("Fabric",fabric),("Forge",forge),("NeoForge",neo)):
+    assert "from clone_owner_resources import clone_resources" in script, (
+        loader+" must stage immutable assets with copy-on-write-safe clones")
+    assert "clone_resources(" in script
 
 # Execute the production Java SavedData migrator, isolated from its top-level
 # filesystem side effects, on a tiny synthetic Java source with ORIGINAL order.
