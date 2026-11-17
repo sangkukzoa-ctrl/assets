@@ -1247,6 +1247,9 @@ public final class RGBRealLightEngine {
    }
 
    static void restorePersistedCnbSources(List<RGBLightPersistence.PersistedCnbSource> sources) {
+      // Recheck all newly restored sources in THIS dimension on next AUTO pass.
+      CNB_RECONCILE_CURSOR = null;
+      CNB_RECONCILE_TICKS = 0;
       CNB_CACHE.clear();
       CNB_EMPTY_STRIKES.clear();
       CNB_WEAK_STRIKES.clear();
@@ -1319,6 +1322,9 @@ public final class RGBRealLightEngine {
 
    static void prepareForPersistenceDimensionSwitch() {
       cancelActiveBatch();
+      // Never continue a previous dimension's weak cache iterator.
+      CNB_RECONCILE_CURSOR = null;
+      CNB_RECONCILE_TICKS = 0;
       CNB_PENDING.clear();
       CNB_REMOVE_PENDING.clear();
       CNB_CACHE.clear();
