@@ -12,6 +12,8 @@ from pathlib import Path
 STRICT_LIGHT_PROBE=os.environ.get("RGB_PORT_STRICT_LIGHT_PROBE")=="1"
 MIXED_CNB_PROBE=os.environ.get("RGB_PORT_TEST_MIXED_CNB")=="1"
 SERVER_RESTART_PROBE=os.environ.get("RGB_PORT_TEST_WORLD_RESTART")=="1"
+DIMENSION_PROBE=os.environ.get("RGB_PORT_TEST_DIMENSIONS")=="1"
+assert not DIMENSION_PROBE or MIXED_CNB_PROBE, "Dimension test requires genuine mixed C&B source"
 assert not SERVER_RESTART_PROBE or MIXED_CNB_PROBE, "World restart proof requires saved mixed C&B voxel fixture"
 SHADER_ON=os.environ.get("RGB_PORT_SHADER_ON")=="1"
 ROOT=Path("mc1211-neoforge-two-clients"); SERVER=ROOT/"server";GAME=ROOT/"client";PEER=ROOT/"peer";EVIDENCE=ROOT/"evidence"
@@ -153,7 +155,13 @@ result={"minecraft":"1.21.1","loader":"NeoForge 21.1.265","scope":"Strict CI-onl
         "world_restart_mixed_client_bits":False,
         "world_restart_same_uuid":False,
         "primary_loader_retry_used":False,
-        "primary_loader_retry_recovered":False}
+        "primary_loader_retry_recovered":False,
+        "dimension_requested":DIMENSION_PROBE,
+        "dimension_nether_entered":False,
+        "dimension_nether_blue_verified":False,
+        "dimension_overworld_restored":False,
+        "dimension_nether_reentered":False,
+        "dimension_distinct_snapshots":False}
 try:
     result["server_ready"]=await_line(slog,"Done (",server,180)
     if not result["server_ready"]:raise AssertionError("NeoForge server failed to become ready")
@@ -366,6 +374,8 @@ try:
     if previous.is_file():shutil.copy2(previous,EVIDENCE/"minecraft-peer-pre-reconnect.log")
     before_rejoin=len(slog)
     reconnect_cmd=list(peer_cmd)+["--jvm-arg=-Drgbport.ci.reconnect=true"]
+    if DIMENSION_PROBE:
+        reconnect_cmd.append("--jvm-arg=-Drgbport.ci.dimension=true")
     info("NEO_RESTART_PEER_SAME_DIRECTORY "+str(reconnect_cmd))
     peer=subprocess.Popen(reconnect_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
                           text=True,bufsize=1,env=peer_env,start_new_session=True)
@@ -394,6 +404,56 @@ try:
     result["peer_chunk_returned"]=await_line(peerlog,"RGB_PORT_NEO_CHUNK_RETURN_PASS",peer,150)
     assert result["peer_chunk_returned"],"NeoForge returned chunk without restoring full and C&B colored light"
     assert peer.poll() is None and client.poll() is None,"NeoForge real peer exited during chunk restore"
+    if DIMENSION_PROBE:
+        # Take the ACTUAL reconnected second player through Nether -> Overworld
+        # -> Nether. Blue light is produced by a real blue RGB source in Nether
+        # while separate GREEN full-block + RED/mixed C&B sources stay Overworld.
+        cmd(server,"gamemode creative RGBPortPeer")
+        before_nether=len(peerlog)
+        cmd(server,"execute in minecraft:the_nether run tp RGBPortPeer 0.5 200.0 0.5")
+        result["dimension_nether_entered"]=await_new_line(peerlog,
+            "RGB_PORT_DIM_NETHER_ENTER_PASS",before_nether,peer,145,
+            "actual_nether_level_entered")
+        assert result["dimension_nether_entered"],"Peer never entered actual Nether client dimension"
+        cmd(server,"execute in minecraft:the_nether run fill -5 199 -3 5 199 12 minecraft:stone")
+        cmd(server,"execute in minecraft:the_nether run setblock 0 202 7 rgbblocks:rgb_blue_8_85_209_glow")
+        cmd(server,"execute in minecraft:the_nether if block 0 202 7 rgbblocks:rgb_blue_8_85_209_glow run say RGB_PORT_DIM_NETHER_BLUE_BLOCK_READY")
+        assert await_line(slog,"RGB_PORT_DIM_NETHER_BLUE_BLOCK_READY",server,45), (
+           "RGB Blue source block did not exist in real Nether world")
+        result["dimension_nether_blue_verified"]=await_line(peerlog,
+            "RGB_PORT_DIM_NETHER_BLUE_PASS",peer,145)
+        assert result["dimension_nether_blue_verified"], (
+            "Nether RGB Blue source emitted no actual blue-dominant neighboring per-channel light")
+        cmd(server,"execute in minecraft:overworld run tp RGBPortPeer 1.5 120.0 0.5")
+        result["dimension_overworld_restored"]=await_line(peerlog,
+            "RGB_PORT_DIM_OVERWORLD_RETURN_PASS",peer,145)
+        assert result["dimension_overworld_restored"], (
+            "Returning from real Nether lost original Overworld GREEN + RED/mixed C&B light")
+        # A single-world dimension switch must not conflate the lightmap
+        # files: one .rgl.gz snapshot for each saved Minecraft dimension.
+        deadline=time.monotonic()+60
+        snap_files=[]
+        while time.monotonic()<deadline:
+            snap_files=sorted((PEER/"rgbblocks"/"lightmaps").rglob("*.rgl.gz"))
+            if len(snap_files)>=2 and all(p.stat().st_size>100 for p in snap_files):break
+            time.sleep(1)
+        result["dimension_distinct_snapshots"]=len(snap_files)>=2 and all(
+            f.stat().st_size>100 for f in snap_files)
+        info("NEO_RGB_DIMENSION_SEPARATE_SNAPSHOTS "+json.dumps([
+            {"name":p.name,"size":p.stat().st_size} for p in snap_files]))
+        assert result["dimension_distinct_snapshots"], (
+           "World/dimension RGB light maps were conflated or Nether snapshot never saved")
+        before_reentry=len(peerlog)
+        cmd(server,"execute in minecraft:the_nether run tp RGBPortPeer 0.5 200.0 0.5")
+        result["dimension_nether_reentered"]=await_new_line(peerlog,
+            "RGB_PORT_DIM_NETHER_REENTRY_PASS",before_reentry,peer,155,
+            "real_blue_source_restored_after_world_switch")
+        assert result["dimension_nether_reentered"],"Reentered Nether chunk lost BLUE RGB per-channel source"
+        cmd(server,"execute in minecraft:overworld run tp RGBPortPeer 1.5 120.0 0.5")
+        time.sleep(4)
+        assert peer.poll() is None and server.poll() is None, (
+            "Minecraft process exited during true inter-dimension cache isolation test")
+
     if SERVER_RESTART_PROBE:
         # Unlike a mere client reconnect, terminate the REAL dedicated JVM,
         # flush its overworld to disk and restart in the identical server/
@@ -515,6 +575,12 @@ if STRICT_LIGHT_PROBE:
     assert result["both_manual_sync"] and result["both_auto_sync"]
     assert result["both_green_update"] and result["both_source_removal"]
     assert result["both_clients_alive_after_edits"],"NeoForge peer disconnected before live edit finished"
+    if DIMENSION_PROBE:
+        assert all(result[k] for k in (
+            "dimension_nether_entered","dimension_nether_blue_verified",
+            "dimension_overworld_restored","dimension_nether_reentered",
+            "dimension_distinct_snapshots"
+        )), "NeoForge cross-dimension RGB/C&B persistence assertion failed"
     if SERVER_RESTART_PROBE:
         assert all(result[k] for k in (
             "dedicated_server_restarted","world_restart_green_block",
