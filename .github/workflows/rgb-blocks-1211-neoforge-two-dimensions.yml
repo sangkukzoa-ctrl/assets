@@ -3,6 +3,7 @@ on:
   push:
     branches: [rgb-blocks-legacy-compat-audit]
     paths:
+      - 'rgb-blocks-compat/recovered/fabric/com/rgbblocks/client/lighting/RGBLightPersistence.java'
       - 'rgb-blocks-compat/recovered/neoforge/com/rgbblocks/client/lighting/RGBLightPersistence.java'
       - 'rgb-blocks-compat/inject_ci_dimension_probe.py'
       - 'rgb-blocks-compat/inject_ci_neoforge_two_client_probe.py'
