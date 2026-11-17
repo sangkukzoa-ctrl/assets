@@ -3,9 +3,10 @@
 Tests server classloading, 16,687 palette, RGB commands, save/reopen.
 Client visual RGB/Embeddium/Oculus and multiplayer connections are separate gates.
 """
-import json,pathlib,shutil,subprocess,threading,time,urllib.request,zipfile
+import json,pathlib,shutil,subprocess,threading,time,urllib.request,zipfile,os
 ROOT=pathlib.Path("mc1201-forge-runtime");ROOT.mkdir(exist_ok=True)
 MODS=ROOT/"mods";MODS.mkdir(exist_ok=True)
+STANDALONE=os.environ.get("RGB_PORT_STANDALONE_NO_CNB")=="1"
 from pathlib import Path
 jars=[p for p in Path("port-work/mc1201-forge/build/libs").glob("*.jar") if "-sources" not in p.name and "-dev" not in p.name]
 assert jars,"No built Forge JAR found"
@@ -33,7 +34,11 @@ def fetch(url,out):
     out.write_bytes(data)
     print("FETCHED",out,len(data),flush=True)
 fetch("https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.28/forge-1.20.1-47.4.28-installer.jar",ROOT/"forge-installer.jar")
-fetch("https://mediafilez.forgecdn.net/files/7620/767/chisels-and-bits-forge-20.1.20.jar",MODS/"chisels-and-bits-forge-20.1.20.jar")
+if not STANDALONE:
+    fetch("https://mediafilez.forgecdn.net/files/7620/767/chisels-and-bits-forge-20.1.20.jar",MODS/"chisels-and-bits-forge-20.1.20.jar")
+else:
+    assert len(list(MODS.glob("*.jar")))==1, "Standalone mod list contains non-RGB mod jars"
+    print("STANDALONE_NO_OPTIONAL_MODS: actual Forge RGB Blocks only",flush=True)
 p=subprocess.run(["java","-jar","forge-installer.jar","--installServer"],cwd=ROOT,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=430)
 (ROOT/"installer.log").write_text(p.stdout,encoding="utf-8")
 if p.returncode!=0 or not (ROOT/"run.sh").exists():raise AssertionError("Forge installer failed: "+p.stdout[-4000:])
@@ -108,4 +113,6 @@ for marker in ("RGB_NORMAL_PERSIST_PASS","RGB_GLOW_PERSIST_PASS","RGB_GLASS_PERS
     assert marker in reopen_log, "RGB "+marker+" block was lost on reload"
 assert "RGB mode: MANUAL" in reopen_log, "RGB manual mode did not persist"
 assert "Bake scope: ALL" in reopen_log, "RGB bake scope did not persist"
-print("PASS: Forge 1.20.1 RGB Blocks C&B server registry/commands/reopen test",flush=True)
+print("PASS: Forge 1.20.1 RGB Blocks " +
+      ("STANDALONE WITHOUT C&B/OPTIONAL MODS" if STANDALONE else "+ C&B") +
+      " server registry/commands/reopen test",flush=True)
