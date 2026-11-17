@@ -1,0 +1,80 @@
+name: RGB Blocks BUGFIX BOTH loaders real post-login C&B light and rapid distant bake mesh
+on:
+  workflow_dispatch:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths:
+      - 'rgb-blocks-compat/recovered/fabric/com/rgbblocks/client/cnb/RGBCnbGeometryBakeDebouncer.java'
+      - 'rgb-blocks-compat/build_mc1201_forge.py'
+      - 'rgb-blocks-compat/inject_ci_live_cnb_edit_probe.py'
+      - 'rgb-blocks-compat/inject_ci_cnb_bake_stress_probe.py'
+      - 'rgb-blocks-compat/test_mc1201_forge_two_clients.py'
+      - 'rgb-blocks-compat/test_mc1211_neoforge_two_clients.py'
+      - '.github/workflows/rgb-blocks-cnb-post-login-and-distant-rapid-bake.yml'
+permissions:
+  contents: read
+jobs:
+  real-two-clients:
+    name: ${{ matrix.target }} ${{ matrix.mode }} genuine 2 players
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {target: forge1201, mode: live, java: '17', gradle: '8.8', workdir: 'mc1201-forge', test: 'test_mc1201_forge_two_clients.py', shader: '0', live: '1', stress: '0'}
+          - {target: forge1201, mode: stress, java: '17', gradle: '8.8', workdir: 'mc1201-forge', test: 'test_mc1201_forge_two_clients.py', shader: '1', live: '0', stress: '1'}
+          - {target: neoforge1211, mode: live, java: '21', gradle: '8.10.2', workdir: 'mc1211-neoforge', test: 'test_mc1211_neoforge_two_clients.py', shader: '0', live: '1', stress: '0'}
+          - {target: neoforge1211, mode: stress, java: '21', gradle: '8.10.2', workdir: 'mc1211-neoforge', test: 'test_mc1211_neoforge_two_clients.py', shader: '1', live: '0', stress: '1'}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Strict syntax gate for genuine live C&B packet and distant mesh checks
+        run: |
+          python3 -m py_compile rgb-blocks-compat/build_mc1211_fabric.py rgb-blocks-compat/build_mc1201_forge.py rgb-blocks-compat/build_mc1211_neoforge.py rgb-blocks-compat/inject_ci_only_light_probe.py rgb-blocks-compat/inject_ci_mixed_cnb_probe.py rgb-blocks-compat/inject_ci_live_cnb_edit_probe.py rgb-blocks-compat/inject_ci_cnb_bake_stress_probe.py rgb-blocks-compat/test_mc1201_forge_two_clients.py rgb-blocks-compat/test_mc1211_neoforge_two_clients.py
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '${{ matrix.java }}'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '${{ matrix.gradle }}'}
+      - name: Install native graphical client test prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb scrot mesa-utils libgl1-mesa-dri libgl1 libasound2t64 libxrandr2 libxcursor1 libxinerama1 libxi6
+      - name: Create native RGB port, genuine Chisels source and test-only 4096 bit visual probes
+        run: |
+          set -euxo pipefail
+          python3 rgb-blocks-compat/build_mc1211_fabric.py
+          if [ "${{ matrix.target }}" = "forge1201" ]; then
+            python3 rgb-blocks-compat/build_mc1201_forge.py
+            python3 rgb-blocks-compat/inject_ci_only_light_probe.py forge1201
+            python3 rgb-blocks-compat/inject_ci_two_client_sync_probe.py
+          else
+            python3 rgb-blocks-compat/build_mc1211_neoforge.py
+            python3 rgb-blocks-compat/inject_ci_only_light_probe.py neoforge1211
+            python3 rgb-blocks-compat/inject_ci_neoforge_two_client_probe.py
+          fi
+          python3 rgb-blocks-compat/inject_ci_mixed_cnb_probe.py ${{ matrix.target }}
+          if [ "${{ matrix.mode }}" = "live" ]; then
+            python3 rgb-blocks-compat/inject_ci_live_cnb_edit_probe.py ${{ matrix.target }}
+          else
+            python3 rgb-blocks-compat/inject_ci_cnb_bake_stress_probe.py ${{ matrix.target }}
+          fi
+      - name: Compile real native target-loader RGB + CI-only C&B regression hooks
+        working-directory: port-work/${{ matrix.workdir }}
+        run: gradle --no-daemon build
+      - name: Two genuine GUI players + dedicated server original AUTO/MANUAL + post-login chiseling OR 16 distant rapid bakes
+        env:
+          RGB_PORT_TEST_MIXED_CNB: '1'
+          RGB_PORT_STRICT_LIGHT_PROBE: '1'
+          RGB_PORT_TEST_LIVE_CNB: '${{ matrix.live }}'
+          RGB_PORT_TEST_BAKE_STRESS: '${{ matrix.stress }}'
+          RGB_PORT_SHADER_ON: '${{ matrix.shader }}'
+        run: python3 rgb-blocks-compat/${{ matrix.test }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgb-cnb-bugfix-${{ matrix.target }}-${{ matrix.mode }}-actual-game-evidence
+          path: |
+            mc1201-forge-two-clients/evidence/
+            mc1211-neoforge-two-clients/evidence/
+            port-work/${{ matrix.workdir }}/build/reports/
+          retention-days: 30
