@@ -6,13 +6,15 @@ original palette, IDs and textures. This is a BUILD CANDIDATE, not a release.
 """
 from pathlib import Path
 import shutil,json,re
+from clone_owner_resources import clone_resources
 
 ROOT=Path("port-work/mc1211-neoforge")
 BASE=Path("port-work/mc1211-fabric")
 if not BASE.exists():
     raise RuntimeError("First generate the common Minecraft 1.21.1 compatibility source with build_mc1211_fabric.py")
 shutil.rmtree(ROOT,ignore_errors=True)
-shutil.copytree(BASE/"src",ROOT/"src")
+shutil.copytree(BASE/"src/main/java",ROOT/"src/main/java")
+clone_resources(BASE/"src/main/resources",ROOT/"src/main/resources")
 JAVA=ROOT/"src/main/java/com/rgbblocks"
 # Guarantee the native port is built from the actual patched persistence source.
 # The verified original NeoForge entrypoint and mixin plugin are the authoritative native-loader references.
