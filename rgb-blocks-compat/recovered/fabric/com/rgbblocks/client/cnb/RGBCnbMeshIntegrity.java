@@ -14,6 +14,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * C&B's voxel stats and RGB light may remain correct while the independently
@@ -126,7 +127,30 @@ public final class RGBCnbMeshIntegrity {
       method.setAccessible(true);
       Object counts=method.invoke(statistics);
       if(!(counts instanceof Map<?,?> map))return false;
-      for(Object count:map.values())if(count instanceof Number n && n.intValue()>0)return true;
+      // C&B statistics may include AIR -> 4096 while the sculpture has no
+      // visible bits. Air is NOT a valid reason to resurrect an empty model.
+      // 1.21.1 C&B uses BlockInformation.blockState(), while 1.20.1 uses
+      // IBlockInformation.getBlockState(). Check BOTH native APIs.
+      for(Map.Entry<?,?> entry:map.entrySet()){
+         Object count=entry.getValue();
+         if(!(count instanceof Number n) || n.intValue()<=0)continue;
+         Object information=entry.getKey();
+         if(information==null)continue;
+         BlockState state=null;
+         if(information instanceof BlockState direct)state=direct;
+         else{
+            try{
+               Object candidate=findZeroArg(information.getClass(),"blockState")
+                      .invoke(information);
+               if(candidate instanceof BlockState found)state=found;
+            }catch(NoSuchMethodException olderApi){
+               Object candidate=findZeroArg(information.getClass(),"getBlockState")
+                      .invoke(information);
+               if(candidate instanceof BlockState found)state=found;
+            }
+         }
+         if(state!=null && !state.isAir())return true;
+      }
       return false;
    }
 
