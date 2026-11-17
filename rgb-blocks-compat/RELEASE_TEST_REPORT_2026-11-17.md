@@ -1,5 +1,15 @@
 # RGB Blocks 1.3.1 — native legacy-port release-candidate test report
 
+## Hard dependency independence — tested with ONLY RGB Blocks installed
+
+**PASS on BOTH native loaders, without any optional mod in either client or server.** The generated Forge `mods.toml` and NeoForge `neoforge.mods.toml` list only the game and native loader as mandatory. C&B is optional; its block entity inspection is reflection-based with optional Mixin targets. Sodium/Iris and Embeddium/Oculus are also optional renderer/shader integration, not required to start RGB Blocks.
+
+- [Actual RGB-only dedicated server acceptance #44045407305](https://github.com/sangkukzoa-ctrl/assets/actions/runs/44045407305): Forge 1.20.1 and NeoForge 1.21.1 with exactly one mod JAR, both boot, register 16,687 RGB colors, place all normal/glow/glass variants, persist world/manual mode, restart same saved world. All actual game tests PASS; no C&B loaded, no fatal.
+- [Actual RGB-only GUI client AND server #44045724254](https://github.com/sangkukzoa-ctrl/assets/actions/runs/44045724254): BOTH loader jobs SUCCESS. Each actual Minecraft GUI client and server has only RGB Blocks JAR; **no C&B, Sodium, Embeddium, Iris, Oculus or Complementary**. Both joined, loaded 50,061 RGB registrations/models, rendered in-game screenshot, emitted actual RGB source and adjacent colored light, zero resource-model omissions and no fatal class crashes. Forge direct source [15,6,8] and neighbor [238,85,119].
+- The `complete-ecosystem.mrpack` installs the **chosen optional compatibility toolchain** as a convenience pack; its pack-level `required` entries are not hard dependencies in the mod's own metadata. The **standalone JAR alone** runs without those add-ons.
+- [Independent compatibility contract](./STANDALONE_AND_OPTIONAL_ECOSYSTEM.md) documents exact source and proof.
+
+
 ### 2026-11-17 phase 13s — BOTH native distribution archives built and verified
 
 **FULL NATIVE LEGACY TEST-CANDIDATE DISTRIBUTION SUCCESS** [workflow #44037516139](https://github.com/sangkukzoa-ctrl/assets/actions/runs/44037516139), commit `0597fc55079878b7465df35b251ad6b9eb8c1a4f`, all THREE jobs SUCCESS: build NeoForge native, build Forge native, independently assemble and SHA256-verify the two-version all-in-one. **Download EXACT artifacts**:
