@@ -38,20 +38,20 @@ assert migrated.count("public static final class RuntimeData extends SavedData")
 # compare entire original prefix through the start of the RuntimeData class,
 # not a superficial count of occurrences.
 start_original=re.search(
-    r"\\bpublic\\s+static\\s+final\\s+class\\s+RuntimeData",original)
-start_new=re.search(r"\\bpublic\\s+static\\s+final\\s+class\\s+RuntimeData",migrated)
+    r"\bpublic\s+static\s+final\s+class\s+RuntimeData",original)
+start_new=re.search(r"\bpublic\s+static\s+final\s+class\s+RuntimeData",migrated)
 assert start_original and start_new
 original_before=original[:start_original.start()]
 new_before=migrated[:start_new.start()]
 for marker in ("public record StatePayload(","public record BakePayload("):
     assert marker in original_before and marker in new_before
 for packet in ("StatePayload","BakePayload"):
-    m=re.search(r"\\bpublic record "+packet+r"\\(",original_before)
-    n=re.search(r"\\bpublic record "+packet+r"\\(",new_before)
+    m=re.search(r"\bpublic record "+packet+r"\(",original_before)
+    n=re.search(r"\bpublic record "+packet+r"\(",new_before)
     assert m and n
     # Compare through the other record or the original runtime-class start;
     # transformation should not touch the original packets or their codecs.
-    boundary=lambda source,offset:source.find("\\n    public record BakePayload(",offset) if packet=="StatePayload" else len(source)
+    boundary=lambda source,offset:source.find("\n    public record BakePayload(",offset) if packet=="StatePayload" else len(source)
     oe=boundary(original_before,m.start())
     ne=boundary(new_before,n.start())
     if oe<0:oe=len(original_before)
