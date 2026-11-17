@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """RGB Blocks 1.3.1 -> Minecraft 1.21.1 NeoForge.
-Port from the original NeoForge 26.1.2 class/layout contract while keeping
+Port from the AUTHOR-PROVIDED original NeoForge 26.1.2 class/layout contract while keeping
 the already migrated 1.21.1 Minecraft lighting/microblock code and identical
 original palette, IDs and textures. This is a BUILD CANDIDATE, not a release.
 """
@@ -15,7 +15,7 @@ shutil.rmtree(ROOT,ignore_errors=True)
 shutil.copytree(BASE/"src",ROOT/"src")
 JAVA=ROOT/"src/main/java/com/rgbblocks"
 # Guarantee the native port is built from the actual patched persistence source.
-# The separate recovered/neoforge archive is NOT the active Java source tree.
+# The verified original NeoForge entrypoint and mixin plugin are the authoritative native-loader references.
 persistence=(JAVA/"client/lighting/RGBLightPersistence.java").read_text(encoding="utf-8")
 assert "saveCurrentBlocking();\n                  RGBRealLightEngine.prepareForPersistenceDimensionSwitch();" in persistence, (
     "Generated NeoForge release JAR lost the departing-dimension RGB+C&B snapshot save fix")
@@ -221,7 +221,7 @@ config.write_text(s,encoding="utf-8")
 # Restore the ORIGINAL 1.3.1 NeoForge Mixin plugin, not the Fabric loader's
 # optional-mixin discovery implementation. Preserve platform source structure.
 plugin=JAVA/"mixin/RGBBlocksMixinPlugin.java"
-original_plugin=Path("rgb-blocks-compat/recovered/neoforge/com/rgbblocks/mixin/RGBBlocksMixinPlugin.java")
+original_plugin=Path("rgb-blocks-compat/owner-source/neoforge/com/rgbblocks/mixin/RGBBlocksMixinPlugin.java")
 shutil.copy2(original_plugin,plugin)
 
 client=JAVA/"client/RgbBlocksClient.java"
