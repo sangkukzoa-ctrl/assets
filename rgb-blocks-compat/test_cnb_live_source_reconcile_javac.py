@@ -46,6 +46,12 @@ assert "continue;" in stale_tile_guard
 assert "EFFECTIVE_MODE != RGBRealLightEngine.EffectiveMode.AUTO" in reconcile
 assert "RGBRuntime.clientTargetAuto()" in reconcile
 assert "ST ALE_CNB_CLEANUP" not in reconcile
+for lifecycle in ("static void prepareForPersistenceDimensionSwitch()",
+                  "static void restorePersistedCnbSources("):
+    body=extract(lifecycle)
+    assert "CNB_RECONCILE_CURSOR = null;" in body, (
+        "Previous dimension's C&B source cursor survived "+lifecycle)
+    assert "CNB_RECONCILE_TICKS = 0;" in body
 
 java=r'''import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
