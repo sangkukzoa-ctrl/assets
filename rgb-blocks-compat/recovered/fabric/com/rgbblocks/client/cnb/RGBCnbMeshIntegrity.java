@@ -26,6 +26,9 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 public final class RGBCnbMeshIntegrity {
    private static final Map<Long,Integer> MISSING = new HashMap<>();
    private static final Map<Long,Long> REPAIRED = new HashMap<>();
+   // Real C&B/Scena API failures must be visible to owner-hostile CI.
+   // Log once per source per 30 seconds maximum; never flood player logs.
+   private static final Map<Long,Long> LAST_ORACLE_ERROR = new HashMap<>();
    private static Level lastLevel;
    private static long ticks;
    private static int cursor;
@@ -36,6 +39,7 @@ public final class RGBCnbMeshIntegrity {
       lastLevel=null;
       MISSING.clear();
       REPAIRED.clear();
+      LAST_ORACLE_ERROR.clear();
       ticks=0L;
       cursor=0;
    }
@@ -95,7 +99,7 @@ public final class RGBCnbMeshIntegrity {
             // native chunk renderer to rebuild, preserving RGB baked light.
             RGBCnbGeometryBakeDebouncer.runUndebounced(()->{
                try{
-                  Method update=tile.getClass().getMethod("updateModelData");
+                  Method update=findZeroArg(tile.getClass(),"updateModelData");
                   update.invoke(tile);
                   RGBRenderInvalidator.dirtyAround(pos,2);
                   System.out.println("[RGB Blocks] Restoring missing C&B mesh quads at "
@@ -104,8 +108,11 @@ public final class RGBCnbMeshIntegrity {
                   System.err.println("[RGB Blocks] C&B mesh integrity refresh failed: "+err);
                }
             });
-         }catch(Throwable ignored){
-            // Optional C&B runtime and Scena APIs must not break RGB alone.
+         }catch(Throwable failure){
+            // A hidden reflection error previously disabled this entire
+            // repair while 4095 actual C&B bits and RGB light stayed present.
+            // Keep RGB standalone-safe, but preserve bounded error evidence.
+            logOracleFailure(id,pos,failure);
          }
       }
       cursor=(cursor+toInspect)%size;
@@ -114,8 +121,8 @@ public final class RGBCnbMeshIntegrity {
    }
 
    private static boolean hasActualVoxelStates(BlockEntity tile)throws ReflectiveOperationException{
-      Object statistics=tile.getClass().getMethod("getStatistics").invoke(tile);
-      Method method=statistics.getClass().getMethod("getStateCounts");
+      Object statistics=findZeroArg(tile.getClass(),"getStatistics").invoke(tile);
+      Method method=findZeroArg(statistics.getClass(),"getStateCounts");
       method.setAccessible(true);
       Object counts=method.invoke(statistics);
       if(!(counts instanceof Map<?,?> map))return false;
@@ -124,7 +131,7 @@ public final class RGBCnbMeshIntegrity {
    }
 
    private static boolean hasActualRenderedQuads(BlockEntity tile)throws ReflectiveOperationException{
-      Object data=tile.getClass().getMethod("getBlockModelData").invoke(tile);
+      Object data=findZeroArg(tile.getClass(),"getBlockModelData").invoke(tile);
       if(data==null)return false;
       Class<?> props=Class.forName("mod.chiselsandbits.registrars.ModModelProperties");
       Object key=props.getField("KNOWN_LAYER_MODEL_PROPERTY").get(null);
@@ -142,4 +149,35 @@ public final class RGBCnbMeshIntegrity {
       }
       return false;
    }
+   private static Method findZeroArg(Class<?> type,String name)throws NoSuchMethodException{
+      try{return type.getMethod(name);}
+      catch(NoSuchMethodException missing){
+         // Some C&B native loaders expose a method on a non-public
+         // implementation class. getMethod alone misses the usable API.
+         for(Class<?> current=type;current!=null;current=current.getSuperclass()){
+            try{
+               Method method=current.getDeclaredMethod(name);
+               method.setAccessible(true);
+               return method;
+            }catch(NoSuchMethodException next){
+               // Continue up the hierarchy. Never modify voxel state.
+            }
+         }
+         throw missing;
+      }
+   }
+
+   private static void logOracleFailure(Long id,BlockPos pos,Throwable error){
+      if(id==null)return;
+      long last=LAST_ORACLE_ERROR.getOrDefault(id,-600L);
+      if(ticks-last<600L)return;
+      LAST_ORACLE_ERROR.put(id,ticks);
+      Throwable cause=error;
+      while(cause.getCause()!=null && cause.getCause()!=cause)cause=cause.getCause();
+      System.err.println("[RGB Blocks] C&B mesh oracle failed at "+pos+
+         " tick="+ticks+" reason="+cause.getClass().getName()+
+         ": "+cause.getMessage());
+      if(LAST_ORACLE_ERROR.size()>4096)LAST_ORACLE_ERROR.clear();
+   }
+
 }
