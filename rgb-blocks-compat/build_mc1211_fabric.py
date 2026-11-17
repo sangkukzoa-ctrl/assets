@@ -2,15 +2,63 @@
 """Prepare MC 1.21.1 Fabric port build, retaining original game logic.
 Generated project is a migration workspace. A JAR build alone is not a release gate.
 """
-import json, pathlib, re, shutil, sys, urllib.request, zipfile
+import json, pathlib, re, shutil, sys, zipfile
 HERE=pathlib.Path("rgb-blocks-compat")
 WORK=pathlib.Path("port-work/mc1211-fabric")
 CODE=WORK/"src/main/java"
 RES=WORK/"src/main/resources"
-FROM=HERE/"recovered/fabric"
+# All 1.20.1 Forge / 1.21.1 NeoForge projects share this 1.21.1
+# compatibility intermediate. Source authority is the author's ORIGINAL
+# Fabric 1.3.1 source, not a Modrinth-distributed JAR or decompilation.
+ORIGINAL=HERE/"owner-source"
+FROM=ORIGINAL/"fabric"
+assert (ORIGINAL/"source-provenance.json").is_file(), (
+    "Stage the ORIGINAL author sources with stage_owner_original.py first. "
+    "Public Modrinth/JAR fallback is intentionally disabled.")
+provenance=json.loads((ORIGINAL/"source-provenance.json").read_text(encoding="utf-8"))
+assert provenance.get("fabric_java")==32 and provenance.get("neo_java")==31
+assert provenance.get("resources_extracted"), (
+    "Original 1.3.1 assets are required: do not stage with RGB_OWNER_CODE_ONLY=1")
 shutil.rmtree(WORK,ignore_errors=True)
 shutil.copytree(FROM/"com",CODE/"com")
-RES.mkdir(parents=True,exist_ok=True)
+shutil.copytree(ORIGINAL/"shared/resources",RES)
+for original in (ORIGINAL/"fabric/resources").rglob("*"):
+    if original.is_file():
+        relative=original.relative_to(ORIGINAL/"fabric/resources")
+        destination=RES/relative
+        destination.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copy2(original,destination)
+# Guard source provenance even if a downstream patch changes Minecraft
+# APIs: every original Java is present BEFORE intentional compatibility edits.
+assert len(list(CODE.rglob("*.java")))==32, "Author source Java inventory mismatch"
+# Record carefully scoped backport/bugfix deltas already under verification;
+# never silently overwrite all owner's files with recovered/decompiled code.
+PROVEN_NATIVE_COMPAT_OVERLAYS=(
+    "client/lighting/RGBLightPersistence.java",  # dimension switch and same-world load
+    "client/lighting/RGBRealLightEngine.java",    # live C&B packet and mesh light cache
+    "client/lighting/RGBLightEngine.java",
+    "client/lighting/RGBRenderInvalidator.java",
+    "client/lighting/RGBSourceIndex.java",
+    "client/cnb/RGBCnbGeometryBakeDebouncer.java",
+    "client/cnb/RGBCnbReloadWakeup.java",
+    "client/cnb/RGBCnbMeshIntegrity.java",        # new port-only recovery class
+    "mixin/client/ClientLevelMixin.java",
+    "mixin/client/CnbChiseledBlockModelDataManagerMixin.java",
+)
+for rel in PROVEN_NATIVE_COMPAT_OVERLAYS:
+    native=HERE/"recovered/fabric/com/rgbblocks"/rel
+    if not native.is_file():
+        raise RuntimeError("Missing explicitly recorded compatibility patch "+str(native))
+    destination=CODE/"com/rgbblocks"/rel
+    destination.parent.mkdir(parents=True,exist_ok=True)
+    shutil.copy2(native,destination)
+(WORK/"owner-source-overlays.json").write_text(
+    json.dumps({"source":"original owner Fabric 1.3.1 Java",
+                "overrides":PROVEN_NATIVE_COMPAT_OVERLAYS,
+                "note":"Temporary explicit native backport deltas; remaining original Java stays author-provided."},
+               ensure_ascii=False,indent=2),encoding="utf-8")
+print("RGB_OWNER_ORIGINAL_SOURCE_ACTIVE Java=32 compatibility_overlays="+
+      str(len(PROVEN_NATIVE_COMPAT_OVERLAYS)),flush=True)
 
 def patch(p,func):
     x=p.read_text(encoding="utf-8")
@@ -472,25 +520,9 @@ public abstract class Sodium06BlockRendererMixin {
 }
 ''',encoding="utf-8")
 
-# Download author-published Fabric 1.3.1F metadata and resources.
-URL="https://cdn.modrinth.com/data/A48MxLWx/versions/HsQZbhRf/RgbBlocksmod-26.1.2-1.3.1F.jar"
-r=urllib.request.Request(URL,headers={"User-Agent":"RGBBlocks-owner-porting/1.0"})
-with urllib.request.urlopen(r,timeout=120) as f: buf=f.read()
-jpath=WORK/"original-fabric-131.jar"
-jpath.write_bytes(buf)
-with zipfile.ZipFile(jpath) as z:
-    manifest=None
-    for name in z.namelist():
-        if name=="fabric.mod.json":
-            manifest=json.loads(z.read(name))
-        if name.startswith("assets/") or name.startswith("data/"):
-            path=RES/name
-            if name.endswith("/"):path.mkdir(parents=True,exist_ok=True);continue
-            path.parent.mkdir(parents=True,exist_ok=True)
-            path.write_bytes(z.read(name))
-        if "mixin" in name.lower() and name.endswith(".json") and "/" not in name:
-            (RES/name).write_bytes(z.read(name))
-    if manifest is None:raise RuntimeError("original Fabric metadata missing")
+# Owner-original Fabric metadata and full resource tree were staged above.
+# This intentionally contains NO public RGB Blocks download or Modrinth call.
+manifest=json.loads((RES/"fabric.mod.json").read_text(encoding="utf-8"))
 manifest["version"]="1.3.1+mc1.21.1"
 manifest["depends"]["minecraft"]="1.21.1"
 manifest["depends"]["fabricloader"]=">=0.16.0"
