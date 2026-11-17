@@ -6,7 +6,7 @@ Generate it once from the actual supplied Fabric TAR and NeoForge ZIP.
 Original Java remains the authority; 1.20.1/1.21.1 modifications are separate.
 """
 from pathlib import Path
-import hashlib, json, os, shutil, subprocess, tarfile, tempfile, zipfile, urllib.request
+import hashlib, json, os, shutil, subprocess, tarfile, tempfile, zipfile, urllib.request, urllib.error
 
 HERE=Path("rgb-blocks-compat")
 OUT=HERE/"owner-source"
@@ -212,8 +212,34 @@ def private_owner_source_release(archive):
              "X-GitHub-Api-Version":"2022-11-28",
              "User-Agent":"RGBBlocks-original-source-131-private-CI"}
     url=("https://api.github.com/repos/"+repository+"/releases/tags/"+quote(tag,safe=""))
-    with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=45) as response:
-        release=json.load(response)
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=45) as response:
+            release=json.load(response)
+    except urllib.error.HTTPError as error:
+        if error.code!=404:
+            raise
+        # GitHub does not always resolve unpublished draft releases through
+        # GET /releases/tags/<tag>. Authenticated list-releases DOES include
+        # draft releases, so locate the exact author-only tag there instead.
+        release=None
+        for page in range(1,6):
+            lookup=("https://api.github.com/repos/"+repository+
+                    "/releases?per_page=100&page="+str(page))
+            with urllib.request.urlopen(urllib.request.Request(lookup,headers=headers),
+                                        timeout=45) as response:
+                listed=json.load(response)
+            found=[item for item in listed if item.get("tag_name")==tag]
+            if len(found)>1:
+                raise RuntimeError("Duplicate author source release tag")
+            if found:
+                release=found[0]
+                break
+            if len(listed)<100:
+                break
+        if release is None:
+            raise RuntimeError("Owner original source draft Release not provisioned: "+tag)
+    if release.get("tag_name")!=tag:
+        raise RuntimeError("Wrong author source release tag")
     if not release.get("draft"):
         raise RuntimeError("The author-source GitHub Release MUST remain a private DRAFT")
     files=[asset for asset in release.get("assets",[]) if asset.get("name")==CANONICAL_NAME]
