@@ -500,6 +500,54 @@ def forge_cnb_emission_api(source):
     return source.replace(old, 'getMethod("getBlockState")')
 patch(cnb_emission_mixin, forge_cnb_emission_api)
 
+# Forge C&B 20.1.20 uses a different live-client update path from the 26.x
+# original: TileEntityUpdatedPacket -> ClientPacketHandlers.handleTileEntityUpdatedPacket
+# -> handleUpdateTag -> ChiseledBlockEntity.load -> async deserializeNBT.
+# Its 1.21.x receivePayload hook never fires. Observe the ACTUAL 1.20.1
+# authoritative packet and queue a deferred RGB microbit source refresh.
+# Do not directly reference C&B types: this remains a standalone RGB mod.
+cnb_live_packet=CODE/"com/rgbblocks/mixin/client/ForgeCnbLivePacketMixin.java"
+cnb_live_packet.write_text('''package com.rgbblocks.mixin.client;
+import com.rgbblocks.client.lighting.RGBRealLightEngine;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import org.spongepowered.asm.mixin.Dynamic;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+/** Forge C&B 20.1.20 real packet path; 26.x receivePayload does not exist here. */
+@Pseudo
+@Mixin(targets="mod.chiselsandbits.network.handlers.ClientPacketHandlers",remap=false)
+public abstract class ForgeCnbLivePacketMixin {
+  @Inject(method="handleTileEntityUpdatedPacket(Lnet/minecraft/core/BlockPos;Lnet/minecraft/nbt/CompoundTag;)V",
+      at=@At("TAIL"),require=0,remap=false)
+  @Dynamic("C&B Forge 20.1.20 authoritative TileEntityUpdatedPacket")
+  private static void rgbblocks$afterLiveChiselPacket(BlockPos pos,CompoundTag update,CallbackInfo ci){
+    if(pos==null)return;
+    Minecraft mc=Minecraft.getInstance();
+    if(mc==null)return;
+    mc.execute(()->{
+      try{
+        if(mc.level==null || !mc.level.isLoaded(pos))return;
+        BlockEntity tile=mc.level.getBlockEntity(pos);
+        if(tile!=null && tile.getClass().getName().contains("chiselsandbits")){
+          // The C&B storage decompresses asynchronously AFTER its packet.
+          // The original 16-attempt/2-tick queue reads the final statistics;
+          // immediately invalidating with a stale source is incorrect.
+          RGBRealLightEngine.refreshCnbBlockEntity(tile);
+        }
+      }catch(Throwable failure){
+        System.err.println("[RGB Blocks] Forge C&B live packet refresh: "+failure);
+      }
+    });
+  }
+}
+''',encoding="utf-8")
+
 
 # Convert original Fabric MixinPlugin early mod-discovery to Forge-loading
 # registry; this plugin runs before standard ModList initialization.
@@ -858,6 +906,8 @@ for file in RES.glob("*mixin*.json"):
         if "Sodium06BlockRendererMixin" not in name and "MinecraftDisconnectMixin" not in name]
     if "client.Embeddium03BlockRendererMixin" not in data["client"]:
        data["client"].append("client.Embeddium03BlockRendererMixin")
+    if "client.ForgeCnbLivePacketMixin" not in data["client"]:
+       data["client"].append("client.ForgeCnbLivePacketMixin")
     # The 1.3.1F metadata is an intermediate resource source, NOT a
     # guarantee that all NeoForge/Forge RGB lifecycle mixins are registered.
     # Previous Forge packet diagnostics recorded ZERO ClientLevelMixin hooks
