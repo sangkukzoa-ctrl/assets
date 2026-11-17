@@ -5,6 +5,7 @@ API compatibility as a source baseline. NOT releasable until server/client,
 RGB light, C&B and shader tests all pass.
 """
 import pathlib,shutil,json,re
+from clone_owner_resources import clone_resources
 WORK=pathlib.Path("port-work/mc1201-forge")
 BASE=pathlib.Path("port-work/mc1211-fabric")
 if not BASE.exists():
@@ -13,7 +14,7 @@ shutil.rmtree(WORK,ignore_errors=True)
 CODE=WORK/"src/main/java"
 RES=WORK/"src/main/resources"
 shutil.copytree(BASE/"src/main/java",CODE)
-shutil.copytree(BASE/"src/main/resources",RES)
+clone_resources(BASE/"src/main/resources",RES)
 # The active Forge source is the 1.21.1 common generated tree, not
 # the archived original NeoForge tree. Assert the release includes the fix.
 persistence=(CODE/"com/rgbblocks/client/lighting/RGBLightPersistence.java").read_text(encoding="utf-8")
