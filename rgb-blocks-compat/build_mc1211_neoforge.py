@@ -224,6 +224,36 @@ plugin=JAVA/"mixin/RGBBlocksMixinPlugin.java"
 original_plugin=Path("rgb-blocks-compat/owner-source/neoforge/com/rgbblocks/mixin/RGBBlocksMixinPlugin.java")
 shutil.copy2(original_plugin,plugin)
 
+# Fabric 1.3.1 uses TWO Mixin configs (server + client). Original NeoForge
+# 1.3.1 uses ONE. Preserve that native structure and ALL client hooks while
+# carrying the explicit 1.21.1 remapping fixes from the intermediate stage.
+neo_owner_mixin=Path("rgb-blocks-compat/owner-source/neoforge/resources/rgbblocks.mixins.json")
+fabric_client_mixin=RES/"rgbblocks.client.mixins.json"
+assert neo_owner_mixin.is_file() and fabric_client_mixin.is_file(), (
+    "Author's original loader-specific Mixin sources are required")
+native_mixin=json.loads(neo_owner_mixin.read_text(encoding="utf-8"))
+compat_mixin=json.loads(fabric_client_mixin.read_text(encoding="utf-8"))
+assert len(native_mixin.get("mixins",[]))==2, "Original NeoForge common mixins changed"
+assert len(native_mixin.get("client",[]))==12, "Original NeoForge client mixin inventory changed"
+native_client=set(native_mixin["client"])
+obsolete={"client.SodiumChunkBuilderMeshingTaskMixin",
+          "client.SodiumQuadViewImplAccessorMixin",
+          "client.SodiumMutableQuadViewImplMixin"}
+compat_client=compat_mixin.get("client",[])
+assert (native_client-obsolete).issubset(set(compat_client)), (
+    "Native NeoForge original client Mixin silently lost while merging owner sources")
+assert "client.Sodium06BlockRendererMixin" in compat_client
+assert "client.LevelBlockEntityAttachedMixin" in compat_client
+assert len(compat_client)==len(set(compat_client)), "Duplicate client Mixin entries"
+native_mixin["client"]=compat_client
+native_mixin["compatibilityLevel"]="JAVA_21"
+(RES/"rgbblocks.mixins.json").write_text(
+    json.dumps(native_mixin,indent=2),encoding="utf-8")
+fabric_client_mixin.unlink()
+assert not (RES/"rgbblocks.client.mixins.json").exists()
+print("NEOFORGE_OWNER_NATIVE_MIXIN_MERGE_PASS",
+      len(native_mixin["mixins"]),len(native_mixin["client"]),flush=True)
+
 client=JAVA/"client/RgbBlocksClient.java"
 client.write_text('''package com.rgbblocks.client;
 import com.rgbblocks.client.config.RGBClientConfig;
