@@ -116,10 +116,45 @@ patch(main,pm)
 
 runtime=CODE/"com/rgbblocks/runtime/RGBRuntime.java"
 def pr(s):
-    s=s.replace("server.getDataStorage().computeIfAbsent(RGBRuntime.RuntimeData.TYPE)",'server.overworld().getDataStorage().computeIfAbsent(RGBRuntime.RuntimeData.FACTORY, "rgbblocks_runtime")')
+    # The real author's 1.3.1 source uses RuntimeData.TYPE, while the
+    # previously decompiled baseline used RGBRuntime.RuntimeData.TYPE.
+    # Both must migrate to the 1.21.1 SavedData.Factory contract.
+    old_lookups=(
+        "server.getDataStorage().computeIfAbsent(RuntimeData.TYPE)",
+        "server.getDataStorage().computeIfAbsent(RGBRuntime.RuntimeData.TYPE)",
+    )
+    if not any(lookup in s for lookup in old_lookups):
+        raise RuntimeError("Author's original RGBRuntime SavedData lookup not found")
+    for lookup in old_lookups:
+        s=s.replace(lookup,
+          'server.overworld().getDataStorage().computeIfAbsent(RuntimeData.FACTORY, "rgbblocks_runtime")')
     s=s.replace('import net.minecraft.world.level.saveddata.SavedDataType;', 'import net.minecraft.nbt.CompoundTag;\nimport net.minecraft.core.HolderLookup;')
-    a=s.index("   public static final class RuntimeData extends SavedData {")
-    b=s.index("   public record StatePayload(",a)
+    # In the OWNER'S authentic source, StatePayload and BakePayload precede
+    # RuntimeData. The decompiled copy put RuntimeData before StatePayload.
+    # Never delete packet records based on source-order assumptions.
+    match=re.search(r"\\bpublic\\s+static\\s+final\\s+class\\s+RuntimeData\\s+extends\\s+SavedData\\s*\\{",s)
+    if match is None:
+        raise RuntimeError("Original owner's RuntimeData class declaration not found")
+    a=s.rfind("\\n",0,match.start())+1
+    opening=s.index("{",match.start())
+    depth=0
+    b=None
+    # Match the actual Java class body, including nested constructors/methods.
+    for at in range(opening,len(s)):
+        char=s[at]
+        if char=="{":
+            depth+=1
+        elif char=="}":
+            depth-=1
+            if depth==0:
+                b=at+1
+                break
+    if b is None:
+        raise RuntimeError("Original author's RuntimeData class is not balanced")
+    payload_before=s.count("public record StatePayload(")
+    bake_before=s.count("public record BakePayload(")
+    if payload_before!=1 or bake_before!=1:
+        raise RuntimeError("Original RGBRuntime packet records unavailable")
     fixed='''   public static final class RuntimeData extends SavedData {
       public static final SavedData.Factory<RuntimeData> FACTORY = new SavedData.Factory<>(
           RuntimeData::new, RuntimeData::load, null);
@@ -160,7 +195,12 @@ def pr(s):
    }
 
 '''
-    return s[:a]+fixed+s[b:]
+    result=s[:a]+fixed+s[b:]
+    if result.count("public record StatePayload(")!=payload_before or (
+        result.count("public record BakePayload(")!=bake_before):
+        raise RuntimeError("Owner's original runtime packets changed during port")
+    assert "computeIfAbsent(RuntimeData.FACTORY" in result
+    return result
 patch(runtime,pr)
 compat=CODE/"com/rgbblocks/compat"
 compat.mkdir(parents=True,exist_ok=True)
