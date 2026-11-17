@@ -9,7 +9,7 @@ shader pixel-equivalence proof.
 import json,os,signal,pathlib,subprocess,threading,time,urllib.request,zipfile,tarfile,hashlib,shutil
 from pathlib import Path
 
-SHADER_ON=False  # This dedicated dual-client acceptance checks vanilla/Embeddium renderer.
+SHADER_ON=os.environ.get("RGB_PORT_SHADER_ON")=="1"  # Optional strict Oculus+Complementary shader test; OFF by default.
 MIXED_CNB_PROBE=os.environ.get("RGB_PORT_TEST_MIXED_CNB")=="1"
 SERVER_RESTART_PROBE=os.environ.get("RGB_PORT_TEST_WORLD_RESTART")=="1"
 DIMENSION_PROBE=os.environ.get("RGB_PORT_TEST_DIMENSIONS")=="1"
@@ -175,6 +175,7 @@ result.update({"peer_joined":False,"peer_rgb_probe_verified":False,
                "mixed_cnb_server_sculpted":False,
                "mixed_cnb_primary_verified":False,
                "mixed_cnb_peer_verified":False,
+               "shader_mixed_screenshot":False,
                "server_restart_requested":SERVER_RESTART_PROBE,
                "dedicated_server_restarted":False,
                "world_restart_green_block":False,
@@ -358,6 +359,20 @@ try:
         if shot.returncode==0 and screenshot.is_file():
             result["screenshots"].append({"file":screenshot.name,"size":screenshot.stat().st_size})
         else:record("SCREENSHOT_FAILED "+shot.stdout)
+    if SHADER_ON and MIXED_CNB_PROBE:
+        # Screenshot of the ACTUAL sculpted five-material 4096-bit C&B block
+        # in Oculus+Embeddium+Complementary. Preserve primary original camera
+        # and all live/light/network assertions.
+        command(server,"tp RGBPortTester 5.5 120.0 1.5 facing 6.5 121.5 7.5")
+        time.sleep(12)
+        mixed_image=EVIDENCE/"forge-oculus-complementary-ON-MIXED-4096bit-CNB-rgb-glass.png"
+        shot_mixed=subprocess.run(["scrot",str(mixed_image.resolve())],env=env,
+          stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=45)
+        result["shader_mixed_screenshot"]=shot_mixed.returncode==0 and mixed_image.is_file() and mixed_image.stat().st_size>10000
+        if result["shader_mixed_screenshot"]:
+            result["screenshots"].append({"file":mixed_image.name,"size":mixed_image.stat().st_size})
+        assert result["shader_mixed_screenshot"],"Real Forge 4096-bit RGB/C&B mixed glass shader-ON screenshot absent"
+        command(server,"tp RGBPortTester 0.5 120.0 0.5 facing 0.5 121.5 7.5")
     # Restore-world correctness: both peers must notice removal of the GREEN
     # emitter, clear the former green light, and preserve the independent RED
     # 4095-bit C&B sculpture contribution. Keep screenshot above intact.
