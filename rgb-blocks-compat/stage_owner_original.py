@@ -62,6 +62,28 @@ def owner_java_tree_hash(loader):
         h.update((relative+"\t"+hash_file(file)+"\n").encode("utf-8"))
     return len(files),h.hexdigest()
 
+def verify_owner_resource_samples():
+    # 233k tiny files can take minutes to SHA-hash on GitHub Actions.
+    # Instead, the entire original 455MB author archive is SHA-256 pinned
+    # BEFORE extraction. For cache reuse, prove 42 deterministic content
+    # samples from five independent resource families and both index files.
+    lock=HERE/"owner-resource-sentinels.json"
+    manifest=json.loads(lock.read_text(encoding="utf-8"))
+    if manifest.get("source_archive_sha256")!=EXPECTED_FABRIC:
+        raise RuntimeError("Resource sample list is for another author source")
+    samples=manifest.get("samples")
+    if not isinstance(samples,dict) or len(samples)!=42:
+        raise RuntimeError("Owner resource sentinel manifest must have 42 hashes")
+    root=OUT/"shared/resources"
+    for relative,digest in samples.items():
+        rel=Path(relative)
+        if rel.is_absolute() or ".." in rel.parts or len(digest)!=64:
+            raise RuntimeError("Invalid original resource sentinel: "+relative)
+        file=root/rel
+        if not file.is_file() or hash_file(file)!=digest:
+            return False
+    return True
+
 def verified_stage_cache(code_only):
     """Provenance + exact source hashes + file counts, never JSON trust alone."""
     for relative,digest in SOURCE_SENTINELS.items():
@@ -74,6 +96,8 @@ def verified_stage_cache(code_only):
             actual=OUT/relative
             if not actual.is_file() or hash_file(actual)!=digest:return False
         if sum(p.is_file() for p in (OUT/"shared/resources").rglob("*"))!=233627:
+            return False
+        if not verify_owner_resource_samples():
             return False
     return True
 
