@@ -13,6 +13,8 @@ SHADER_ON=os.environ.get("RGB_PORT_SHADER_ON")=="1"  # Optional strict Oculus+Co
 MIXED_CNB_PROBE=os.environ.get("RGB_PORT_TEST_MIXED_CNB")=="1"
 LIVE_CNB_PROBE=os.environ.get("RGB_PORT_TEST_LIVE_CNB")=="1"
 BAKE_STRESS_PROBE=os.environ.get("RGB_PORT_TEST_BAKE_STRESS")=="1"
+CHAOS_PROBE=os.environ.get("RGB_PORT_TEST_CHAOS")=="1"
+assert not CHAOS_PROBE or MIXED_CNB_PROBE, "Chaos requires genuine mixed C&B fixture"
 assert not BAKE_STRESS_PROBE or MIXED_CNB_PROBE, "Distant bake stress requires genuine mixed C&B voxel source"
 assert not LIVE_CNB_PROBE or MIXED_CNB_PROBE, "Live after-login C&B probe requires original mixed C&B fixture"
 SERVER_RESTART_PROBE=os.environ.get("RGB_PORT_TEST_WORLD_RESTART")=="1"
@@ -328,6 +330,40 @@ try:
             "RGB_PORT_CNB_MIXED_PROBE_PASS",peer,145,"peer_true_mixed_bit_states")
         assert result["mixed_cnb_peer_verified"],"Second Forge client could not read all mixed C&B RGB/Glass voxels and emitted light"
 
+
+    if CHAOS_PROBE:
+        # Two production players and the genuinely sculpted original mixed
+        # material C&B scene exist at this point; chaos uses a SEPARATE chunk.
+        from cnb_chaos_choreography import exercise
+        seed=int(os.environ.get("RGB_PORT_CHAOS_SEED","1313131"))
+        result["chaos"]=exercise(
+            send=command,server=server,server_lines=slog,
+            first=client,first_lines=clog,second=peer,second_lines=peerlog,
+            wait_server=await_pattern_since,wait_first=await_pattern_since,
+            wait_second=await_pattern_since,evidence=EVIDENCE,seed=seed,log=record)
+        assert result["chaos"]["rounds_passed"]==4
+        # Real player-style close/relaunch of one independent client *after*
+        # repeated destructive rounds, then verify the actual last C&B mesh
+        # and RGB light again in a fresh game JVM, not just stored files.
+        before_kick=len(slog)
+        command(server,"kick RGBPortPeer RGB_CHAOS_RELOGIN")
+        assert await_pattern_since(slog,"RGBPortPeer lost connection",before_kick,server,60,
+            "chaos_peer_shutdown"),"Chaos test failed to disconnect live peer"
+        terminate(peer)
+        peerthread.join(timeout=10)
+        before_join=len(slog)
+        peer=subprocess.Popen(peer_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+            env=peer_env,text=True,start_new_session=True,bufsize=1)
+        peerlog,peerthread=runthread(peer,"CHAOS_RELOGIN",EVIDENCE/"peer-chaos-reconnect-console.log")
+        assert await_pattern_since(slog,"RGBPortPeer joined the game",before_join,server,210,
+            "chaos_peer_real_process_rejoin"),"Chaos peer real JVM failed to relaunch"
+        command(server,"tp RGBPortPeer 162.5 120 0.5 facing 166.5 121.5 7.5")
+        assert await_pattern_since(peerlog,
+            "RGB_PORT_CHAOS_ROUND_PASS round=3 color=rgb_red_186_72_96_glow",
+            0,peer,150,"chaos_restarted_peer_actual_CNB_mesh_and_light"),(
+            "Restarted peer lost real 4095-bit C&B geometry or RGB light")
+        result["chaos"]["peer_process_restarted_and_verified"]=True
+        command(server,"tp RGBPortPeer 1.5 120 0.5 facing 0.5 121.5 7.5")
 
     if LIVE_CNB_PROBE:
         # The two real clients are ALREADY ONLINE. Force C&B's real 20.1
