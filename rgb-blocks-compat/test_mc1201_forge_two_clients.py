@@ -45,7 +45,7 @@ def runthread(p,label,out):
             for line in p.stdout:
                 lines.append(line)
                 f.write(line);f.flush()
-                if any(q in line for q in ("Done (","joined the game","lost connection","ERROR","FATAL","Fatal","Traceback","Render thread","RGB mode","Server thread","Failed","RGB_PORT_PEER_","RGB_PORT_DIAG_","RGB_PORT_CNB_MIXED_","RGB_PORT_DIM_","Saved RGB lightmap","Loaded RGB lightmap","Caused by","Exception","MixinApplyError","mixin apply","Mixin config","rgbblocks.mixins")):
+                if any(q in line for q in ("Done (","joined the game","lost connection","ERROR","FATAL","Fatal","Traceback","Render thread","RGB mode","Server thread","Failed","RGB_PORT_PEER_","RGB_PORT_DIAG_","RGB_PORT_CHAOS_","RGB_PORT_BAKE_STRESS_","RGB_PORT_LIVE_CNB_","RGB_PORT_CNB_MIXED_","RGB_PORT_DIM_","Saved RGB lightmap","Loaded RGB lightmap","Caused by","Exception","MixinApplyError","mixin apply","Mixin config","rgbblocks.mixins")):
                     record(label+" "+line.rstrip()[:450])
     t=threading.Thread(target=reader,daemon=True);t.start()
     return lines,t
