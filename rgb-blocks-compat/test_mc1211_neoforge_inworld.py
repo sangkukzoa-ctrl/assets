@@ -9,6 +9,8 @@ from urllib.parse import urlencode
 from pathlib import Path
 STRICT_LIGHT_PROBE=os.environ.get("RGB_PORT_STRICT_LIGHT_PROBE")=="1"
 SHADER_ON=os.environ.get("RGB_PORT_SHADER_ON")=="1"
+STANDALONE=os.environ.get("RGB_PORT_STANDALONE_NO_CNB")=="1"
+assert not(STANDALONE and SHADER_ON),"RGB-only mode must not require shader packs"
 ROOT=Path("mc1211-neoforge-inworld"); SERVER=ROOT/"server";GAME=ROOT/"client";EVIDENCE=ROOT/"evidence"
 for p in (SERVER/"mods",GAME/"mods",EVIDENCE):p.mkdir(parents=True,exist_ok=True)
 def info(msg):
@@ -66,12 +68,16 @@ with zipfile.ZipFile(jar) as z:
 chosen=next(c for c in colors if c["red"]>180 and c["green"]<100 and c["blue"]<100)
 block="rgbblocks:rgb_%s_%d_%d_%d"%(chosen["group"],chosen["red"],chosen["green"],chosen["blue"])
 shutil.copy2(jar,GAME/"mods"/jar.name);shutil.copy2(jar,SERVER/"mods"/jar.name)
-cb="chisels-and-bits-neoforge-21.1.32.jar"
-fetch("https://mediafilez.forgecdn.net/files/7405/270/"+cb,SERVER/"mods"/cb)
-shutil.copy2(SERVER/"mods"/cb,GAME/"mods"/cb)
-sodium=download_mod("sodium","mc1.21.1-0.6.13-neoforge")
-iris=download_mod("iris","1.8.12+1.21.1-neoforge")
-info("CLIENT_ECOSYSTEM "+json.dumps({"neoforge":"21.1.265","chiselsandbits":cb,"sodium":sodium,"iris":iris}))
+if STANDALONE:
+    assert len(list((SERVER/"mods").glob("*.jar")))==1 and len(list((GAME/"mods").glob("*.jar")))==1
+    info("STANDALONE_RGB_ONLY_CLIENT_AND_SERVER: C&B/Sodium/Iris all ABSENT; exact ONE RGB mod jar in each")
+else:
+    cb="chisels-and-bits-neoforge-21.1.32.jar"
+    fetch("https://mediafilez.forgecdn.net/files/7405/270/"+cb,SERVER/"mods"/cb)
+    shutil.copy2(SERVER/"mods"/cb,GAME/"mods"/cb)
+    sodium=download_mod("sodium","mc1.21.1-0.6.13-neoforge")
+    iris=download_mod("iris","1.8.12+1.21.1-neoforge")
+    info("CLIENT_ECOSYSTEM "+json.dumps({"neoforge":"21.1.265","chiselsandbits":cb,"sodium":sodium,"iris":iris}))
 shader_filename=None
 if SHADER_ON:
     shader=jsonurl("https://api.modrinth.com/v2/version/Bqen1mJX")
@@ -109,7 +115,7 @@ server=subprocess.Popen(["bash","./run.sh","nogui"],
 slog,sthread=proc_reader(server,"SERVER",EVIDENCE/"server.log")
 client=None; xvfb=None
 result={"minecraft":"1.21.1","loader":"NeoForge 21.1.265","scope":"Strict CI-only RGB propagation/C&B microbit probe" if STRICT_LIGHT_PROBE else "Production NeoForge client/server join, mod stack, RGB scene and screenshot; NOT colored-light or C&B sculpted proof",
-        "instrumented_ci_probe":STRICT_LIGHT_PROBE,
+        "instrumented_ci_probe":STRICT_LIGHT_PROBE,"standalone_rgb_only":STANDALONE,
         "shader_requested":SHADER_ON,"shader_pack":shader_filename,"shader_active":False,
         "palette_count":len(colors),"rgb_test_block":block,"server_ready":False,"fml_player_joined":False,
         "rgb_commands":False,"rgb_light_propagation_verified":False,"cnb_sculpted_fixture":False,"cnb_rgb_propagation_verified":False,"render_thread":False,"texture_atlas_ready":False,
@@ -117,20 +123,20 @@ result={"minecraft":"1.21.1","loader":"NeoForge 21.1.265","scope":"Strict CI-onl
 try:
     result["server_ready"]=await_line(slog,"Done (",server,180)
     if not result["server_ready"]:raise AssertionError("NeoForge server failed to become ready")
-    for c in ["gamerule doDaylightCycle false","time set midnight","weather clear","forceload add 0 0",
+    for c in [line for line in ["gamerule doDaylightCycle false","time set midnight","weather clear","forceload add 0 0",
               "fill -5 119 -3 5 119 12 minecraft:stone",
               f"setblock -2 121 7 {block}",f"setblock 0 121 7 {block}_glow",f"setblock 2 121 7 {block}_glass",
               "setblock 4 121 7 chiselsandbits:chiseled",
               f"execute if block -2 121 7 {block} run say RGB_NORMAL_FIXTURE_READY",
               f"execute if block 0 121 7 {block}_glow run say RGB_GLOW_FIXTURE_READY",
               f"execute if block 2 121 7 {block}_glass run say RGB_GLASS_FIXTURE_READY",
-              "rgb auto","rgb setbake all","rgb get"]:
+              "rgb auto","rgb setbake all","rgb get"] if not(STANDALONE and "chiselsandbits:chiseled" in line)]:
         cmd(server,c);time.sleep(.35)
     assert await_line(slog,"RGB_NORMAL_FIXTURE_READY",server,50),"RGB normal fixture not present"
     assert await_line(slog,"RGB_GLOW_FIXTURE_READY",server,50),"RGB glow fixture not present"
     assert await_line(slog,"RGB_GLASS_FIXTURE_READY",server,50),"RGB glass fixture not present"
     # Only instrumented strict builds can emit actual microbit fixture evidence.
-    result["cnb_sculpted_fixture"]=await_line(slog,"RGB_PORT_CNB_FIXTURE_PASS",server,70) if STRICT_LIGHT_PROBE else False
+    result["cnb_sculpted_fixture"]=await_line(slog,"RGB_PORT_CNB_FIXTURE_PASS",server,70) if STRICT_LIGHT_PROBE and not STANDALONE else False
     result["rgb_commands"]=await_line(slog,"RGB mode: AUTO",server,50)
     assert result["rgb_commands"],"Server RGB mode command failed"
     tarpath=ROOT/"portablemc.tar.gz"
@@ -219,8 +225,9 @@ if SHADER_ON:
     assert result["shader_active"],"Complementary Reimagined shader was not confirmed ACTIVE in Iris"
 if STRICT_LIGHT_PROBE:
     assert result["rgb_light_propagation_verified"],"NeoForge adjacent RGB channel light did not propagate"
-    assert result["cnb_sculpted_fixture"],"NeoForge Chisels & Bits sculpted RGB microbit fixture missing"
-    assert result["cnb_rgb_propagation_verified"],"NeoForge C&B RGB microbit light did not propagate"
-    info("PASS: Instrumented NeoForge 1.21.1 real RGB source color and C&B microbit adjacent colored light")
+    if not STANDALONE:
+        assert result["cnb_sculpted_fixture"],"NeoForge Chisels & Bits sculpted RGB microbit fixture missing"
+        assert result["cnb_rgb_propagation_verified"],"NeoForge C&B RGB microbit light did not propagate"
+    info("PASS: Real NeoForge 1.21.1 RGB-colored light "+("STANDALONE RGB JAR ONLY, ZERO OPTIONAL MODS" if STANDALONE else "with C&B microbit sources"))
 else:
     info("PASS: MC1.21.1 NeoForge real client/server join + RGB block scene screenshot + modded render initialization; per-channel RGB/C&B microbits NOT YET VERIFIED")
