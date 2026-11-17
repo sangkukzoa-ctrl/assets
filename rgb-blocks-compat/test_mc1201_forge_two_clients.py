@@ -120,7 +120,10 @@ shader_filename=None
 if SHADER_ON:
     # Oculus 1.20.1 is Iris-based, but uses MODID 'oculus', so its
     # actual config file is config/oculus.properties (verified upstream).
-    version=jsonurl("https://api.modrinth.com/v2/version/Bqen1mJX")
+    shader_variant=os.environ.get("RGB_PORT_SHADER_VARIANT","reimagined").strip().lower()
+    assert shader_variant in ("reimagined","unbound"),"Unknown Complementary shader variant"
+    pinned_version_id="B1kyfoUZ" if shader_variant=="unbound" else "Bqen1mJX"
+    version=jsonurl("https://api.modrinth.com/v2/version/"+pinned_version_id)
     assert version["version_number"]=="r5.9.3","Complementary version changed"
     shaderfile=next(x for x in version["files"] if x["filename"].lower().endswith(".zip"))
     shader_filename=shaderfile["filename"]
