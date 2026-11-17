@@ -13,6 +13,9 @@ STRICT_LIGHT_PROBE=os.environ.get("RGB_PORT_STRICT_LIGHT_PROBE")=="1"
 MIXED_CNB_PROBE=os.environ.get("RGB_PORT_TEST_MIXED_CNB")=="1"
 SERVER_RESTART_PROBE=os.environ.get("RGB_PORT_TEST_WORLD_RESTART")=="1"
 DIMENSION_PROBE=os.environ.get("RGB_PORT_TEST_DIMENSIONS")=="1"
+INTEGRATED_PROBE=os.environ.get("RGB_PORT_TEST_INTEGRATED")=="1"
+assert not INTEGRATED_PROBE or MIXED_CNB_PROBE, "Singleplayer acceptance requires real mixed C&B world"
+assert not INTEGRATED_PROBE or not (DIMENSION_PROBE or SERVER_RESTART_PROBE), "Run one world-lifecycle acceptance per script invocation"
 assert not DIMENSION_PROBE or MIXED_CNB_PROBE, "Dimension test requires genuine mixed C&B source"
 assert not SERVER_RESTART_PROBE or MIXED_CNB_PROBE, "World restart proof requires saved mixed C&B voxel fixture"
 SHADER_ON=os.environ.get("RGB_PORT_SHADER_ON")=="1"
@@ -162,7 +165,13 @@ result={"minecraft":"1.21.1","loader":"NeoForge 21.1.265","scope":"Strict CI-onl
         "dimension_nether_blue_verified":False,
         "dimension_overworld_restored":False,
         "dimension_nether_reentered":False,
-        "dimension_distinct_snapshots":False}
+        "dimension_distinct_snapshots":False,
+        "integrated_requested":INTEGRATED_PROBE,
+        "integrated_world_saved":False,
+        "integrated_client_loaded":False,
+        "integrated_mixed_bits_restored":False,
+        "integrated_same_world_id":False,
+        "integrated_screenshot":False}
 try:
     result["server_ready"]=await_line(slog,"Done (",server,180)
     if not result["server_ready"]:raise AssertionError("NeoForge server failed to become ready")
@@ -521,6 +530,61 @@ try:
         assert all(result[k] for k in ("world_restart_rgb_cnb_light",
              "world_restart_mixed_client_bits","world_restart_same_uuid"
         )), "NeoForge true dedicated-server restart lost RGB/C&B mixed 4096-bit light, bits or world UUID"
+    if INTEGRATED_PROBE:
+        # This uses a TRUE integrated Minecraft singleplayer server. Save the
+        # validated multiplayer world, stop its dedicated server JVM, then
+        # copy the actual region/level.dat/C&B block entity data into an
+        # ordinary Minecraft 'saves/' directory for Quick Play.
+        cmd(server,"setworldspawn 1 120 0")
+        cmd(server,"save-all flush")
+        time.sleep(5)
+        cmd(server,"stop")
+        try:server.wait(timeout=90)
+        except subprocess.TimeoutExpired:
+            terminate(server)
+            raise AssertionError("Dedicated NeoForge world did not flush and close")
+        terminate(peer);peerthread.join(timeout=8)
+        terminate(client);cthread.join(timeout=8)
+        sthread.join(timeout=8)
+        world_dir=SERVER/"world"
+        destination=PEER/"saves"/"RGBPortIntegrated"
+        assert (world_dir/"level.dat").is_file(),"Dedicated NeoForge save has no Minecraft level.dat"
+        destination.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copytree(world_dir,destination)
+        result["integrated_world_saved"]=(destination/"level.dat").stat().st_size>512 and any(
+            destination.rglob("*.mca"))
+        assert result["integrated_world_saved"],"NeoForge world region and block entities absent from integrated save"
+        integrated_cmd=list(peer_cmd)
+        start_join=integrated_cmd.index("--join-server")
+        assert integrated_cmd[start_join+2]=="--join-server-port"
+        del integrated_cmd[start_join:start_join+4]
+        integrated_cmd.extend(["--join-world","RGBPortIntegrated",
+            "--jvm-arg=-Drgbport.ci.reconnect=true",
+            "--jvm-arg=-Drgbport.ci.integrated=true"])
+        info("NEO_REAL_INTEGRATED_SINGLEPLAYER_LAUNCH "+str(integrated_cmd))
+        peer=subprocess.Popen(integrated_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+            text=True,bufsize=1,env=peer_env,start_new_session=True)
+        peerlog,peerthread=proc_reader(peer,"INTEGRATED_SINGLEPLAYER",
+            EVIDENCE/"integrated-singleplayer-launcher.log")
+        result["integrated_client_loaded"]=await_line(peerlog,
+            "RGB_PORT_INTEGRATED_SINGLEPLAYER_PASS",peer,235)
+        assert result["integrated_client_loaded"], (
+            "NeoForge saved dedicated-world did not open in actual integrated SingleplayerServer with RGB+C&B")
+        result["integrated_mixed_bits_restored"]=await_line(peerlog,
+            "RGB_PORT_CNB_MIXED_PROBE_PASS",peer,145)
+        assert result["integrated_mixed_bits_restored"], (
+            "Integrated NeoForge C&B no longer contains exact mixed glow/normal/glass material bits")
+        integrated_ids=[line.split("worldId=",1)[1].split()[0]
+          for line in peerlog if "RGB_PORT_INTEGRATED_SINGLEPLAYER_PASS worldId=" in line]
+        result["integrated_same_world_id"]=bool(integrated_ids) and integrated_ids[-1]==old_world_id
+        assert result["integrated_same_world_id"],"Integrated saved world lost original RGBRuntime world UUID"
+        image=EVIDENCE/"neo-integrated-original-dedicated-world-mixed-rgb-cnb.png"
+        snap=subprocess.run(["scrot",str(image.resolve())],env=peer_env,
+            stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=45)
+        result["integrated_screenshot"]=snap.returncode==0 and image.is_file() and image.stat().st_size>10000
+        assert result["integrated_screenshot"],"Integrated NeoForge real OpenGL game screenshot missing"
+        result["screenshots"].append({"name":image.name,"bytes":image.stat().st_size})
+        assert peer.poll() is None,"Integrated singleplayer exited unexpectedly after RGB/C&B checks"
     live=GAME/"logs/latest.log"
     txt=live.read_text(encoding="utf-8",errors="replace") if live.is_file() else ""
     if live.is_file():shutil.copy2(live,EVIDENCE/"minecraft-client.log")
@@ -590,6 +654,12 @@ if STRICT_LIGHT_PROBE:
     assert result["both_manual_sync"] and result["both_auto_sync"]
     assert result["both_green_update"] and result["both_source_removal"]
     assert result["both_clients_alive_after_edits"],"NeoForge peer disconnected before live edit finished"
+    if INTEGRATED_PROBE:
+        assert all(result[k] for k in (
+            "integrated_world_saved","integrated_client_loaded",
+            "integrated_mixed_bits_restored","integrated_same_world_id",
+            "integrated_screenshot"
+        )), "NeoForge true integrated singleplayer world/data/RGB+C&B acceptance failed"
     if DIMENSION_PROBE:
         assert all(result[k] for k in (
             "dimension_nether_entered","dimension_nether_blue_verified",
