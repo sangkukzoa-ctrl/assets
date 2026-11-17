@@ -146,6 +146,7 @@ result={"minecraft":"1.21.1","loader":"NeoForge 21.1.265","scope":"Strict CI-onl
         "peer_chunk_returned":False,"primary_alive_through_reconnect":False,
         "mixed_cnb_requested":MIXED_CNB_PROBE,"mixed_cnb_server_sculpted":False,
         "mixed_cnb_primary_verified":False,"mixed_cnb_peer_verified":False,
+        "shader_mixed_screenshot":False,
         "server_restart_requested":SERVER_RESTART_PROBE,
         "dedicated_server_restarted":False,
         "world_restart_green_block":False,
@@ -260,9 +261,23 @@ try:
         if shot.returncode==0 and screenshot.is_file():
             result["screenshots"].append({"name":screenshot.name,"bytes":screenshot.stat().st_size})
         else:info("FAILED SCREENSHOT "+shot.stdout)
+    if SHADER_ON and MIXED_CNB_PROBE:
+        # A SECOND real screenshot faces the real mixed 16x16x16 sculpture
+        # (not the original three separate full blocks). This is intended
+        # to catch lost tinted glass/mixed microbit rendering under Iris.
+        cmd(server,"tp RGBPortTester 5.5 120.0 1.5 facing 6.5 121.5 7.5")
+        time.sleep(12)
+        mixed_image=EVIDENCE/"neo-complementary-shader-ON-MIXED-4096bit-CNB-rgb-glass.png"
+        mixed_scrot=subprocess.run(["scrot",str(mixed_image.resolve())],env=env,
+             stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=45)
+        result["shader_mixed_screenshot"]=mixed_scrot.returncode==0 and mixed_image.is_file() and mixed_image.stat().st_size>10000
+        if result["shader_mixed_screenshot"]:
+            result["screenshots"].append({"name":mixed_image.name,"bytes":mixed_image.stat().st_size})
+        assert result["shader_mixed_screenshot"],"Real 4096-bit C&B mixed RGB glass Complementary shader scene image missing"
+        cmd(server,"tp RGBPortTester 0.5 120.0 0.5 facing 0.5 121.5 7.5")
     # Primary must already have seen BOTH real RGB color and C&B sculpted
     # neighboring light, not just the game's loader/render-thread startup.
-    assert STRICT_LIGHT_PROBE and not SHADER_ON,"Strict NeoForge two-client acceptance requires CI-only light probe without shader"
+    assert STRICT_LIGHT_PROBE,"Strict NeoForge two-client acceptance requires CI-only light probe"
     result["primary_rgb_verified"]=await_line(clog,"RGB_PORT_LIGHT_PROBE_PASS",client,100)
     result["primary_cnb_rgb_verified"]=await_line(clog,"RGB_PORT_CNB_LIGHT_PROBE_PASS",client,100)
     assert result["primary_rgb_verified"] and result["primary_cnb_rgb_verified"],"Primary real NeoForge client lacks RGB / C&B colored propagation"
