@@ -102,7 +102,10 @@ iris=download_mod("iris","1.8.12+1.21.1-neoforge")
 info("CLIENT_ECOSYSTEM "+json.dumps({"neoforge":"21.1.265","chiselsandbits":cb,"sodium":sodium,"iris":iris}))
 shader_filename=None
 if SHADER_ON:
-    shader=jsonurl("https://api.modrinth.com/v2/version/Bqen1mJX")
+    shader_variant=os.environ.get("RGB_PORT_SHADER_VARIANT","reimagined").strip().lower()
+    assert shader_variant in ("reimagined","unbound"),"Unknown Complementary shader variant"
+    pinned_version_id="B1kyfoUZ" if shader_variant=="unbound" else "Bqen1mJX"
+    shader=jsonurl("https://api.modrinth.com/v2/version/"+pinned_version_id)
     assert shader["version_number"]=="r5.9.3", "Pinned Complementary Reimagined shader changed"
     asset=next(f for f in shader["files"] if f["filename"].lower().endswith(".zip"))
     shader_filename=asset["filename"]
