@@ -6,6 +6,7 @@ Scripted chaos is separate from baseline acceptance, with strict two-client
 per-round RGB color, genuine voxel-count and baked-mesh oracles.
 """
 import json
+import os
 import random
 import time
 from pathlib import Path
@@ -17,6 +18,8 @@ COLOR=("rgb_red_186_72_96_glow","rgb_blue_8_85_209_glow",
 def exercise(*,send,server,server_lines,first,first_lines,second,second_lines,
              wait_server,wait_first,wait_second,evidence,seed,log):
     rng=random.Random(seed)
+    per_round=int(os.environ.get("RGB_PORT_CHAOS_ACTIONS_PER_ROUND","64"))
+    assert 24<=per_round<=500, "Chaos actions per round must be 24..500"
     evidence=Path(evidence)
     events=evidence/"cnb-chaos-events.jsonl"
     events.parent.mkdir(parents=True,exist_ok=True)
@@ -34,7 +37,8 @@ def exercise(*,send,server,server_lines,first,first_lines,second,second_lines,
         trace("command",text)
         send(server,text)
         if delay is not None:time.sleep(delay)
-    trace("begin","seeded 2-client churn / repeated C&B removal / RGB modes / bakes")
+    trace("begin","seeded 2-client churn / repeated C&B removal / RGB modes / bakes",
+          {"actions_per_round":per_round,"bake_storm_per_round":24})
     # Independent C&B chunk, far from the original live/mixed fixtures.
     command("forceload add 32 0",0.25)
     command("forceload add 160 0",0.25)
@@ -53,8 +57,8 @@ def exercise(*,send,server,server_lines,first,first_lines,second,second_lines,
         command(f"setblock 166 120 10 minecraft:{material}",0.2)
         # Alternate sane and absurd action pauses, including near-simultaneous
         # server commands; NEVER silently skip a test because it looks harsh.
-        actions=("bake","bake","bake","mode","tp","remove","reinstall","near_glow")
-        for index in range(24):
+        actions=("bake","bake","bake","bake","mode","tp","remove","reinstall","near_glow")
+        for index in range(per_round):
             action=rng.choice(actions)
             interval=rng.choice((0.0,0.015,0.045,0.08,0.18,0.5))
             if action=="bake":
@@ -72,6 +76,10 @@ def exercise(*,send,server,server_lines,first,first_lines,second,second_lines,
                 command("setblock 32 121 7 "+rng.choice((
                    "minecraft:air","rgbblocks:rgb_red_186_72_96_glow",
                    "rgbblocks:rgb_blue_8_85_209_glow")),interval)
+        # Additional near-zero-spacing MANUAL bake storm to provoke races.
+        command("rgb manual")
+        for burst in range(24):
+            command("rgb bake",0.0 if burst%3 else 0.01)
         # End every noisy round with a true NEW C&B entity, real 4095-bit
         # sculpture, and a forced fully committed AUTO bake for strict oracle.
         command("setblock 166 121 7 minecraft:air",0.15)
@@ -104,4 +112,5 @@ def exercise(*,send,server,server_lines,first,first_lines,second,second_lines,
     command("tp RGBPortPeer 1.5 120 0.5 facing 0.5 121.5 7.5")
     trace("complete","all four rounds, two live clients, 4095 voxels, adjacent RGB and BakedModel quads")
     return {"seed":seed,"rounds_passed":4,"two_clients_verified":True,
+            "actions_per_round":per_round,"bake_storms":96,
             "actions_recorded":total,"transcript":str(events)}
