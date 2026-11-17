@@ -3,6 +3,7 @@ on:
   push:
     branches: [rgb-blocks-legacy-compat-audit]
     paths:
+      - 'rgb-blocks-compat/recovered/fabric/com/rgbblocks/client/lighting/RGBLightPersistence.java'
       - '.github/workflows/rgb-blocks-1201-forge-mixed-cnb-complementary-on.yml'
       - 'rgb-blocks-compat/test_mc1201_forge_two_clients.py'
       - 'rgb-blocks-compat/inject_ci_mixed_cnb_probe.py'
