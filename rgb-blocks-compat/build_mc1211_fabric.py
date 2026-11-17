@@ -3,6 +3,7 @@
 Generated project is a migration workspace. A JAR build alone is not a release gate.
 """
 import json, pathlib, re, shutil, sys, zipfile
+from clone_owner_resources import clone_resources
 HERE=pathlib.Path("rgb-blocks-compat")
 WORK=pathlib.Path("port-work/mc1211-fabric")
 CODE=WORK/"src/main/java"
@@ -23,7 +24,7 @@ assert provenance.get("resources_extracted"), (
     "Original 1.3.1 assets are required: do not stage with RGB_OWNER_CODE_ONLY=1")
 shutil.rmtree(WORK,ignore_errors=True)
 shutil.copytree(FROM/"com",CODE/"com")
-shutil.copytree(ORIGINAL/"shared/resources",RES)
+clone_resources(ORIGINAL/"shared/resources",RES)
 for original in (ORIGINAL/"fabric/resources").rglob("*"):
     if original.is_file():
         relative=original.relative_to(ORIGINAL/"fabric/resources")
