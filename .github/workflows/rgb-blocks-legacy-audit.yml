@@ -4,7 +4,8 @@ on:
     branches:
       - rgb-blocks-legacy-compat-audit
     paths:
-      - 'rgb-blocks-compat/**'
+      - 'rgb-blocks-compat/verify_upstream.py'
+      - 'rgb-blocks-compat/verify_baseline_assets.py'
       - '.github/workflows/rgb-blocks-legacy-audit.yml'
   workflow_dispatch:
 permissions:
