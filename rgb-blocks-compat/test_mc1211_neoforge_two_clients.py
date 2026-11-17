@@ -224,6 +224,8 @@ try:
        "--mc-dir",str(GAME.resolve()),"-u","RGBPortTester","--join-server","127.0.0.1",
        "--join-server-port","25567","--resolution","1280x720"]
     launchcmd.append("--jvm-arg=-Xmx1550M")
+    if LIVE_CNB_PROBE:
+        launchcmd.append("--jvm-arg=-Drgbport.ci.liveCnb=true")
     info("LAUNCH "+str(launchcmd))
     client=subprocess.Popen(launchcmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,
         bufsize=1,env=env,start_new_session=True)
