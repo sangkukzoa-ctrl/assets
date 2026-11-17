@@ -34,6 +34,11 @@ Write-Host "Original source SHA256 verified, uploaded to GitHub draft release (N
 Write-Host "Artifact: $filename"
 Write-Host "Release tag: $tag"
 Write-Host "The CI now downloads only this pinned author source; no RGB Blocks Modrinth JAR."
+# Allow later pushes to run source-gated game CI automatically. Before this
+# point they are SKIPPED, not failed on repeated missing-release HTTP 404s.
+& gh variable set RGB_OWNER_SOURCE_READY --body "true" --repo $repo
+if ($LASTEXITCODE -ne 0) { throw "Cannot activate owner-verified CI source gate" }
+Write-Host "Author source verified; CI source gate now activated." -ForegroundColor Green
 # Resume both exact 1.20.1/1.21.1 regression matrices immediately.
 foreach ($workflow in @(
     "rgb-blocks-cnb-post-login-and-distant-rapid-bake.yml",
