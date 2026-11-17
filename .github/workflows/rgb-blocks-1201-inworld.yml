@@ -12,6 +12,7 @@ permissions:
   contents: read
 jobs:
   multiplayer:
+    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 58
     steps:
@@ -28,6 +29,8 @@ jobs:
           sudo apt-get install -y -qq xvfb scrot mesa-utils libgl1-mesa-dri libgl1 libasound2t64 libxrandr2 libxcursor1 libxinerama1 libxi6
       - name: Compile real RGB 1.20.1 Forge JAR
         run: |
+          RGB_OWNER_SOURCE_RELEASE_TAG=rgbblocks-131-private-original-source GITHUB_TOKEN="${{ github.token }}" python3 rgb-blocks-compat/stage_owner_original.py
+          python3 rgb-blocks-compat/verify_owner_runtime_migration.py
           python3 rgb-blocks-compat/build_mc1211_fabric.py
           python3 rgb-blocks-compat/build_mc1201_forge.py
           cd port-work/mc1201-forge

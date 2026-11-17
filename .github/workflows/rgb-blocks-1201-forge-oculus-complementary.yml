@@ -12,6 +12,7 @@ permissions:
   contents: read
 jobs:
   forge-complementary:
+    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 70
     steps:
@@ -32,6 +33,8 @@ jobs:
       - name: Build Forge 1.20.1 RGB port with CI-only source and C&B color telemetry
         run: |
           set -euxo pipefail
+          RGB_OWNER_SOURCE_RELEASE_TAG=rgbblocks-131-private-original-source GITHUB_TOKEN="${{ github.token }}" python3 rgb-blocks-compat/stage_owner_original.py
+          python3 rgb-blocks-compat/verify_owner_runtime_migration.py
           python3 rgb-blocks-compat/build_mc1211_fabric.py
           python3 rgb-blocks-compat/build_mc1201_forge.py
           python3 rgb-blocks-compat/inject_ci_only_light_probe.py forge1201
