@@ -12,6 +12,8 @@ from pathlib import Path
 SHADER_ON=False  # This dedicated dual-client acceptance checks vanilla/Embeddium renderer.
 MIXED_CNB_PROBE=os.environ.get("RGB_PORT_TEST_MIXED_CNB")=="1"
 SERVER_RESTART_PROBE=os.environ.get("RGB_PORT_TEST_WORLD_RESTART")=="1"
+DIMENSION_PROBE=os.environ.get("RGB_PORT_TEST_DIMENSIONS")=="1"
+assert not DIMENSION_PROBE or MIXED_CNB_PROBE, "Dimension switching requires 4096bit mixed C&B test"
 assert not SERVER_RESTART_PROBE or MIXED_CNB_PROBE, "True server world restart requires mixed C&B test"
 ROOT=Path("mc1201-forge-two-clients")
 SERVER=ROOT/"server";GAME=ROOT/"client";PEER=ROOT/"peer"
@@ -180,7 +182,13 @@ result.update({"peer_joined":False,"peer_rgb_probe_verified":False,
                "world_restart_peer_joined":False,
                "world_restart_rgb_cnb_light":False,
                "world_restart_mixed_client_bits":False,
-               "world_restart_same_uuid":False})
+               "world_restart_same_uuid":False,
+               "dimension_requested":DIMENSION_PROBE,
+               "dimension_nether_entered":False,
+               "dimension_nether_blue_verified":False,
+               "dimension_overworld_restored":False,
+               "dimension_nether_reentered":False,
+               "dimension_distinct_snapshots":False})
 try:
     result["server_ready"]=await_pattern(slog,"Done (",server,180,"server_boot")
     if not result["server_ready"]:raise AssertionError("Forge dedicated server did not reach Ready")
@@ -409,6 +417,8 @@ try:
     if old_peer_log.is_file():shutil.copy2(old_peer_log,EVIDENCE/"minecraft-peer-before-reconnect.log")
     before_rejoin=len(slog)
     reconnect_cmd=list(peer_cmd)+["--jvm-arg=-Drgbport.ci.reconnect=true"]
+    if DIMENSION_PROBE:
+        reconnect_cmd.append("--jvm-arg=-Drgbport.ci.dimension=true")
     record("RELAUNCH_SAME_PEER_DIRECTORY "+str(reconnect_cmd))
     peer=subprocess.Popen(reconnect_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
                           env=peer_env,text=True,start_new_session=True,bufsize=1)
@@ -441,6 +451,50 @@ try:
          "RGB_PORT_PEER_CHUNK_RETURN_PASS",peer,145,"peer_source_chunk_reloaded")
     assert result["peer_chunk_return_verified"],"Chunk returned without restoring RGB + C&B per-channel light"
     assert peer.poll() is None and client.poll() is None,"A client exited during reconnect/chunk reload"
+    if DIMENSION_PROBE:
+        # Genuine source and light-scene switch, not synthetic Level injection.
+        # Source 1 is GREEN full-block in Overworld with a real RED/mixed C&B.
+        # Source 2 is a BLUE glow block in Nether, with independent RGB cache.
+        command(server,"gamemode creative RGBPortPeer")
+        before_nether=len(peerlog)
+        command(server,"execute in minecraft:the_nether run tp RGBPortPeer 0.5 200.0 0.5")
+        result["dimension_nether_entered"]=await_pattern_since(peerlog,
+            "RGB_PORT_DIM_NETHER_ENTER_PASS",before_nether,peer,150,
+            "real_nether_dimension_entered")
+        assert result["dimension_nether_entered"],"Forge peer never entered actual Nether Level"
+        command(server,"execute in minecraft:the_nether run fill -5 199 -3 5 199 12 minecraft:stone")
+        command(server,"execute in minecraft:the_nether run setblock 0 202 7 rgbblocks:rgb_blue_8_85_209_glow")
+        command(server,"execute in minecraft:the_nether if block 0 202 7 rgbblocks:rgb_blue_8_85_209_glow run say RGB_PORT_DIM_NETHER_BLUE_BLOCK_READY")
+        assert await_pattern(slog,"RGB_PORT_DIM_NETHER_BLUE_BLOCK_READY",server,45,
+            "actual_nether_rgb_source_exists"),"Server did not install blue Nether RGB glow block"
+        result["dimension_nether_blue_verified"]=await_pattern(peerlog,
+            "RGB_PORT_DIM_NETHER_BLUE_PASS",peer,150,
+            "neoforge_and_forge_real_blue_near_light")
+        assert result["dimension_nether_blue_verified"],"Actual Nether per-channel blue RGB failed"
+        command(server,"execute in minecraft:overworld run tp RGBPortPeer 1.5 120.0 0.5")
+        result["dimension_overworld_restored"]=await_pattern(peerlog,
+            "RGB_PORT_DIM_OVERWORLD_RETURN_PASS",peer,150,
+            "overworld_mixed_cnb_and_green_light_after_nether")
+        assert result["dimension_overworld_restored"],"Overworld source/C&B disappeared after dimension change"
+        end=time.monotonic()+60;snap_files=[]
+        while time.monotonic()<end:
+            snap_files=sorted((PEER/"rgbblocks"/"lightmaps").rglob("*.rgl.gz"))
+            if len(snap_files)>=2 and all(f.stat().st_size>100 for f in snap_files):break
+            time.sleep(1)
+        result["dimension_distinct_snapshots"]=len(snap_files)>=2 and all(
+            f.stat().st_size>100 for f in snap_files)
+        record("FORGE_DIMENSION_INDEPENDENT_LIGHTMAP_FILES "+json.dumps([
+           {"file":p.name,"bytes":p.stat().st_size} for p in snap_files]))
+        assert result["dimension_distinct_snapshots"],"Forge lightmap lost per-dimension independence"
+        before_reentry=len(peerlog)
+        command(server,"execute in minecraft:the_nether run tp RGBPortPeer 0.5 200.0 0.5")
+        result["dimension_nether_reentered"]=await_pattern_since(peerlog,
+           "RGB_PORT_DIM_NETHER_REENTRY_PASS",before_reentry,peer,155,
+           "reloaded_blue_source_in_true_nether")
+        assert result["dimension_nether_reentered"],"Forge Nether RGB blue source not restored after dimension switches"
+        command(server,"execute in minecraft:overworld run tp RGBPortPeer 1.5 120.0 0.5")
+        time.sleep(4)
+        assert peer.poll() is None and server.poll() is None,"Server/client quit during inter-dimension lighting probe"
     if SERVER_RESTART_PROBE:
         # This tests a real second dedicated-server JVM, preserving the exact
         # original server/world directory and its saved C&B block entities.
@@ -594,6 +648,12 @@ assert result["rgb_light_propagation_verified"],"RGB light propagation runtime p
 assert result["cnb_sculpted_fixture"],"C&B 4095 RGB microbits fixture was not constructed"
 if MIXED_CNB_PROBE:
     assert result["mixed_cnb_server_sculpted"] and result["mixed_cnb_primary_verified"] and result["mixed_cnb_peer_verified"],"Forge mixed red/green/blue Glow + normal RGB + glass 16³ acceptance failed"
+if DIMENSION_PROBE:
+    assert all(result[k] for k in (
+        "dimension_nether_entered","dimension_nether_blue_verified",
+        "dimension_overworld_restored","dimension_nether_reentered",
+        "dimension_distinct_snapshots"
+    )), "Forge cross-dimension RGB/C&B persistence failed"
 if SERVER_RESTART_PROBE:
     assert all(result[k] for k in (
        "dedicated_server_restarted","world_restart_green_block",
