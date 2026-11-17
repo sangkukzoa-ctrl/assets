@@ -44,7 +44,8 @@ PROVEN_NATIVE_COMPAT_OVERLAYS=(
     # RGBSourceIndex.java is original-author source: old decompiler only
     # changed formatting, not behavior. Keep owner's original implementation.
     "client/cnb/RGBCnbGeometryBakeDebouncer.java",
-    "client/cnb/RGBCnbReloadWakeup.java",
+    # RGBCnbReloadWakeup.java: original author logic already includes
+    # login/restore delayed bake and world guards; prefer owner source.
     "client/cnb/RGBCnbMeshIntegrity.java",        # new port-only recovery class
     "mixin/client/ClientLevelMixin.java",
     "mixin/client/CnbChiseledBlockModelDataManagerMixin.java",
