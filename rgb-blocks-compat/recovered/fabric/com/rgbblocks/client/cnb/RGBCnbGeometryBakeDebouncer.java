@@ -143,6 +143,14 @@ public final class RGBCnbGeometryBakeDebouncer {
    }
 
    private static boolean isRemoteClientWorld(Object tileEntity) {
+      // Native BlockEntity names are loader-remapped in Forge/NeoForge.
+      // Reflection on getLevel() can miss inherited runtime-mapped methods.
+      if (tileEntity instanceof BlockEntity tile) {
+         Level world = tile.getLevel();
+         Minecraft mc = Minecraft.getInstance();
+         return world != null && world.isClientSide() && mc != null
+               && mc.level == world && mc.getSingleplayerServer() == null;
+      }
       try {
          Method hasLevel = tileEntity.getClass().getMethod("hasLevel");
          Object hasLevelResult = hasLevel.invoke(tileEntity);
@@ -163,6 +171,10 @@ public final class RGBCnbGeometryBakeDebouncer {
    }
 
    private static BlockPos getBlockPos(Object tileEntity) {
+      if (tileEntity instanceof BlockEntity tile) {
+         BlockPos pos = tile.getBlockPos();
+         return pos == null ? null : pos.immutable();
+      }
       try {
          Method method = tileEntity.getClass().getMethod("getBlockPos");
          Object result = method.invoke(tileEntity);
