@@ -4,6 +4,8 @@ on:
     branches: [rgb-blocks-legacy-compat-audit]
     paths:
       - 'rgb-blocks-compat/package_ecosystem.py'
+      - 'rgb-blocks-compat/recovered/fabric/com/rgbblocks/client/lighting/RGBLightPersistence.java'
+      - 'rgb-blocks-compat/build_mc1211_neoforge.py'
       - '.github/workflows/rgb-blocks-1211-neoforge-mrpack.yml'
   workflow_dispatch:
 permissions:
