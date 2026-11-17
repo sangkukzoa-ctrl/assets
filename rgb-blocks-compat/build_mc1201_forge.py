@@ -14,6 +14,12 @@ CODE=WORK/"src/main/java"
 RES=WORK/"src/main/resources"
 shutil.copytree(BASE/"src/main/java",CODE)
 shutil.copytree(BASE/"src/main/resources",RES)
+# The active Forge source is the 1.21.1 common generated tree, not
+# the archived original NeoForge tree. Assert the release includes the fix.
+persistence=(CODE/"com/rgbblocks/client/lighting/RGBLightPersistence.java").read_text(encoding="utf-8")
+assert "saveCurrentBlocking();\n                  RGBRealLightEngine.prepareForPersistenceDimensionSwitch();" in persistence, (
+    "Generated Forge release JAR lost the departing-dimension RGB+C&B snapshot save fix")
+
 (RES/"fabric.mod.json").unlink(missing_ok=True)
 
 def patch(p,transform):
