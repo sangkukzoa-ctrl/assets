@@ -14,6 +14,12 @@ if not BASE.exists():
 shutil.rmtree(ROOT,ignore_errors=True)
 shutil.copytree(BASE/"src",ROOT/"src")
 JAVA=ROOT/"src/main/java/com/rgbblocks"
+# Guarantee the native port is built from the actual patched persistence source.
+# The separate recovered/neoforge archive is NOT the active Java source tree.
+persistence=(JAVA/"client/lighting/RGBLightPersistence.java").read_text(encoding="utf-8")
+assert "saveCurrentBlocking();\n                  RGBRealLightEngine.prepareForPersistenceDimensionSwitch();" in persistence, (
+    "Generated NeoForge release JAR lost the departing-dimension RGB+C&B snapshot save fix")
+
 RES=ROOT/"src/main/resources"
 (RES/"fabric.mod.json").unlink(missing_ok=True)
 # The original 1.3.1 NeoForge mod's structure is preserved: RgbBlocksMod,
