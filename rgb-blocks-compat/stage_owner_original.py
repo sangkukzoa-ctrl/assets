@@ -45,13 +45,30 @@ RESOURCE_SENTINELS={
     "shared/resources/assets/rgbblocks/palette.json":"e94c52deb1cf167c9633ae7477bc8e3e91e112531805175427dba8013c241dde",
     "shared/resources/assets/rgbblocks/lang/en_us.json":"99195086f03946134829b8d54e35a96952edf19c2f64953c50fea968f02390b3",
 }
+# Complete author Java manifest digests — derived from ALL 63 original
+# source files, sorted by path, not just a few sample classes. This allows
+# full offline verification without publishing the author's source on GitHub.
+EXPECTED_JAVA_TREES={
+    "fabric":(32,"ce55ca98211dedd548d5300fe42508b6480ca6f5a4a2a882d01dbc1e825608a1"),
+    "neoforge":(31,"7d81b077f858fd325b30d9d57f2176b9def7c5fa6765d1c50b48babd0ac652a1"),
+}
+def owner_java_tree_hash(loader):
+    root=OUT/loader
+    files=sorted((root/"com").rglob("*.java"),
+                 key=lambda p:p.relative_to(root).as_posix())
+    h=hashlib.sha256()
+    for file in files:
+        relative=file.relative_to(root).as_posix()
+        h.update((relative+"\\t"+hash_file(file)+"\\n").encode("utf-8"))
+    return len(files),h.hexdigest()
+
 def verified_stage_cache(code_only):
     """Provenance + exact source hashes + file counts, never JSON trust alone."""
     for relative,digest in SOURCE_SENTINELS.items():
         actual=OUT/relative
         if not actual.is_file() or hash_file(actual)!=digest:return False
-    if sum(p.is_file() for p in (OUT/"fabric/com").rglob("*.java"))!=32:return False
-    if sum(p.is_file() for p in (OUT/"neoforge/com").rglob("*.java"))!=31:return False
+    for loader,expected in EXPECTED_JAVA_TREES.items():
+        if owner_java_tree_hash(loader)!=expected:return False
     if not code_only:
         for relative,digest in RESOURCE_SENTINELS.items():
             actual=OUT/relative
@@ -136,6 +153,10 @@ def stage(fabric,neo_core,code_only=False):
                 put_cached(OUT/"neoforge/resources",rel,z.read(name))
     if (stat["fabric_java"],stat["neo_java"],stat["resources"])!=(32,31,233629):
         raise RuntimeError("Owner source inventory mismatch "+str(stat))
+    stat["owner_java_trees"]={
+        loader:{"java_count":count,"sha256":digest}
+        for loader,(count,digest) in EXPECTED_JAVA_TREES.items()
+    }
     stat["reused_existing_files"]=reused
     if not verified_stage_cache(code_only):
         raise RuntimeError("Author-original staged file bytes or inventory failed integrity gate")
