@@ -572,6 +572,19 @@ public final class RGBRealLightEngine {
                   Map<Long, Integer> empty = shadow ? MANUAL_CNB_EMPTY_STRIKES : CNB_EMPTY_STRIKES;
                   Map<Long, Integer> weak = shadow ? MANUAL_CNB_WEAK_STRIKES : CNB_WEAK_STRIKES;
                   long key = cnbKey(pending.pos);
+                  // A queued old C&B update may survive the owner's
+                  // extremely rapid tear-down. Never resurrect a BLUE
+                  // microvoxel emitter over a loaded AIR/normal block.
+                  if (isPositionLoaded(pending.pos) && !isStillChiseledBlock(pending.pos)) {
+                     iterator.remove();
+                     if (shadow) {
+                        deferShadowRemoval(pending.pos);
+                     } else {
+                        executeRealCnbRemoval(pending.pos, true);
+                        markClean(pending.pos);
+                     }
+                     continue;
+                  }
                   // A fast AIR -> C&B replacement creates a NEW entity at
                   // the same coordinates. Never let its old pending BLUE tile
                   // overwrite the newly sculpted GREEN material after ABA.
