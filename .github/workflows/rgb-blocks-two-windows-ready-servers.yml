@@ -1,0 +1,86 @@
+name: RGB Blocks two READY Windows native servers Forge 1.20.1 and NeoForge 1.21.1
+on:
+  workflow_dispatch:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths:
+      - '.github/workflows/rgb-blocks-two-windows-ready-servers.yml'
+      - 'rgb-blocks-compat/build_windows_ready_server.py'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  forge-windows-server:
+    name: Windows ready Forge 1.20.1-47.4.28 incl Java 17, RGB JAR, ALL native libraries
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preflight standalone Windows-server packager
+        run: python3 -m py_compile rgb-blocks-compat/build_windows_ready_server.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/download-artifact@v4
+        with:
+          name: RGBBlocks-1.3.1-Forge-1.20.1-JAR-SOURCE-MRPACK
+          path: input/forge1201
+          run-id: 44037516139
+          github-token: ${{ github.token }}
+      - name: Install COMPLETE native Forge 47.4.28 server libraries and verified portable Windows Java 17
+        run: python3 rgb-blocks-compat/build_windows_ready_server.py forge1201
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: RGBBlocks-1.3.1-Forge-1.20.1-47.4.28-WINDOWS-READY-SERVER-ZIP
+          path: windows-ready/*Forge*WINDOWS-READY-SERVER.zip
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: forge-windows-server-install-diagnostic
+          path: |
+            windows-ready/**/SERVER_INSTALL_BUILD.log
+            windows-ready/**/temurin-api.json
+          if-no-files-found: warn
+          retention-days: 7
+  neoforge-windows-server:
+    name: Windows ready NeoForge 1.21.1-21.1.265 incl Java 21, RGB JAR, ALL native libraries
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preflight standalone Windows-server packager
+        run: python3 -m py_compile rgb-blocks-compat/build_windows_ready_server.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/download-artifact@v4
+        with:
+          name: RGBBlocks-1.3.1-NeoForge-1.21.1-JAR-SOURCE-MRPACK
+          path: input/neoforge1211
+          run-id: 44037516139
+          github-token: ${{ github.token }}
+      - name: Install COMPLETE native NeoForge 21.1.265 server libraries and verified portable Windows Java 21
+        run: python3 rgb-blocks-compat/build_windows_ready_server.py neoforge1211
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: RGBBlocks-1.3.1-NeoForge-1.21.1-21.1.265-WINDOWS-READY-SERVER-ZIP
+          path: windows-ready/*NeoForge*WINDOWS-READY-SERVER.zip
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: neoforge-windows-server-install-diagnostic
+          path: |
+            windows-ready/**/SERVER_INSTALL_BUILD.log
+            windows-ready/**/temurin-api.json
+          if-no-files-found: warn
+          retention-days: 7
