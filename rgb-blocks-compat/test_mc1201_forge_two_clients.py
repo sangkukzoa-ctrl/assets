@@ -463,59 +463,6 @@ try:
         assert result["live_cnb_manual_red_both"],"Forge MANUAL baked edited C&B tile still emits no actual RGB light"
 
     assert result["both_clients_alive_after_manual_bake"],"Client exited during manual dirty-position bake"
-    if CHAOS_PROBE:
-        # Two production players and the genuinely sculpted original mixed
-        # material C&B scene exist at this point; chaos uses a SEPARATE chunk.
-        from cnb_chaos_choreography import exercise
-        seed=int(os.environ.get("RGB_PORT_CHAOS_SEED","1313131"))
-        result["chaos"]=exercise(
-            send=command,server=server,server_lines=slog,
-            first=client,first_lines=clog,second=peer,second_lines=peerlog,
-            wait_server=await_pattern_since,wait_first=await_pattern_since,
-            wait_second=await_pattern_since,evidence=EVIDENCE,seed=seed,log=record)
-        assert result["chaos"]["rounds_passed"]==4
-        # Real player-style close/relaunch of one independent client *after*
-        # repeated destructive rounds, then verify the actual last C&B mesh
-        # and RGB light again in a fresh game JVM, not just stored files.
-        before_kick=len(slog)
-        command(server,"kick RGBPortPeer RGB_CHAOS_RELOGIN")
-        assert await_pattern_since(slog,"RGBPortPeer lost connection",before_kick,server,60,
-            "chaos_peer_shutdown"),"Chaos test failed to disconnect live peer"
-        terminate(peer)
-        peerthread.join(timeout=10)
-        before_join=len(slog)
-        peer=subprocess.Popen(peer_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
-            env=peer_env,text=True,start_new_session=True,bufsize=1)
-        peerlog,peerthread=runthread(peer,"CHAOS_RELOGIN",EVIDENCE/"peer-chaos-reconnect-console.log")
-        assert await_pattern_since(slog,"RGBPortPeer joined the game",before_join,server,210,
-            "chaos_peer_real_process_rejoin"),"Chaos peer real JVM failed to relaunch"
-        command(server,"tp RGBPortPeer 162.5 120 0.5 facing 166.5 121.5 7.5")
-        assert await_pattern_since(peerlog,
-            "RGB_PORT_CHAOS_ROUND_PASS round=3 color=rgb_red_186_72_96_glow",
-            0,peer,150,"chaos_restarted_peer_actual_CNB_mesh_and_light"),(
-            "Restarted peer lost real 4095-bit C&B geometry or RGB light")
-        result["chaos"]["peer_process_restarted_and_verified"]=True
-        # The opposite of ghost geometry: delete the last glow sculpture after
-        # rapid edits/relogin and insist that its RGB light vanishes on BOTH
-        # independent clients, not merely that the tile became air on server.
-        command(server,"tp RGBPortTester 161.5 120 0.5 facing 166.5 121.5 7.5")
-        command(server,"rgb auto")
-        command(server,"setblock 166 121 7 minecraft:air")
-        command(server,"rgb setbake all")
-        command(server,"rgb bake")
-        before_primary_ghost=len(clog);before_peer_ghost=len(peerlog)
-        command(server,"setblock 166 120 17 minecraft:gold_block")
-        assert await_pattern_since(clog,"RGB_PORT_CHAOS_NO_GHOST_LIGHT_PASS",
-               before_primary_ghost,client,140,"chaos_primary_removed_glow_no_ghost"),(
-               "CHAOS: primary RGB source remained after actual C&B deletion")
-        assert await_pattern_since(peerlog,"RGB_PORT_CHAOS_NO_GHOST_LIGHT_PASS",
-               before_peer_ghost,peer,140,"chaos_restarted_peer_removed_glow_no_ghost"),(
-               "CHAOS: restarted peer RGB light survived after C&B removal")
-        result["chaos"]["zero_ghost_rgb_both_clients"]=True
-        command(server,"tp RGBPortTester -1.5 120 0.5 facing 0.5 121.5 7.5")
-        command(server,"tp RGBPortPeer 1.5 120 0.5 facing 0.5 121.5 7.5")
-
-
     if BAKE_STRESS_PROBE:
         # Keep two real C&B voxel sculptures 128 blocks apart. Both players
         # travel back/forth during rapid location-scoped manual bakes.
@@ -780,6 +727,60 @@ try:
         assert result["integrated_screenshot"],"Forge integrated real OpenGL screenshot missing"
         result["screenshots"].append({"file":screenshot.name,"size":screenshot.stat().st_size})
         assert peer.poll() is None,"Forge integrated singleplayer crashed"
+    if CHAOS_PROBE:
+        # Two production players and the genuinely sculpted original mixed
+        # material C&B scene exist at this point; chaos uses a SEPARATE chunk.
+        from cnb_chaos_choreography import exercise
+        seed=int(os.environ.get("RGB_PORT_CHAOS_SEED","1313131"))
+        result["chaos"]=exercise(
+            send=command,server=server,server_lines=slog,
+            first=client,first_lines=clog,second=peer,second_lines=peerlog,
+            wait_server=await_pattern_since,wait_first=await_pattern_since,
+            wait_second=await_pattern_since,evidence=EVIDENCE,seed=seed,log=record)
+        assert result["chaos"]["rounds_passed"]==4
+        # Real player-style close/relaunch of one independent client *after*
+        # repeated destructive rounds, then verify the actual last C&B mesh
+        # and RGB light again in a fresh game JVM, not just stored files.
+        before_kick=len(slog)
+        command(server,"kick RGBPortPeer RGB_CHAOS_RELOGIN")
+        assert await_pattern_since(slog,"RGBPortPeer lost connection",before_kick,server,60,
+            "chaos_peer_shutdown"),"Chaos test failed to disconnect live peer"
+        terminate(peer)
+        peerthread.join(timeout=10)
+        before_join=len(slog)
+        peer=subprocess.Popen(peer_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+            env=peer_env,text=True,start_new_session=True,bufsize=1)
+        peerlog,peerthread=runthread(peer,"CHAOS_RELOGIN",EVIDENCE/"peer-chaos-reconnect-console.log")
+        assert await_pattern_since(slog,"RGBPortPeer joined the game",before_join,server,210,
+            "chaos_peer_real_process_rejoin"),"Chaos peer real JVM failed to relaunch"
+        command(server,"tp RGBPortPeer 162.5 120 0.5 facing 166.5 121.5 7.5")
+        assert await_pattern_since(peerlog,
+            "RGB_PORT_CHAOS_ROUND_PASS round=3 color=rgb_red_186_72_96_glow",
+            0,peer,150,"chaos_restarted_peer_actual_CNB_mesh_and_light"),(
+            "Restarted peer lost real 4095-bit C&B geometry or RGB light")
+        result["chaos"]["peer_process_restarted_and_verified"]=True
+        # The opposite of ghost geometry: delete the last glow sculpture after
+        # rapid edits/relogin and insist that its RGB light vanishes on BOTH
+        # independent clients, not merely that the tile became air on server.
+        command(server,"tp RGBPortTester 161.5 120 0.5 facing 166.5 121.5 7.5")
+        command(server,"rgb auto")
+        command(server,"setblock 166 121 7 minecraft:air")
+        command(server,"rgb setbake all")
+        command(server,"rgb bake")
+        before_primary_ghost=len(clog);before_peer_ghost=len(peerlog)
+        command(server,"setblock 166 120 17 minecraft:gold_block")
+        assert await_pattern_since(clog,"RGB_PORT_CHAOS_NO_GHOST_LIGHT_PASS",
+               before_primary_ghost,client,140,"chaos_primary_removed_glow_no_ghost"),(
+               "CHAOS: primary RGB source remained after actual C&B deletion")
+        assert await_pattern_since(peerlog,"RGB_PORT_CHAOS_NO_GHOST_LIGHT_PASS",
+               before_peer_ghost,peer,140,"chaos_restarted_peer_removed_glow_no_ghost"),(
+               "CHAOS: restarted peer RGB light survived after C&B removal")
+        result["chaos"]["zero_ghost_rgb_both_clients"]=True
+        command(server,"tp RGBPortTester -1.5 120 0.5 facing 0.5 121.5 7.5")
+        command(server,"tp RGBPortPeer 1.5 120 0.5 facing 0.5 121.5 7.5")
+
+
+
     client_game=GAME/"logs/latest.log"
     if client_game.is_file():
         txt=client_game.read_text(encoding="utf-8",errors="replace")
