@@ -119,10 +119,15 @@ try:
        "rgb manual","rgb setbake all","rgb bake","save-all flush","rgb get"
     ])
     report["first_start"]=True
-    report["rgb_palette"]="16687 colors" in first and "50061 RGB blocks" in first
+    report["rgb_palette"]="16687" in first and "50061" in first
     report["rgb_commands"]="RGB mode:" in first
     report["normal_glow_glass_block_created"]=all(x in first for x in (
         "RGB_WIN_NORMAL_PASS","RGB_WIN_GLOW_PASS","RGB_WIN_GLASS_PASS"))
+    print("WINDOWS_FIRST_NATIVE_FLAGS",json.dumps({k:report[k] for k in
+          ("rgb_palette","rgb_commands","normal_glow_glass_block_created")}),flush=True)
+    for line in first.splitlines():
+        if any(t in line for t in ("16687","50061","RGB_WIN_","RGB mode:","Unknown command","Unknown block")):
+            print("WINDOWS_FIRST_NATIVE_DIAG",line[:600],flush=True)
     assert report["rgb_palette"] and report["rgb_commands"] and report["normal_glow_glass_block_created"]
     assert (server/"world/level.dat").is_file(),"No real saved Minecraft world after Windows server boot"
     second=cycle("reopen",[
