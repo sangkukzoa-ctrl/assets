@@ -151,7 +151,9 @@ result={"minecraft":"1.21.1","loader":"NeoForge 21.1.265","scope":"Strict CI-onl
         "world_restart_peer_joined":False,
         "world_restart_rgb_cnb_light":False,
         "world_restart_mixed_client_bits":False,
-        "world_restart_same_uuid":False}
+        "world_restart_same_uuid":False,
+        "primary_loader_retry_used":False,
+        "primary_loader_retry_recovered":False}
 try:
     result["server_ready"]=await_line(slog,"Done (",server,180)
     if not result["server_ready"]:raise AssertionError("NeoForge server failed to become ready")
@@ -208,6 +210,34 @@ try:
                 info("LAST 70 LINES "+str(pth)+"\n"+"\n".join(tail))
     result["render_thread"]=await_line(clog,"Render thread",client,55)
     result["texture_atlas_ready"]=await_line(clog,"Created:",client,180)
+    if not result["texture_atlas_ready"]:
+        # One bounded fresh launch if real graphics/resource loading got stuck
+        # before atlas creation. A Forge/NeoForge crash or external authlib
+        # HTML error can leave the first Java process connected yet render
+        # thread indefinitely blocked. NEVER waive any in-game RGB assertions.
+        result["primary_loader_retry_used"]=True
+        old_status=client.poll()
+        info("NEO_PRIMARY_ATLAS_STALL retrying fresh real client; process="+str(old_status))
+        for candidate in (GAME/"logs/latest.log",EVIDENCE/"launcher.log"):
+            if candidate.is_file():
+                snapshot=EVIDENCE/("primary-failed-"+candidate.name)
+                shutil.copy2(candidate,snapshot)
+                info("NEO_PRIMARY_STALL_LOG "+str(snapshot)+" bytes="+str(snapshot.stat().st_size))
+        terminate(client)
+        cthread.join(timeout=10)
+        pre_retry_server=len(slog)
+        client=subprocess.Popen(launchcmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+            text=True,bufsize=1,env=env,start_new_session=True)
+        clog,cthread=proc_reader(client,"CLIENT_RETRY",EVIDENCE/"launcher-retry.log")
+        rejoined=await_new_line(slog,"RGBPortTester joined the game",
+            pre_retry_server,server,210,"fresh_primary_rejoined_after_atlas_stall")
+        assert rejoined,"Strict NeoForge live client failed to rejoin on retry"
+        result["fml_player_joined"]=True
+        result["render_thread"]=await_line(clog,"Render thread",client,95)
+        result["texture_atlas_ready"]=await_line(clog,"Created:",client,230)
+        result["primary_loader_retry_recovered"]=result["texture_atlas_ready"]
+        assert result["primary_loader_retry_recovered"], (
+            "NeoForge 1.21.1 second real graphics startup also failed to create atlases; see both launch logs")
     if result["fml_player_joined"]:
         cmd(server,"tp RGBPortTester 0.5 120.0 0.5 facing 0.5 121.5 7.5")
         # Platform extends under the camera at y=119 to prevent falling off
