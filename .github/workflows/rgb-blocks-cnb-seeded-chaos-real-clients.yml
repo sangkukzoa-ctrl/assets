@@ -1,0 +1,76 @@
+name: RGB Blocks owner-style CHAOS - real C&B teardown, random bake, 2 clients, relaunch
+on:
+  workflow_dispatch:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths:
+      - 'rgb-blocks-compat/inject_ci_chaos_probe.py'
+      - 'rgb-blocks-compat/cnb_chaos_choreography.py'
+      - 'rgb-blocks-compat/test_mc1201_forge_two_clients.py'
+      - 'rgb-blocks-compat/test_mc1211_neoforge_two_clients.py'
+      - '.github/workflows/rgb-blocks-cnb-seeded-chaos-real-clients.yml'
+permissions:
+  contents: read
+jobs:
+  chaos:
+    name: ${{ matrix.target }} hostile edits / 2 real players / genuine peer JVM restart
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {target: forge1201, java: '17', gradle: '8.8', workdir: 'mc1201-forge', test: 'test_mc1201_forge_two_clients.py', seed: '1313131'}
+          - {target: neoforge1211, java: '21', gradle: '8.10.2', workdir: 'mc1211-neoforge', test: 'test_mc1211_neoforge_two_clients.py', seed: '2718281'}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate source and deterministic reproduction seeds
+        run: |
+          python3 -m py_compile rgb-blocks-compat/build_mc1211_fabric.py rgb-blocks-compat/build_mc1201_forge.py rgb-blocks-compat/build_mc1211_neoforge.py rgb-blocks-compat/inject_ci_only_light_probe.py rgb-blocks-compat/inject_ci_mixed_cnb_probe.py rgb-blocks-compat/inject_ci_chaos_probe.py rgb-blocks-compat/cnb_chaos_choreography.py rgb-blocks-compat/test_mc1201_forge_two_clients.py rgb-blocks-compat/test_mc1211_neoforge_two_clients.py
+          grep -F 'RGB_PORT_CHAOS_ROUND_PASS' rgb-blocks-compat/inject_ci_chaos_probe.py
+          grep -F 'peer_process_restarted_and_verified' rgb-blocks-compat/test_mc1201_forge_two_clients.py
+          grep -F 'peer_process_restarted_and_verified' rgb-blocks-compat/test_mc1211_neoforge_two_clients.py
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '${{ matrix.java }}'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '${{ matrix.gradle }}'}
+      - name: Install genuine software-rendered Minecraft graphical clients
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb scrot mesa-utils libgl1-mesa-dri libgl1 libasound2t64 libxrandr2 libxcursor1 libxinerama1 libxi6
+      - name: Stage native loader, real C&B and CI-only aggressive mutation oracles
+        run: |
+          set -euxo pipefail
+          python3 rgb-blocks-compat/build_mc1211_fabric.py
+          if [ "${{ matrix.target }}" = "forge1201" ]; then
+            python3 rgb-blocks-compat/build_mc1201_forge.py
+            python3 rgb-blocks-compat/inject_ci_only_light_probe.py forge1201
+            python3 rgb-blocks-compat/inject_ci_two_client_sync_probe.py
+          else
+            python3 rgb-blocks-compat/build_mc1211_neoforge.py
+            python3 rgb-blocks-compat/inject_ci_only_light_probe.py neoforge1211
+            python3 rgb-blocks-compat/inject_ci_neoforge_two_client_probe.py
+          fi
+          python3 rgb-blocks-compat/inject_ci_mixed_cnb_probe.py ${{ matrix.target }}
+          python3 rgb-blocks-compat/inject_ci_chaos_probe.py ${{ matrix.target }}
+      - name: Compile native mod and CI-only chaos instrumentation
+        working-directory: port-work/${{ matrix.workdir }}
+        run: gradle --no-daemon build
+      - name: REAL hostile 2-client C&B sequence with Unbound shader and peer JVM relaunch
+        env:
+          RGB_PORT_TEST_MIXED_CNB: '1'
+          RGB_PORT_STRICT_LIGHT_PROBE: '1'
+          RGB_PORT_TEST_CHAOS: '1'
+          RGB_PORT_CHAOS_SEED: '${{ matrix.seed }}'
+          RGB_PORT_SHADER_ON: '1'
+          RGB_PORT_SHADER_VARIANT: 'unbound'
+        run: python3 rgb-blocks-compat/${{ matrix.test }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rgb-cnb-chaos-${{ matrix.target }}-seed-${{ matrix.seed }}-real-game-evidence
+          path: |
+            mc1201-forge-two-clients/evidence/
+            mc1211-neoforge-two-clients/evidence/
+            port-work/${{ matrix.workdir }}/build/reports/
+          retention-days: 30
