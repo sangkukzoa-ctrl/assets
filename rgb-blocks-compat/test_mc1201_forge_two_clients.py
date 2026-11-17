@@ -13,6 +13,9 @@ SHADER_ON=os.environ.get("RGB_PORT_SHADER_ON")=="1"  # Optional strict Oculus+Co
 MIXED_CNB_PROBE=os.environ.get("RGB_PORT_TEST_MIXED_CNB")=="1"
 SERVER_RESTART_PROBE=os.environ.get("RGB_PORT_TEST_WORLD_RESTART")=="1"
 DIMENSION_PROBE=os.environ.get("RGB_PORT_TEST_DIMENSIONS")=="1"
+INTEGRATED_PROBE=os.environ.get("RGB_PORT_TEST_INTEGRATED")=="1"
+assert not INTEGRATED_PROBE or MIXED_CNB_PROBE, "Real Forge integrated save requires original mixed 16³ C&B"
+assert not INTEGRATED_PROBE or not (SERVER_RESTART_PROBE or DIMENSION_PROBE), "Keep integrated/world/dimension gates separate"
 assert not DIMENSION_PROBE or MIXED_CNB_PROBE, "Dimension switching requires 4096bit mixed C&B test"
 assert not SERVER_RESTART_PROBE or MIXED_CNB_PROBE, "True server world restart requires mixed C&B test"
 ROOT=Path("mc1201-forge-two-clients")
@@ -189,7 +192,13 @@ result.update({"peer_joined":False,"peer_rgb_probe_verified":False,
                "dimension_nether_blue_verified":False,
                "dimension_overworld_restored":False,
                "dimension_nether_reentered":False,
-               "dimension_distinct_snapshots":False})
+               "dimension_distinct_snapshots":False,
+               "integrated_requested":INTEGRATED_PROBE,
+               "integrated_world_saved":False,
+               "integrated_client_loaded":False,
+               "integrated_mixed_bits_restored":False,
+               "integrated_same_world_id":False,
+               "integrated_screenshot":False})
 try:
     result["server_ready"]=await_pattern(slog,"Done (",server,180,"server_boot")
     if not result["server_ready"]:raise AssertionError("Forge dedicated server did not reach Ready")
@@ -566,6 +575,60 @@ try:
         assert all(result[k] for k in (
             "world_restart_rgb_cnb_light","world_restart_mixed_client_bits","world_restart_same_uuid"
         )), "Forge true server world restart lost saved RGB / C&B 4096bit mixed glass or world UUID"
+    if INTEGRATED_PROBE:
+        # Unlike a multiplayer login, Minecraft itself now runs a real
+        # IntegratedServer after opening the exact saved dedicated world.
+        # The original RED and GREEN blocks and 4096-voxel mixed C&B tile
+        # are copied from saved .mca and level.dat, never regenerated.
+        command(server,"setworldspawn 1 120 0")
+        command(server,"save-all flush")
+        time.sleep(5)
+        command(server,"stop")
+        try:server.wait(timeout=90)
+        except subprocess.TimeoutExpired:
+            terminate(server)
+            raise AssertionError("Forge dedicated server failed to flush/close world")
+        terminate(peer);peerthread.join(timeout=8)
+        terminate(client);cthread.join(timeout=8)
+        sthread.join(timeout=8)
+        world_dir=SERVER/"world"
+        dest=PEER/"saves"/"RGBPortIntegrated"
+        assert (world_dir/"level.dat").is_file(),"Forge save missing Minecraft level.dat"
+        dest.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copytree(world_dir,dest)
+        result["integrated_world_saved"]=(dest/"level.dat").stat().st_size>512 and any(dest.rglob("*.mca"))
+        assert result["integrated_world_saved"],"Forge save missing original world region data"
+        integrated_cmd=list(peer_cmd)
+        start_join=integrated_cmd.index("--join-server")
+        assert integrated_cmd[start_join+2]=="--join-server-port"
+        del integrated_cmd[start_join:start_join+4]
+        integrated_cmd.extend(["--join-world","RGBPortIntegrated",
+            "--jvm-arg=-Drgbport.ci.reconnect=true",
+            "--jvm-arg=-Drgbport.ci.integrated=true"])
+        record("FORGE_REAL_INTEGRATED_SINGLEPLAYER_LAUNCH "+str(integrated_cmd))
+        peer=subprocess.Popen(integrated_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+            text=True,bufsize=1,env=peer_env,start_new_session=True)
+        peerlog,peerthread=runthread(peer,"INTEGRATED_SINGLEPLAYER",
+            EVIDENCE/"integrated-singleplayer-launcher.log")
+        result["integrated_client_loaded"]=await_pattern(peerlog,
+            "RGB_PORT_INTEGRATED_SINGLEPLAYER_PASS",peer,235,
+            "real_integrated_minecraft_server_and_saved_rgb")
+        assert result["integrated_client_loaded"],"Forge integrated SingleplayerServer could not load real GREEN RGB+C&B world"
+        result["integrated_mixed_bits_restored"]=await_pattern(peerlog,
+            "RGB_PORT_CNB_MIXED_PROBE_PASS",peer,145,
+            "integrated_five_material_mixed_sculpted_cnb")
+        assert result["integrated_mixed_bits_restored"],"Original C&B RGB Glow/Normal/Glass counts lost in integrated world"
+        integrated_ids=[line.split("worldId=",1)[1].split()[0]
+            for line in peerlog if "RGB_PORT_INTEGRATED_SINGLEPLAYER_PASS worldId=" in line]
+        result["integrated_same_world_id"]=bool(integrated_ids) and integrated_ids[-1]==initial_peer_world_id
+        assert result["integrated_same_world_id"],"Forge integrated saved world RGBRuntime world ID changed"
+        screenshot=EVIDENCE/"forge-integrated-original-dedicated-world-mixed-rgb-cnb.png"
+        shot=subprocess.run(["scrot",str(screenshot.resolve())],env=peer_env,
+            stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=45)
+        result["integrated_screenshot"]=shot.returncode==0 and screenshot.is_file() and screenshot.stat().st_size>10000
+        assert result["integrated_screenshot"],"Forge integrated real OpenGL screenshot missing"
+        result["screenshots"].append({"file":screenshot.name,"size":screenshot.stat().st_size})
+        assert peer.poll() is None,"Forge integrated singleplayer crashed"
     client_game=GAME/"logs/latest.log"
     if client_game.is_file():
         txt=client_game.read_text(encoding="utf-8",errors="replace")
@@ -663,6 +726,12 @@ assert result["rgb_light_propagation_verified"],"RGB light propagation runtime p
 assert result["cnb_sculpted_fixture"],"C&B 4095 RGB microbits fixture was not constructed"
 if MIXED_CNB_PROBE:
     assert result["mixed_cnb_server_sculpted"] and result["mixed_cnb_primary_verified"] and result["mixed_cnb_peer_verified"],"Forge mixed red/green/blue Glow + normal RGB + glass 16³ acceptance failed"
+if INTEGRATED_PROBE:
+    assert all(result[k] for k in (
+        "integrated_world_saved","integrated_client_loaded",
+        "integrated_mixed_bits_restored","integrated_same_world_id",
+        "integrated_screenshot"
+    )), "Forge real integrated SingleplayerServer original world and RGB+C&B acceptance failed"
 if DIMENSION_PROBE:
     assert all(result[k] for k in (
         "dimension_nether_entered","dimension_nether_blue_verified",
