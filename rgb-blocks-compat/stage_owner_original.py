@@ -35,8 +35,37 @@ def stage(fabric,neo_core,code_only=False):
         raise RuntimeError("Wrong owner Fabric 1.3.1 source TAR fingerprint")
     if hash_file(neo_core)!=EXPECTED_NEO_CORE:
         raise RuntimeError("Wrong owner NeoForge source ZIP fingerprint")
-    shutil.rmtree(OUT,ignore_errors=True)
-    (OUT/"shared/resources").mkdir(parents=True)
+    # Hundreds of thousands of tiny assets take much longer than hashing
+    # their original compressed source. Keep a checked, resumable extraction
+    # checkpoint. Never accept a tree sourced from different archive hashes.
+    wanted={"owner_fabric_sha256":EXPECTED_FABRIC,
+            "owner_neo_core_sha256":EXPECTED_NEO_CORE}
+    provenance=OUT/"source-provenance.json"
+    if provenance.is_file():
+        existing=json.loads(provenance.read_text(encoding="utf-8"))
+        if (all(existing.get(k)==v for k,v in wanted.items())
+            and existing.get("fabric_java")==32 and existing.get("neo_java")==31
+            and existing.get("resources")==233629
+            and (code_only or existing.get("resources_extracted"))):
+            print("RGB_PORT_ORIGINAL_OWNER_SOURCE_CACHE_HIT",str(provenance),flush=True)
+            return
+    marker=OUT/".source-stage-in-progress.json"
+    if marker.is_file() and json.loads(marker.read_text(encoding="utf-8"))==wanted:
+        print("RGB_PORT_ORIGINAL_OWNER_SOURCE_RESUME",str(OUT),flush=True)
+    else:
+        shutil.rmtree(OUT,ignore_errors=True)
+    (OUT/"shared/resources").mkdir(parents=True,exist_ok=True)
+    marker.write_text(json.dumps(wanted,indent=2),encoding="utf-8")
+    reused=0
+    def put_cached(root,rel,data):
+        nonlocal reused
+        target=root/rel
+        # The original archive SHA was validated and the marker binds this
+        # interrupted tree to these EXACT two original author archives.
+        if target.is_file() and target.stat().st_size==len(data):
+            reused+=1
+        else:
+            write_file(root,rel,data)
     stat={"kind":"author-original-sources","fabric_java":0,"neo_java":0,
           "resources":0,"resources_extracted":not code_only,
           "owner_fabric_sha256":EXPECTED_FABRIC,
@@ -49,31 +78,35 @@ def stage(fabric,neo_core,code_only=False):
             if "/src/client/resources/" in name:
                 rel=name.split("/src/client/resources/",1)[1]
                 if not code_only:
-                    write_file(OUT/"fabric/resources",rel,tf.extractfile(member).read())
+                    put_cached(OUT/"fabric/resources",rel,tf.extractfile(member).read())
             elif "/src/main/resources/" in name:
                 rel=name.split("/src/main/resources/",1)[1]
                 stat["resources"]+=1
                 if not code_only:
                     root=OUT/"fabric/resources" if rel in ("fabric.mod.json","rgbblocks.mixins.json") else OUT/"shared/resources"
-                    write_file(root,rel,tf.extractfile(member).read())
+                    put_cached(root,rel,tf.extractfile(member).read())
             elif "/src/" in name and name.endswith(".java"):
                 rel=name.split("/java/",1)[1]
-                write_file(OUT/"fabric",rel,tf.extractfile(member).read())
+                put_cached(OUT/"fabric",rel,tf.extractfile(member).read())
                 stat["fabric_java"]+=1
     with zipfile.ZipFile(neo_core) as z:
         for name in z.namelist():
             if name.startswith("neoforge/src/main/java/") and name.endswith(".java"):
                 rel=name.split("neoforge/src/main/java/",1)[1]
-                write_file(OUT/"neoforge",rel,z.read(name))
+                put_cached(OUT/"neoforge",rel,z.read(name))
                 stat["neo_java"]+=1
             elif name in (
                 "neoforge/src/main/resources/META-INF/neoforge.mods.toml",
                 "neoforge/src/main/resources/rgbblocks.mixins.json"):
                 rel=name.split("neoforge/src/main/resources/",1)[1]
-                write_file(OUT/"neoforge/resources",rel,z.read(name))
+                put_cached(OUT/"neoforge/resources",rel,z.read(name))
     if (stat["fabric_java"],stat["neo_java"],stat["resources"])!=(32,31,233629):
         raise RuntimeError("Owner source inventory mismatch "+str(stat))
+    stat["reused_existing_files"]=reused
+    # Write only on COMPLETE extraction. An interrupted job retains its
+    # marker and resumes missing assets without discarding previous work.
     (OUT/"source-provenance.json").write_text(json.dumps(stat,indent=2),encoding="utf-8")
+    marker.unlink(missing_ok=True)
     print("RGB_PORT_ORIGINAL_OWNER_SOURCE_STAGED",json.dumps(stat),flush=True)
 
 def main():
