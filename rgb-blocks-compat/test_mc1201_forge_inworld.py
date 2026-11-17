@@ -10,6 +10,8 @@ import json,os,signal,pathlib,subprocess,threading,time,urllib.request,zipfile,t
 from pathlib import Path
 
 SHADER_ON=os.environ.get("RGB_PORT_SHADER_ON")=="1"
+STANDALONE=os.environ.get("RGB_PORT_STANDALONE_NO_CNB")=="1"
+assert not(STANDALONE and SHADER_ON),"RGB-only mode must not require shader packs"
 ROOT=Path("mc1201-forge-inworld")
 SERVER=ROOT/"server";GAME=ROOT/"client"
 EVIDENCE=ROOT/"evidence";S_MODS=SERVER/"mods";C_MODS=GAME/"mods"
@@ -80,11 +82,15 @@ chosen=next(c for c in palette if c["red"]>180 and c["green"]<100 and c["blue"]<
 block="rgbblocks:rgb_%s_%d_%d_%d"%(chosen["group"],chosen["red"],chosen["green"],chosen["blue"])
 shutil.copy2(jar,S_MODS/jar.name)
 shutil.copy2(jar,C_MODS/jar.name)
-cb="chisels-and-bits-forge-20.1.20.jar"
-fetch("https://mediafilez.forgecdn.net/files/7620/767/"+cb,S_MODS/cb)
-shutil.copy2(S_MODS/cb,C_MODS/cb)
-emb=fetch_mod("embeddium","0.3.31")
-oculus=fetch_mod("oculus","1.8.0")
+if STANDALONE:
+    assert len(list(S_MODS.glob("*.jar")))==1 and len(list(C_MODS.glob("*.jar")))==1
+    record("STANDALONE_RGB_ONLY_CLIENT_AND_SERVER: C&B/Embeddium/Oculus all ABSENT; ONE RGB mod JAR each")
+else:
+    cb="chisels-and-bits-forge-20.1.20.jar"
+    fetch("https://mediafilez.forgecdn.net/files/7620/767/"+cb,S_MODS/cb)
+    shutil.copy2(S_MODS/cb,C_MODS/cb)
+    emb=fetch_mod("embeddium","0.3.31")
+    oculus=fetch_mod("oculus","1.8.0")
 shader_filename=None
 if SHADER_ON:
     # Oculus 1.20.1 is Iris-based, but uses MODID 'oculus', so its
@@ -125,12 +131,12 @@ server=subprocess.Popen(["bash","./run.sh","nogui"],cwd=SERVER,stdin=subprocess.
 slog,sthread=runthread(server,"SERVER",EVIDENCE/"server-console.log")
 client=None
 result={"scope":"Minecraft 1.20.1 production Forge 47.4.28 RGBBlock+C&B+Embeddium/Oculus, actual network connected RGB test scene",
-        "shader_enabled":False,"shader_requested":SHADER_ON,"shader_pack":shader_filename,"screenshots":[],"block":block,"server_ready":False,"client_joined":False,
+        "standalone_rgb_only":STANDALONE,"shader_enabled":False,"shader_requested":SHADER_ON,"shader_pack":shader_filename,"screenshots":[],"block":block,"server_ready":False,"client_joined":False,
         "rgb_server_commands":False,"rgb_light_propagation_verified":False,"cnb_sculpted_fixture":False,"cnb_rgb_propagation_verified":False,"render_thread":False,"atlas_ready":False,"resource_model_missing":None}
 try:
     result["server_ready"]=await_pattern(slog,"Done (",server,180,"server_boot")
     if not result["server_ready"]:raise AssertionError("Forge dedicated server did not reach Ready")
-    for c in ["gamerule doDaylightCycle false","time set midnight","weather clear","forceload add 0 0",
+    for c in [line for line in ["gamerule doDaylightCycle false","time set midnight","weather clear","forceload add 0 0",
               "fill -5 119 -3 5 119 12 minecraft:stone",
               f"setblock -2 121 7 {block}",
               f"setblock 0 121 7 {block}_glow",
@@ -139,12 +145,12 @@ try:
               f"execute if block -2 121 7 {block} run say RGB_FIXTURE_NORMAL_READY",
               f"execute if block 0 121 7 {block}_glow run say RGB_FIXTURE_GLOW_READY",
               f"execute if block 2 121 7 {block}_glass run say RGB_FIXTURE_GLASS_READY",
-              "rgb auto","rgb setbake all","rgb get"]:
+              "rgb auto","rgb setbake all","rgb get"] if not(STANDALONE and "chiselsandbits:chiseled" in line)]:
         command(server,c);time.sleep(0.4)
     assert await_pattern(slog,"RGB_FIXTURE_NORMAL_READY",server,50,"normal_fixture"),"RGB normal block not placed"
     assert await_pattern(slog,"RGB_FIXTURE_GLOW_READY",server,50,"glow_fixture"),"RGB glow block not placed"
     assert await_pattern(slog,"RGB_FIXTURE_GLASS_READY",server,50,"glass_fixture"),"RGB glass block not placed"
-    result["cnb_sculpted_fixture"]=await_pattern(slog,"RGB_PORT_CNB_FIXTURE_PASS",server,70,"actual_CnB_voxel_setup")
+    result["cnb_sculpted_fixture"]=await_pattern(slog,"RGB_PORT_CNB_FIXTURE_PASS",server,70,"actual_CnB_voxel_setup") if not STANDALONE else False
     result["rgb_server_commands"]=await_pattern(slog,"RGB mode: AUTO",server,50,"rgb_command")
     assert result["rgb_server_commands"]
     # Install real client (not a Mojang-named ForgeGradle development runtime)
@@ -262,6 +268,7 @@ assert result["screenshots"],"Failed to capture real game scene"
 if SHADER_ON:
     assert result["shader_enabled"],"Oculus failed to activate Complementary in real Forge 1.20.1 game"
 assert result["rgb_light_propagation_verified"],"RGB light propagation runtime pixel-channel probe failed"
-assert result["cnb_sculpted_fixture"],"C&B 4095 RGB microbits fixture was not constructed"
-assert result["cnb_rgb_propagation_verified"],"C&B chiselled RGB-colored light failed to propagate into adjacent voxel"
-record("PASS: Real Forge 1.20.1 client/server session, registered RGB world, render, 50k assets and saved screenshot")
+if not STANDALONE:
+    assert result["cnb_sculpted_fixture"],"C&B 4095 RGB microbits fixture was not constructed"
+    assert result["cnb_rgb_propagation_verified"],"C&B chiselled RGB-colored light failed to propagate into adjacent voxel"
+record("PASS: Real Forge 1.20.1 client/server RGB-colored light with "+("STANDALONE RGB JAR ONLY, ZERO OPTIONAL MODS" if STANDALONE else "C&B+renderer shaders")+" screenshot")
