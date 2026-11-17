@@ -45,19 +45,32 @@ original_before=original[:start_original.start()]
 new_before=migrated[:start_new.start()]
 for marker in ("public record StatePayload(","public record BakePayload("):
     assert marker in original_before and marker in new_before
+def record_body(source, record):
+    """Extract only the original payload definition; exclude class-leading trivia.
+
+    The owner's source and ported source need not use the same whitespace
+    before the NEXT Java class, but the actual codec body must be identical.
+    """
+    found=re.search(r"\\bpublic\\s+record\\s+"+re.escape(record)+r"\\s*\\(",source)
+    if not found:
+        raise AssertionError("Missing author-original packet "+record)
+    opening=source.find("{",found.end())
+    if opening<0:
+        raise AssertionError("Malformed packet "+record)
+    depth=0
+    for cursor in range(opening,len(source)):
+        if source[cursor]=="{":
+            depth+=1
+        elif source[cursor]=="}":
+            depth-=1
+            if depth==0:
+                return source[found.start():cursor+1]
+    raise AssertionError("Unbalanced author-original packet "+record)
+
 for packet in ("StatePayload","BakePayload"):
-    m=re.search(r"\bpublic record "+packet+r"\(",original_before)
-    n=re.search(r"\bpublic record "+packet+r"\(",new_before)
-    assert m and n
-    # Compare through the other record or the original runtime-class start;
-    # transformation should not touch the original packets or their codecs.
-    boundary=lambda source,offset:source.find("\n    public record BakePayload(",offset) if packet=="StatePayload" else len(source)
-    oe=boundary(original_before,m.start())
-    ne=boundary(new_before,n.start())
-    if oe<0:oe=len(original_before)
-    if ne<0:ne=len(new_before)
-    assert original_before[m.start():oe]==new_before[n.start():ne], (
-        "The original "+packet+" packet changed during SavedData migration")
+    before=record_body(original_before,packet)
+    after=record_body(new_before,packet)
+    assert before==after, "The original "+packet+" codec/body changed during SavedData migration"
 
 print("RGB_OWNER_ORIGINAL_RUNTIME_SOURCE_MIGRATION_PASS",
       json.dumps({"original_bytes":len(original),"migrated_bytes":len(migrated),
