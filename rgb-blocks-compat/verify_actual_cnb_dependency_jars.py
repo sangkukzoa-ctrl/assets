@@ -91,7 +91,12 @@ for target,config in VERSIONS.items():
                 print("RGB_CNB_PUBLISHED_JAR_CLASS_LAYOUT_DIAGNOSTIC",
                       json.dumps({"target":target,"jar":config["file"],
                        "missing":entry,"related_classes":matches[:100],
-                       "class_entries":sum(x.endswith(".class") for x in names)}),
+                       "class_entries":sum(x.endswith(".class") for x in names),
+                       "size_bytes":len(body),
+                       "first_100_classes":sorted(n for n in names if n.endswith(".class"))[:100],
+                       "jar_jar_dependencies":sorted(n for n in names if n.endswith(".jar"))[:30],
+                       "mod_metadata":sorted(n for n in names if
+                           ("mods.toml" in n or "jarjar" in n or "manifest" in n.lower()))[:40]}),
                       flush=True)
                 raise AssertionError(("Published mod lacks required C&B "+label,target,entry))
         assert config["info_class"] in names,(
