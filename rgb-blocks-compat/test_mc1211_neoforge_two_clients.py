@@ -97,7 +97,10 @@ green_color=next(c for c in colors if c["green"]>200 and c["red"]<80 and c["blue
 green="rgbblocks:rgb_%s_%d_%d_%d"%(green_color["group"],green_color["red"],green_color["green"],green_color["blue"])
 shutil.copy2(jar,GAME/"mods"/jar.name);shutil.copy2(jar,SERVER/"mods"/jar.name)
 cb="chisels-and-bits-neoforge-21.1.32.jar"
-fetch("https://mediafilez.forgecdn.net/files/7405/270/"+cb,SERVER/"mods"/cb)
+cnb_body=fetch("https://mediafilez.forgecdn.net/files/7405/270/"+cb,SERVER/"mods"/cb)
+assert hashlib.sha256(cnb_body).hexdigest()=="982f4523abc12c5de1e84410f4e0ee29e134e854272c3bdb2c8fe24841a21265", (
+    "NeoForge C&B 21.1.32 nested JarJar bytes changed; refusing unverified test ecosystem")
+info("NEOFORGE_CNB_PINNED_REAL_JAR_SHA256_PASS "+hashlib.sha256(cnb_body).hexdigest())
 shutil.copy2(SERVER/"mods"/cb,GAME/"mods"/cb)
 sodium=download_mod("sodium","mc1.21.1-0.6.13-neoforge")
 iris=download_mod("iris","1.8.12+1.21.1-neoforge")
