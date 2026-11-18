@@ -233,20 +233,57 @@ import java.util.function.Supplier;''')
 
 '''
     s=s[:start]+replacement+s[end:]
-    start=s.index('   public record BakePayload(')
-    end=s.index('   public record BakeRequest(',start)
-    s=s[:start]+'''   public record BakePayload(boolean all,int radius) {}
-''' +s[end:]
-    start=s.index('   public record StatePayload(')
-    s=s[:start]+'''   public record StatePayload(boolean auto, boolean bakeAll,int bakeRadius,String worldId) {}
-}
-'''
-    s=s.replace('server.overworld().getDataStorage().computeIfAbsent(RGBRuntime.RuntimeData.FACTORY, "rgbblocks_runtime")','server.overworld().getDataStorage().computeIfAbsent(RGBRuntime.RuntimeData::load,RGBRuntime.RuntimeData::new, "rgbblocks_runtime")')
-    s=s.replace('''      public static final SavedData.Factory<RuntimeData> FACTORY = new SavedData.Factory<>(
-          RuntimeData::new, RuntimeData::load, null);
-''','')
-    s=s.replace('private static RuntimeData load(CompoundTag tag, HolderLookup.Provider provider)','public static RuntimeData load(CompoundTag tag)')
-    s=s.replace('public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider)','public CompoundTag save(CompoundTag tag)')
+    # The actual owner's 1.3.1 source puts BOTH records before RuntimeData.
+    # A decompiler assumed StatePayload was LAST and deleted the whole
+    # remainder, including BakeRequest, Mode and persistent RuntimeData.
+    # Replace ONLY each Java record by scanning its balanced class body.
+    def replace_record(source,record,declaration):
+        match=re.search(r'\\bpublic\\s+record\\s+'+re.escape(record)+r'\\s*\\(',source)
+        if match is None:
+            raise RuntimeError("Missing author-original packet: "+record)
+        opening=source.find('{',match.end())
+        if opening<0:raise RuntimeError("Malformed author packet: "+record)
+        depth=0
+        stop=None
+        for cursor in range(opening,len(source)):
+            if source[cursor]=='{':depth+=1
+            elif source[cursor]=='}':
+                depth-=1
+                if depth==0:
+                    stop=cursor+1
+                    break
+        if stop is None:raise RuntimeError("Unbalanced author packet: "+record)
+        return source[:match.start()]+declaration+source[stop:]
+    s=replace_record(s,'BakePayload',
+        'public record BakePayload(boolean all,int radius) {}')
+    s=replace_record(s,'StatePayload',
+        'public record StatePayload(boolean auto,boolean bakeAll,int bakeRadius,String worldId) {}')
+    # Forge 1.20.1 uses the old 3-argument storage API, NOT the 1.21.1
+    # SavedData.Factory. The original Java's inner reference is RuntimeData,
+    # while the decompiled version was RGBRuntime.RuntimeData.
+    old_lookups=(
+        'server.overworld().getDataStorage().computeIfAbsent(RuntimeData.FACTORY, "rgbblocks_runtime")',
+        'server.overworld().getDataStorage().computeIfAbsent(RGBRuntime.RuntimeData.FACTORY, "rgbblocks_runtime")')
+    if not any(lookup in s for lookup in old_lookups):
+        raise RuntimeError("Owner's SavedData lookup was not migrated")
+    for lookup in old_lookups:
+        s=s.replace(lookup,
+          'server.overworld().getDataStorage().computeIfAbsent(RuntimeData::load, RuntimeData::new, "rgbblocks_runtime")')
+    factory=re.compile(r'\\bpublic\\s+static\\s+final\\s+SavedData\\.Factory<RuntimeData>\\s+FACTORY\\s*=\\s*new\\s+SavedData\\.Factory<>\\s*\\(\\s*RuntimeData::new\\s*,\\s*RuntimeData::load\\s*,\\s*null\\s*\\)\\s*;')
+    s,removed=factory.subn('',s)
+    if removed!=1:
+        raise RuntimeError("Owner 1.21.1 SavedData.Factory class moved")
+    s=s.replace('private static RuntimeData load(CompoundTag tag, HolderLookup.Provider provider)',
+                'public static RuntimeData load(CompoundTag tag)')
+    s=s.replace('public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider)',
+                'public CompoundTag save(CompoundTag tag)')
+    for member in ('public record StatePayload(', 'public record BakePayload(',
+                   'public record BakeRequest(', 'class RuntimeData extends SavedData',
+                   'enum Mode'):
+        if s.count(member)!=1:
+            raise RuntimeError("Original owner's runtime packet/state lost: "+member)
+    if 'SavedData.Factory' in s or 'RuntimeData.FACTORY' in s:
+        raise RuntimeError("Forge 1.20.1 retains incompatible 1.21.1 storage API")
     return s
 patch(runtime,network1201)
 
