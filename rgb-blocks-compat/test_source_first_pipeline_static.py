@@ -19,6 +19,12 @@ for filename,source in (("Fabric",fabric),("Forge",forge),("NeoForge",neo),("sta
         raise AssertionError(filename+" still downloads the owner's public RGB JAR")
 assert "jpath.unlink()" not in fabric, "Original JAR path should no longer exist"
 assert 'config!="rgbblocks.client.mixins.json"' in fabric
+# Native client-level attachment must attempt discovery of brand-NEW C&B
+# emitters, not only invalidate lighting for sources already in CNB_CACHE.
+assert 'RGBRealLightEngine.refreshCnbBlockEntity(blockEntity);' in fabric
+assert 'if ("chiselsandbits:chiseled".equals(registryName))' in fabric
+assert 'registryName.startsWith("rgbblocks:")' in fabric
+assert 'registryName.startsWith("chiselsandbits:")' in fabric
 assert 'owner_client=RES/"rgbblocks.client.mixins.json"' in forge
 assert 'fabric_client_mixin=RES/"rgbblocks.client.mixins.json"' in neo
 assert 'owner_client.unlink()' in forge
@@ -103,6 +109,7 @@ print("RGB_SOURCE_FIRST_OFFLINE_STATIC_PASS",json.dumps({
     "state_and_bake_packet_records_retained":2,
     "native_mixin_sources_merged":True,
     "source_resume_byte_check":True,
+    "new_CNB_tile_cache_miss_discovery_hook":True,
     "source_java_sha256_locked":63,
     "source_asset_sha256_sentinels":42,
     "original_java_overlays_remaining":7,
