@@ -34,6 +34,18 @@ logic=r'''
       var be=mc.level.getBlockEntity(mixed);
       boolean actualMixed=chiseledId!=null && "chiselsandbits".equals(chiseledId.getNamespace())
         && "chiseled".equals(chiseledId.getPath()) && be!=null;
+      boolean lanHostCnbModelRepair=false;
+      if(actualMixed) {
+         try {
+            var method=com.rgbblocks.client.cnb.RGBCnbGeometryBakeDebouncer.class
+                 .getDeclaredMethod("isRemoteClientWorld",Object.class);
+            method.setAccessible(true);
+            lanHostCnbModelRepair=Boolean.TRUE.equals(method.invoke(null,be));
+         } catch (ReflectiveOperationException | SecurityException diagnostic) {
+            if(ticks%120==0)System.err.println(
+               "RGB_PORT_INTEGRATED_LAN_MESH_DIAGNOSTIC "+diagnostic);
+         }
+      }
       boolean realRgb=srcColor.active() && srcColor.g()>srcColor.r()
         && srcColor.g()>srcColor.b() && neighbors.active()
         && neighbors.g()>neighbors.r() && neighbors.g()>neighbors.b()
@@ -41,9 +53,13 @@ logic=r'''
         && mixedColor.active() && mixedColor.r()>mixedColor.g()
         && mixedColor.g()>=red.g() && mixedColor.b()>=red.b();
       String worldId=com.rgbblocks.runtime.RGBRuntime.clientWorldId();
-      if(actualMixed && realRgb && !worldId.isBlank()
+      if(actualMixed && lanHostCnbModelRepair && realRgb && !worldId.isBlank()
           && com.rgbblocks.runtime.RGBRuntime.clientTargetAuto()) {
          integratedChecked=true;
+         System.out.println("RGB_PORT_INTEGRATED_LAN_HOST_MESH_GUARD_PASS"+
+            " actualCnbTile="+be.getClass().getName()+
+            " clientLevel="+mc.level.dimension().location()+
+            " integratedServer="+server.getClass().getName());
          System.out.println("RGB_PORT_INTEGRATED_SINGLEPLAYER_PASS worldId="+worldId
             +" logicalServer="+server.getClass().getName()
             +" direct="+srcColor+" near="+neighbors+" redCnb="+red
@@ -52,7 +68,8 @@ logic=r'''
          System.out.println("RGB_PORT_INTEGRATED_WAIT server="+server.getClass().getName()
            +" source="+srcColor+" neighbor="+neighbors+" red="+red
            +" mixed="+mixedColor+" realMixedTile="+actualMixed+" world="+worldId
-           +" auto="+com.rgbblocks.runtime.RGBRuntime.clientTargetAuto());
+           +" auto="+com.rgbblocks.runtime.RGBRuntime.clientTargetAuto()
+           +" cnbLanHostMeshRepair="+lanHostCnbModelRepair);
       }
    } else if(ticks%120==0) {
       System.out.println("RGB_PORT_INTEGRATED_WAIT server="+(server==null?"NULL":server.getClass().getName())
