@@ -1128,6 +1128,9 @@ public final class RGBRealLightEngine {
 
    private static void finishToAuto() {
       EFFECTIVE_MODE = RGBRealLightEngine.EffectiveMode.AUTO;
+      // Manual Bake may have kept a legitimate C&B source dark. Re-check
+      // previously surveyed but missing tiles immediately on AUTO resume.
+      resetCnbDiscovery();
       ACTIVE_BATCH.clear();
       BATCH_INTERNAL_CNB_REFRESH.clear();
       MANUAL_BOOTSTRAP_SECTIONS.clear();
