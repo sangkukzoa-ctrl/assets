@@ -18,6 +18,15 @@ for filename,source in (("Fabric",fabric),("Forge",forge),("NeoForge",neo),("sta
     if "cdn.modrinth.com/data/A48MxLWx" in source:
         raise AssertionError(filename+" still downloads the owner's public RGB JAR")
 assert "jpath.unlink()" not in fabric, "Original JAR path should no longer exist"
+# A common owner-derived RGB source now reads BOTH 1.20.1 and 1.21.1 C&B
+# material API signatures; no loader may replace one with the other later.
+engine=(HERE/"recovered/fabric/com/rgbblocks/client/lighting/RGBRealLightEngine.java").read_text("utf-8")
+assert 'invokeNoArg(information, "blockState")' in engine
+assert 'invokeNoArg(information, "getBlockState")' in engine
+assert "olderCnbApi" in engine
+assert "def forge_cnb_information_api(" not in forge
+assert "source_reader=rgbengine.read_text" in forge
+
 assert 'config!="rgbblocks.client.mixins.json"' in fabric
 # Native client-level attachment must attempt discovery of brand-NEW C&B
 # emitters, not only invalidate lighting for sources already in CNB_CACHE.
