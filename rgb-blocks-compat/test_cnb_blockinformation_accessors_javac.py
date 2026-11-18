@@ -90,6 +90,9 @@ public final class RGBRealLightEngine {
    }
    static int clamp255(int value){return Math.max(0,Math.min(255,value));}
    static boolean implementsCnbAccessor(Class<?> type){return false;}
+   static void addCnbEntry(Object entry,CnbAccumulator acc){
+       throw new AssertionError("Statistics test must not switch to stream fallback");
+   }
    /* EXACT_PRODUCTION_METHODS */
 
    static void require(boolean result,String message){
@@ -107,7 +110,9 @@ public final class RGBRealLightEngine {
       // 4,095 green pixels, yet old RGB ignored Forge's getBlockState().
       CnbSource forge=from(new ForgeOldInformation(green),4095);
       require(forge.active(),"Forge C&B 4095 green Glow voxels emitted ZERO light");
-      require(forge.rgb()==0x49ff1f || forge.rgb()!=0,"Forge RGB emitter stayed BLACK");
+      require(((forge.rgb()>>>8)&255)>((forge.rgb()>>>16)&255) &&
+              ((forge.rgb()>>>8)&255)>(forge.rgb()&255),
+              "Forge green Glow RGB not actually GREEN");
       require(forge.energy()>=0.66f,"Forge recovered emission is unexpectedly weak");
       // 1.21.1 record accessor must retain its existing color path.
       CnbSource neo=from(new NeoRecordInformation(blue),4095);
