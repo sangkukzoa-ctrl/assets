@@ -238,7 +238,7 @@ import java.util.function.Supplier;''')
     # remainder, including BakeRequest, Mode and persistent RuntimeData.
     # Replace ONLY each Java record by scanning its balanced class body.
     def replace_record(source,record,declaration):
-        match=re.search(r'\\bpublic\\s+record\\s+'+re.escape(record)+r'\\s*\\(',source)
+        match=re.search(r'\bpublic\s+record\s+'+re.escape(record)+r'\s*\(',source)
         if match is None:
             raise RuntimeError("Missing author-original packet: "+record)
         opening=source.find('{',match.end())
@@ -269,7 +269,7 @@ import java.util.function.Supplier;''')
     for lookup in old_lookups:
         s=s.replace(lookup,
           'server.overworld().getDataStorage().computeIfAbsent(RuntimeData::load, RuntimeData::new, "rgbblocks_runtime")')
-    factory=re.compile(r'\\bpublic\\s+static\\s+final\\s+SavedData\\.Factory<RuntimeData>\\s+FACTORY\\s*=\\s*new\\s+SavedData\\.Factory<>\\s*\\(\\s*RuntimeData::new\\s*,\\s*RuntimeData::load\\s*,\\s*null\\s*\\)\\s*;')
+    factory=re.compile(r'\bpublic\s+static\s+final\s+SavedData\.Factory<RuntimeData>\s+FACTORY\s*=\s*new\s+SavedData\.Factory<>\s*\(\s*RuntimeData::new\s*,\s*RuntimeData::load\s*,\s*null\s*\)\s*;')
     s,removed=factory.subn('',s)
     if removed!=1:
         raise RuntimeError("Owner 1.21.1 SavedData.Factory class moved")
