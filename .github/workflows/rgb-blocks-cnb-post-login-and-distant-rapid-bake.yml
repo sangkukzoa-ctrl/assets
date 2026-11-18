@@ -38,7 +38,7 @@ jobs:
         include:
           - {target: forge1201, mode: live, java: '17', gradle: '8.8', workdir: 'mc1201-forge', test: 'test_mc1201_forge_two_clients.py', shader: '1', live: '1', stress: '0'}
           - {target: forge1201, mode: stress, java: '17', gradle: '8.8', workdir: 'mc1201-forge', test: 'test_mc1201_forge_two_clients.py', shader: '1', live: '0', stress: '1'}
-          - {target: neoforge1211, mode: live, java: '21', gradle: '8.10.2', workdir: 'mc1211-neoforge', test: 'test_mc1211_neoforge_two_clients.py', shader: '0', live: '1', stress: '0'}
+          - {target: neoforge1211, mode: live, java: '21', gradle: '8.10.2', workdir: 'mc1211-neoforge', test: 'test_mc1211_neoforge_two_clients.py', shader: '1', live: '1', stress: '0'}
           - {target: neoforge1211, mode: stress, java: '21', gradle: '8.10.2', workdir: 'mc1211-neoforge', test: 'test_mc1211_neoforge_two_clients.py', shader: '1', live: '0', stress: '1'}
     steps:
       - uses: actions/checkout@v4
