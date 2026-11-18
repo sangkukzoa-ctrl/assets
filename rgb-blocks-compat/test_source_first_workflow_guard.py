@@ -51,10 +51,40 @@ for file in sorted(folder.glob("rgb-blocks-*.yml")):
 assert len(audited)==31,("Expected exact 2 core + 29 legacy native workflows",len(audited))
 assert sum(x["mode"]=="CORE" for x in audited)==2
 assert sum(x["mode"]=="FULL_MATRIX" for x in audited)==29
+# Hostile testing is a RELEASE GATE, not a decorative CI job. Ensure
+# a future cleanup cannot silently remove the user's genuine two-player
+# Unbound shader, C&B geometry, no-ghost-light, or peer-restart tests.
+chaos_wf=(folder/"rgb-blocks-cnb-seeded-chaos-real-clients.yml").read_text("utf-8")
+assert "rgb-blocks-compat/inject_ci_chaos_probe.py" in chaos_wf
+assert "rgb-blocks-compat/verify_native_owner_mixin_inventory.py" in chaos_wf
+assert "RGB_PORT_TEST_CHAOS: '1'" in chaos_wf
+assert "RGB_PORT_SHADER_ON: '1'" in chaos_wf
+assert "RGB_PORT_SHADER_VARIANT: 'unbound'" in chaos_wf
+assert "RGB_PORT_CHAOS_SEED:" in chaos_wf
+assert "1313131" in chaos_wf and "2718281" in chaos_wf
+assert "fail-fast: false" in chaos_wf
+assert "actions/upload-artifact@v4" in chaos_wf
+assert "retention-days: 30" in chaos_wf
+choreography=Path("rgb-blocks-compat/cnb_chaos_choreography.py").read_text("utf-8")
+assert "MUST_COVER=" in choreography
+assert "len(MUST_COVER)" in choreography
+assert 'trace("round_coverage"' in choreography
+assert "cnb-chaos-events.jsonl" in choreography
+for loader in ("1201_forge","1211_neoforge"):
+    harness=Path("rgb-blocks-compat/test_mc"+loader+"_two_clients.py").read_text("utf-8")
+    for marker in ("if CHAOS_PROBE:","cnb_chaos_choreography",
+                   "peer_process_restarted_and_verified",
+                   "zero_ghost_rgb_both_clients",
+                   "RGB_PORT_CHAOS_NO_GHOST_LIGHT_PASS",
+                   "RGB_PORT_CHAOS_ROUND_PASS"):
+        assert marker in harness,("Real-game hostile test removed",loader,marker)
+
 print("RGB_OWNER_CI_WORKFLOW_SOURCE_FIRST_PASS",
       json.dumps({"workflows":len(audited),
                   "core_autorun_on_source_ready":2,
                   "legacy_bounded_full_matrix":29,
                   "public_rgb_mod_downloads":0,
-                  "private_author_source_required":True},
+                  "private_author_source_required":True,
+                  "true_dual_client_unbound_chaos_preserved":True,
+                  "seeded_11_family_hostility_preserved":True},
                  ensure_ascii=False),flush=True)
