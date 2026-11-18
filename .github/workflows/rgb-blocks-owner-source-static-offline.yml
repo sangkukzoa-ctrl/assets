@@ -21,6 +21,7 @@ on:
       - 'rgb-blocks-compat/test_cnb_mesh_oracle_javac.py'
       - 'rgb-blocks-compat/test_cnb_live_source_reconcile_javac.py'
       - 'rgb-blocks-compat/test_cnb_missing_source_discovery_javac.py'
+      - 'rgb-blocks-compat/test_cnb_blockinformation_accessors_javac.py'
       - 'rgb-blocks-compat/cnb_chaos_choreography.py'
       - 'rgb-blocks-compat/test_cnb_chaos_choreography_offline.py'
       - 'rgb-blocks-compat/recovered/fabric/com/rgbblocks/client/lighting/RGBRealLightEngine.java'
@@ -56,6 +57,7 @@ jobs:
             rgb-blocks-compat/test_cnb_mesh_oracle_javac.py \
             rgb-blocks-compat/test_cnb_live_source_reconcile_javac.py \
             rgb-blocks-compat/test_cnb_missing_source_discovery_javac.py \
+            rgb-blocks-compat/test_cnb_blockinformation_accessors_javac.py \
             rgb-blocks-compat/test_owner_private_release_source.py \
             rgb-blocks-compat/cnb_chaos_choreography.py \
             rgb-blocks-compat/test_cnb_chaos_choreography_offline.py
@@ -75,6 +77,8 @@ jobs:
         run: python3 rgb-blocks-compat/test_cnb_chaos_choreography_offline.py
       - name: Reproduce real NeoForge C&B voxel-present RGB-cache-absent reconnect on Java 17 and 21
         run: python3 rgb-blocks-compat/test_cnb_missing_source_discovery_javac.py
+      - name: Execute actual 1.20.1 Forge getBlockState and 1.21.1 Neo record C&B RGB voxel-source calculation
+        run: python3 rgb-blocks-compat/test_cnb_blockinformation_accessors_javac.py
       - name: Confirm the original RGB Blocks Modrinth source URL is absent from the active build
         run: |
           ! grep -E 'cdn.modrinth.com/data/A48MxLWx|api.modrinth.com/v2/project/A48MxLWx' \
