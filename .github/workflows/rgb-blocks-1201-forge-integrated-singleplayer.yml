@@ -9,7 +9,9 @@ on:
       - 'rgb-blocks-compat/recovered/fabric/com/rgbblocks/client/lighting/RGBLightPersistence.java'
   workflow_dispatch:
 permissions:
-  contents: read
+  # Authenticated GitHub draft releases are visible only to write-authorized CI.
+  # Preserve the unpublished owner source as DRAFT; this workflow only reads it.
+  contents: write
 jobs:
   minecraft-real-integrated-singleplayer:
     if: github.event_name == 'workflow_dispatch' || (vars.RGB_OWNER_SOURCE_READY == 'true' && vars.RGB_FULL_MATRIX == 'true')
@@ -17,6 +19,7 @@ jobs:
     timeout-minutes: 95
     steps:
       - uses: actions/checkout@v4
+        with: {persist-credentials: false}
       - name: Preflight actual integrated CI-only probe and strict existing two-client harness
         run: |
           python3 -m py_compile rgb-blocks-compat/inject_ci_integrated_probe.py rgb-blocks-compat/inject_ci_only_light_probe.py rgb-blocks-compat/inject_ci_two_client_sync_probe.py rgb-blocks-compat/inject_ci_mixed_cnb_probe.py rgb-blocks-compat/test_mc1201_forge_two_clients.py
