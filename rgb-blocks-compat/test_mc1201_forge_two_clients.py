@@ -759,6 +759,16 @@ try:
             0,peer,150,"chaos_restarted_peer_actual_CNB_mesh_and_light"),(
             "Restarted peer lost real 4095-bit C&B geometry or RGB light")
         result["chaos"]["peer_process_restarted_and_verified"]=True
+        # The existing mixed C&B sculpture is separate from the new 4095-bit
+        # chaos fixture. The real NeoForge failure had 4095 valid voxel bits
+        # but NO RGB after relaunch for >1680 ticks, while round-3 still PASSed.
+        # Require the NEW independent peer JVM to rediscover original mixed
+        # C&B emission without asking the server to sculpt or resend the tile.
+        assert await_pattern_since(peerlog,"RGB_PORT_CNB_MIXED_PROBE_PASS",
+             0,peer,120,"forge_chaos_rejoined_peer_old_mixed_cnb_rgb"), (
+            "CHAOS: restarted peer kept valid old mixed C&B voxel bits but "
+            "its RGB source and neighbor light stayed BLACK after reconnect")
+        result["chaos"]["restarted_peer_existing_mixed_source_restored"]=True
         # The opposite of ghost geometry: delete the last glow sculpture after
         # rapid edits/relogin and insist that its RGB light vanishes on BOTH
         # independent clients, not merely that the tile became air on server.
