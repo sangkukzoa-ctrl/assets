@@ -15,11 +15,22 @@ PALETTE=("redstone_block","diamond_block","emerald_block","redstone_block")
 COLOR=("rgb_red_186_72_96_glow","rgb_blue_8_85_209_glow",
        "rgb_green_59_209_25_glow","rgb_red_186_72_96_glow")
 
+# Always exercise EVERY high-risk class even when a random seed is unlucky.
+# The rest of each round remains seeded and genuinely randomized. This does
+# not enlarge the 64-action default or slow down real dual-client CI.
+HOSTILE_ACTIONS=("bake","bake","bake","bake","mode","tp","remove",
+                 "reinstall","near_glow","occlude","chunk_churn",
+                 "stone_replace","color_spoof","mode_pulse")
+MUST_COVER=("bake","mode","tp","remove","reinstall","near_glow",
+            "occlude","chunk_churn","stone_replace","color_spoof",
+            "mode_pulse")
+
 def exercise(*,send,server,server_lines,first,first_lines,second,second_lines,
              wait_server,wait_first,wait_second,evidence,seed,log):
     rng=random.Random(seed)
     per_round=int(os.environ.get("RGB_PORT_CHAOS_ACTIONS_PER_ROUND","64"))
     assert 24<=per_round<=500, "Chaos actions per round must be 24..500"
+    assert per_round>=len(MUST_COVER), "Insufficient actions for mandatory hostility coverage"
     evidence=Path(evidence)
     events=evidence/"cnb-chaos-events.jsonl"
     events.parent.mkdir(parents=True,exist_ok=True)
@@ -57,10 +68,18 @@ def exercise(*,send,server,server_lines,first,first_lines,second,second_lines,
         command(f"setblock 166 120 10 minecraft:{material}",0.2)
         # Alternate sane and absurd action pauses, including near-simultaneous
         # server commands; NEVER silently skip a test because it looks harsh.
-        actions=("bake","bake","bake","bake","mode","tp","remove","reinstall","near_glow")
-        for index in range(per_round):
-            action=rng.choice(actions)
-            interval=rng.choice((0.0,0.015,0.045,0.08,0.18,0.5))
+        # A forced coverage set (at unpredictable shuffled positions) means
+        # every seed exercises all of: loaded/unloaded source chunks, inverse
+        # color occlusion, mid-race C&B block replacement, and mode pulses.
+        # Remaining commands are truly random and still use the old seed.
+        plan=list(MUST_COVER)+[
+            rng.choice(HOSTILE_ACTIONS) for _ in range(per_round-len(MUST_COVER))
+        ]
+        rng.shuffle(plan)
+        covered={action:0 for action in MUST_COVER}
+        for index,action in enumerate(plan):
+            if action in covered:covered[action]+=1
+            interval=rng.choice((0.0,0.0,0.005,0.015,0.045,0.08,0.18,0.5))
             if action=="bake":
                 command("rgb bake",interval)
             elif action=="mode":
@@ -72,10 +91,47 @@ def exercise(*,send,server,server_lines,first,first_lines,second,second_lines,
                 command("setblock 166 121 7 minecraft:air",interval)
             elif action=="reinstall":
                 command("setblock 166 121 7 chiselsandbits:chiseled",interval)
-            else:
+            elif action=="stone_replace":
+                # Not a valid C&B tile: make stale pending microbit packets
+                # prove that they do not resurrect an earlier RGB source.
+                command("setblock 166 121 7 minecraft:stone",interval)
+            elif action=="near_glow":
                 command("setblock 32 121 7 "+rng.choice((
                    "minecraft:air","rgbblocks:rgb_red_186_72_96_glow",
                    "rgbblocks:rgb_blue_8_85_209_glow")),interval)
+            elif action=="occlude":
+                # Rapidly modulate real light occlusion next to the source.
+                command("setblock 167 121 7 "+rng.choice((
+                   "minecraft:air","minecraft:stone","minecraft:glass",
+                   "rgbblocks:rgb_red_186_72_96_glass")),interval)
+            elif action=="chunk_churn":
+                # Temporarily drop and re-pin the near (NOT oracle) chunk.
+                # This provokes asynchronous rebuild/neighbor broadcasts,
+                # without invalidating the distant dual-client C&B fixture.
+                command("forceload remove 32 0")
+                command("forceload add 32 0",interval)
+            elif action=="color_spoof":
+                # Flip the sculptor's color marker while a prior tile update
+                # may still be inflight. Final round marker is restored below.
+                command("setblock 166 120 10 minecraft:"+rng.choice((
+                    "redstone_block","diamond_block","emerald_block")),interval)
+            elif action=="mode_pulse":
+                # Deliberately ridiculous near-zero-gap mode and Bake race.
+                command("rgb manual")
+                command("rgb bake",0.0)
+                command("rgb auto",interval)
+            else:
+                raise AssertionError("Unknown owner-chaos action "+repr(action))
+        assert all(covered.values()),("Chaos omitted mandatory action",seed,round_id,covered)
+        trace("round_coverage",round_id,{"operations":covered,"random_tail":
+              per_round-len(MUST_COVER),"seed":seed})
+        # The last sampled color must not inherit a random prior round.
+        # Also clean up extra occluders so an unrelated neighbor emitter
+        # cannot satisfy or hide the actual C&B RGB color oracle.
+        command("forceload add 32 0")
+        command("forceload add 160 0")
+        command("setblock 167 121 7 minecraft:air",0.02)
+        command(f"setblock 166 120 10 minecraft:{material}",0.02)
         # Additional near-zero-spacing MANUAL bake storm to provoke races.
         command("rgb manual")
         for burst in range(24):
@@ -113,4 +169,6 @@ def exercise(*,send,server,server_lines,first,first_lines,second,second_lines,
     trace("complete","all four rounds, two live clients, 4095 voxels, adjacent RGB and BakedModel quads")
     return {"seed":seed,"rounds_passed":4,"two_clients_verified":True,
             "actions_per_round":per_round,"bake_storms":96,
-            "actions_recorded":total,"transcript":str(events)}
+            "actions_recorded":total,"transcript":str(events),
+            "mandatory_hostile_actions_per_round":len(MUST_COVER),
+            "hostile_action_families":list(MUST_COVER)}
