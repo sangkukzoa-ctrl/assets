@@ -88,3 +88,20 @@ The old `#44115007273` actual gameplay result predates this rebase. **NEITHER Fo
 - **New post-fix native Forge 1.20.1 and NeoForge 1.21.1 JAR build, real 2-client Unbound shader, 11-family seeded hostility, 4-round Bake storm, peer relaunch and ghost-light test: STILL NOT RUN on current source-first commits.** This is the mandatory outstanding release gate. Owner must not be told it passed or that the two JARs are ready.
 - Concrete next action as soon as the exact author source archive becomes available to GitHub Actions: compile native ports first, then run existing real C&B/Unbound CHAOS and LIVE/STRESS matrices on the SAME sha, inspect any actual failure artifacts, repair and rerun until both are truly green.
 
+
+## 2026-11-18 16:59 KST continuation: CHAOS post-reconnect missing-source recovery
+
+**Historical real two-client NeoForge CHAOS evidence:** [run #44115007273](https://github.com/sangkukzoa-ctrl/assets/actions/runs/44115007273), artifact 14342324094, seed 2718281. Four RED/BLUE/GREEN/RED rounds passed with 4,095 voxel bits and 12 baked quads on both clients. After killing and restarting the SECOND JVM, the original preexisting four-material mixed C&B sculpture retained exact 4,095 material voxels [3071,256,256,256,256], but its RGB source, pure RGB source, and neighbor RGB channels stayed BLACK (all zero) for 1,680 client ticks. The last RED chaos fixture still passed on that JVM, proving the old oracle was insufficient. This is separate from Forge's prior BLUE-stuck-on-GREEN and the vanishing-mesh bug.
+
+**Source repair:**
+- Commit d4765fcc: RGBRealLightEngine.discoverMissingLoadedCnbSources() scans only ALREADY LOADED client C&B block entities when no RGB source is registered in CNB_CACHE. Existing active-cache-only source reconciliation cannot repair a completely absent cache entry.
+- A center-first 33x33 chunk area is scanned at 16 chunks per 10 ticks, without loading/generating new chunks. It uses existing 2-tick / 16-attempt C&B source refresh, a 400-tick retry cooldown for nonemissive tiles, and no hard C&B class imports. Only AUTO; never rewrites MANUAL/CATCHING_UP or C&B bit data.
+- Commit e7ff7d62: reset discovery state when MANUAL resumes AUTO and on world/dimension/source restore/disconnect.
+- Commit 1db7eb2f: test_cnb_missing_source_discovery_javac.py directly extracts and executes actual production source discovery methods on Java 17 and Java 21 against deterministic fake Minecraft/C&B chunks. Tests missing source from 4,095-bit original C&B near/far, MANUAL mode, world swap, no forced chunk loads, and bounded retry scheduling. Actual CI PASS [#44264968365](https://github.com/sangkukzoa-ctrl/assets/actions/runs/44264968365) and subsequent [#44265352145](https://github.com/sangkukzoa-ctrl/assets/actions/runs/44265352145).
+
+**Real gameplay CHAOS acceptance hardened:**
+- Forge test_mc1201_forge_two_clients.py commit 5a9c28a5 and Neo test_mc1211_neoforge_two_clients.py commit afc7b422 now REQUIRE the RESTARTED independent peer JVM to produce a fresh RGB_PORT_CNB_MIXED_PROBE_PASS for the ORIGINAL mixed C&B scene, after last-round red CHAOS validation and before deleting the chaos fixture. The scene is not re-sculpted to force an artificial packet.
+- Commits 91f30203 / df87652f additionally require explicit four-round completion, peer relaunch, existing mixed C&B RGB restored, and zero ghost light on source deletion in final game acceptance.
+- Commits c5bbface / 7ce5154f add offline regression guards asserting both real harnesses keep this post-relaunch recheck in the correct order.
+
+**Hard current release gate:** Exact owner source bundle resides at /mnt/data/RGB-Blocks-1.3.1-OWNER-SOURCE-COMPLETE.tar.zst (about 4 MB); authenticated GitHub CI still lacks the private draft release bundle. A draft-release upload capability is not exposed through the existing connected GitHub tools, and the user's source was NOT posted to the public repository. The Java method checks are real Java executions but are NOT full Minecraft 1.20.1/1.21.1 native compilation or two-client shader/CHAOS acceptance. These must be rerun once the original archive reaches CI. PUBLIC RELEASE: HOLD.
