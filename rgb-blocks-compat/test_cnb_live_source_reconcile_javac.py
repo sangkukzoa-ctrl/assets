@@ -208,6 +208,22 @@ public final class RGBRealLightEngine {
    require(STALE_CNB_CLEANUP.isEmpty(),
            "MANUAL should defer cleanup to user Bake");
 
+   // The attachment hook must also recover the case where the previous
+   // RGB CACHE IS EMPTY. A pure invalidateAround never discovers this new
+   // C&B emitter; the production 2-tick retry scheduler does.
+   reset();
+   Tile freshlyAttached=new Tile(key,green);
+   WORLD.put(key,freshlyAttached);
+   require(CNB_CACHE.isEmpty(),"Test must start from an empty source index");
+   scheduleCnbBlockEntity(freshlyAttached,2,16);
+   require(CNB_PENDING.containsKey(key),"New 4095-bit C&B never queued when cache empty");
+   require(CNB_PENDING.get(key).delayTicks==2 &&
+           CNB_PENDING.get(key).attemptsLeft==16,
+           "New RGB source did not receive original async load retry budget");
+   flushPendingOnce();
+   require(CNB_CACHE.containsKey(key) && CNB_CACHE.get(key).rgb==green.rgb,
+           "New C&B source remained dark after first available voxel statistics");
+
    // Pending work should not be repeatedly overwritten by background checks.
    reset();WORLD.put(key,new Tile(key,green));CNB_CACHE.put(key,blue);
    CNB_PENDING.put(key,new PendingCnbRefresh(new BlockPos(key),WORLD.get(key),5,16));
@@ -234,7 +250,8 @@ public final class RGBRealLightEngine {
    System.out.println("RGB_PORT_CNB_RGB_AUTO_RECONCILE_REAL_JAVAC_PASS"+
       " blue_to_green=true manual_frozen=true catching_up_safe=true"+
       " old_tile_aba_retargeted=true ghost_air_cleanup=true"+
-      " in_flight_request_preserved=true stale_air_packet_rejected=true");
+      " in_flight_request_preserved=true stale_air_packet_rejected=true"+
+      " cache_miss_new_emitter_discovered=true");
  }
 }'''
 java=java.replace("/* REAL_RECONCILE_METHOD */",reconcile).replace(
