@@ -12,6 +12,8 @@ on:
       - 'rgb-blocks-compat/verify_owner_runtime_migration.py'
       - 'rgb-blocks-compat/verify_native_owner_mixin_inventory.py'
       - 'rgb-blocks-compat/test_source_first_pipeline_static.py'
+      - 'rgb-blocks-compat/test_mc1201_forge_two_clients.py'
+      - 'rgb-blocks-compat/test_mc1211_neoforge_two_clients.py'
       - 'rgb-blocks-compat/clone_owner_resources.py'
       - 'rgb-blocks-compat/test_clone_owner_resources.py'
       - '.github/workflows/rgb-blocks-*.yml'
