@@ -62,6 +62,30 @@ assert "RGB_PORT_SHADER_ON: '1'" in chaos_wf
 assert "RGB_PORT_SHADER_VARIANT: 'unbound'" in chaos_wf
 assert "RGB_PORT_CHAOS_SEED:" in chaos_wf
 assert "1313131" in chaos_wf and "2718281" in chaos_wf
+# Each native loader needs TWO independent whole-game random scenarios,
+# not just two numbers somewhere in comments or the same seed repeated.
+seed_rows=re.findall(
+    r"-\\s*\\{target:\\s*(forge1201|neoforge1211),[^\\n]*?\\bseed:\\s*'(\\d+)'",
+    chaos_wf)
+for loader,required in {
+    "forge1201":{"1313131","42"},
+    "neoforge1211":{"2718281","999999937"},
+}.items():
+    actual=[seed for target,seed in seed_rows if target==loader]
+    assert len(actual)==2 and set(actual)==required,(
+        "Missing second independent native CHAOS gameplay seed",loader,actual)
+# Both LIVE and STRESS must exercise Complementary Unbound, for BOTH loaders.
+live_wf=(folder/"rgb-blocks-cnb-post-login-and-distant-rapid-bake.yml").read_text("utf-8")
+shader_rows=re.findall(
+    r"-\\s*\\{target:\\s*(forge1201|neoforge1211),\\s*mode:\\s*(live|stress),[^\\n]*?\\bshader:\\s*'([01])'",
+    live_wf)
+expected_modes={(target,mode) for target in ("forge1201","neoforge1211")
+                for mode in ("live","stress")}
+assert len(shader_rows)==4 and {
+    (target,mode) for target,mode,shader in shader_rows if shader=="1"
+}==expected_modes,("One native LIVE/STRESS test has shader disabled",shader_rows)
+assert "RGB_PORT_SHADER_ON: '${{ matrix.shader }}'" in live_wf
+assert "RGB_PORT_SHADER_VARIANT: 'unbound'" in live_wf
 assert "fail-fast: false" in chaos_wf
 assert "actions/upload-artifact@v4" in chaos_wf
 assert "retention-days: 30" in chaos_wf
