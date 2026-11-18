@@ -189,6 +189,7 @@ result={"minecraft":"1.21.1","loader":"NeoForge 21.1.265","scope":"Strict CI-onl
         "integrated_requested":INTEGRATED_PROBE,
         "integrated_world_saved":False,
         "integrated_client_loaded":False,
+               "integrated_host_cnb_mesh_guard_verified":False,
         "integrated_mixed_bits_restored":False,
         "integrated_same_world_id":False,
         "integrated_screenshot":False}
@@ -694,7 +695,11 @@ try:
             "RGB_PORT_INTEGRATED_SINGLEPLAYER_PASS",peer,235)
         assert result["integrated_client_loaded"], (
             "NeoForge saved dedicated-world did not open in actual integrated SingleplayerServer with RGB+C&B")
-        result["integrated_mixed_bits_restored"]=await_line(peerlog,
+                result["integrated_host_cnb_mesh_guard_verified"]=await_line(peerlog,
+            "RGB_PORT_INTEGRATED_LAN_HOST_MESH_GUARD_PASS",peer,20)
+        assert result["integrated_host_cnb_mesh_guard_verified"], (
+            "NeoForge real integrated host client cannot execute C&B trailing geometry Bake repair")
+result["integrated_mixed_bits_restored"]=await_line(peerlog,
             "RGB_PORT_CNB_MIXED_PROBE_PASS",peer,145)
         assert result["integrated_mixed_bits_restored"], (
             "Integrated NeoForge C&B no longer contains exact mixed glow/normal/glass material bits")
@@ -854,7 +859,7 @@ if STRICT_LIGHT_PROBE:
     if INTEGRATED_PROBE:
         assert all(result[k] for k in (
             "integrated_world_saved","integrated_client_loaded",
-            "integrated_mixed_bits_restored","integrated_same_world_id",
+            "integrated_mixed_bits_restored","integrated_host_cnb_mesh_guard_verified","integrated_same_world_id",
             "integrated_screenshot"
         )), "NeoForge true integrated singleplayer world/data/RGB+C&B acceptance failed"
     if DIMENSION_PROBE:
