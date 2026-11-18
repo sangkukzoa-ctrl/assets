@@ -416,9 +416,18 @@ public abstract class LevelBlockEntityAttachedMixin {
     BlockPos pos=blockEntity.getBlockPos();
     BlockState state=blockEntity.getBlockState();
     if (state==null || pos==null) return;
-    if (state.getLightEmission()>0 || String.valueOf(
-      net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock()))
-          .matches(".*(rgbblocks|chiselsandbits):.*"))
+    String registryName=String.valueOf(
+      net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock()));
+    if ("chiselsandbits:chiseled".equals(registryName)) {
+      // A C&B tile may arrive AFTER its block packet and before its
+      // statistics finish deserializing. The 2-tick/16-attempt queue
+      // re-reads the CURRENT tile and creates missing RGB sources.
+      // Merely invalidating RGB light never discovers a cache MISS.
+      RGBRealLightEngine.refreshCnbBlockEntity(blockEntity);
+    }
+    if (state.getLightEmission()>0 ||
+        registryName.startsWith("rgbblocks:") ||
+        registryName.startsWith("chiselsandbits:"))
        RGBRealLightEngine.settleAfterServerSync(pos);
   }
 }
