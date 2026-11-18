@@ -38,7 +38,9 @@ jobs:
       matrix:
         include:
           - {target: forge1201, java: '17', gradle: '8.8', workdir: 'mc1201-forge', test: 'test_mc1201_forge_two_clients.py', seed: '1313131'}
+          - {target: forge1201, java: '17', gradle: '8.8', workdir: 'mc1201-forge', test: 'test_mc1201_forge_two_clients.py', seed: '42'}
           - {target: neoforge1211, java: '21', gradle: '8.10.2', workdir: 'mc1211-neoforge', test: 'test_mc1211_neoforge_two_clients.py', seed: '2718281'}
+          - {target: neoforge1211, java: '21', gradle: '8.10.2', workdir: 'mc1211-neoforge', test: 'test_mc1211_neoforge_two_clients.py', seed: '999999937'}
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
