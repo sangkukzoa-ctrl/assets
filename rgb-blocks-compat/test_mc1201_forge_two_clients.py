@@ -114,7 +114,10 @@ green="rgbblocks:rgb_%s_%d_%d_%d"%(green_choice["group"],green_choice["red"],gre
 shutil.copy2(jar,S_MODS/jar.name)
 shutil.copy2(jar,C_MODS/jar.name)
 cb="chisels-and-bits-forge-20.1.20.jar"
-fetch("https://mediafilez.forgecdn.net/files/7620/767/"+cb,S_MODS/cb)
+cnb_body=fetch("https://mediafilez.forgecdn.net/files/7620/767/"+cb,S_MODS/cb)
+assert hashlib.sha256(cnb_body).hexdigest()=="682dab9c016b12b3da49ed4df037cc9483917cd50ec76b2bd6da4bfbf1237a2b", (
+    "Forge C&B 20.1.20 dependency JAR bytes changed; refusing unverified test ecosystem")
+record("FORGE_CNB_PINNED_REAL_JAR_SHA256_PASS "+hashlib.sha256(cnb_body).hexdigest())
 shutil.copy2(S_MODS/cb,C_MODS/cb)
 emb=fetch_mod("embeddium","0.3.31")
 oculus=fetch_mod("oculus","1.8.0")
