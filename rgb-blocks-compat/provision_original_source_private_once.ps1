@@ -30,6 +30,33 @@ if ($LASTEXITCODE -ne 0) {
 }
 & gh release upload $tag $SourceBundle --repo $repo --clobber
 if ($LASTEXITCODE -ne 0) { throw "Private author-source upload failed" }
+# Source must be verified again AFTER GitHub stored it. A successful
+# gh release upload return code is not enough: do not enable expensive native
+# builds until the exact SHA-pinned archive can be downloaded from DRAFT.
+$verifyDir = Join-Path ([IO.Path]::GetTempPath()) ("rgbowner-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $verifyDir -Force | Out-Null
+try {
+    & gh release download $tag --repo $repo --pattern $filename --dir $verifyDir
+    if ($LASTEXITCODE -ne 0) {
+        throw "Uploaded author source cannot be re-downloaded from the DRAFT release"
+    }
+    $verifiedFile=Join-Path $verifyDir $filename
+    if (-not (Test-Path -LiteralPath $verifiedFile -PathType Leaf)) {
+        throw "GitHub DRAFT source asset is missing after upload: $filename"
+    }
+    $remoteSha=(Get-FileHash -LiteralPath $verifiedFile -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($remoteSha -ne $expected) {
+        throw "GitHub DRAFT source asset SHA-256 mismatch ($remoteSha); CI remains disabled"
+    }
+    $remoteDraft=& gh release view $tag --repo $repo --json isDraft --jq ".isDraft"
+    if ($LASTEXITCODE -ne 0 -or "$remoteDraft".Trim().ToLowerInvariant() -ne "true") {
+        throw "DRAFT protection lost; refusing to enable owner-original CI"
+    }
+    Write-Host "Private GitHub DRAFT source downloaded and verified, SHA-256 $remoteSha" -ForegroundColor Green
+}
+finally {
+    Remove-Item -LiteralPath $verifyDir -Recurse -Force -ErrorAction SilentlyContinue
+}
 Write-Host "Original source SHA256 verified, uploaded to GitHub draft release (NOT public)." -ForegroundColor Green
 Write-Host "Artifact: $filename"
 Write-Host "Release tag: $tag"
