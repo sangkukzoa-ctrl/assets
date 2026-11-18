@@ -1886,7 +1886,18 @@ public final class RGBRealLightEngine {
    private static void addCnbInformation(Object information, RGBRealLightEngine.CnbAccumulator acc, float amount) {
       if (information != null && acc != null) {
          try {
-            if (!(invokeNoArg(information, "blockState") instanceof BlockState state)) {
+            // MC 1.21.1 C&B BlockInformation is a record with blockState().
+            // MC 1.20.1 C&B exposes IBlockInformation#getBlockState().
+            // The original 26.x-only accessor silently dropped EVERY Forge
+            // chiseled RGB voxel and left a correctly rendered Glow sculpture
+            // dark, even though a normal (unchiseled) RGB Glow still emitted.
+            Object resolvedState;
+            try {
+               resolvedState = invokeNoArg(information, "blockState");
+            } catch (NoSuchMethodException olderCnbApi) {
+               resolvedState = invokeNoArg(information, "getBlockState");
+            }
+            if (!(resolvedState instanceof BlockState state)) {
                return;
             }
 
