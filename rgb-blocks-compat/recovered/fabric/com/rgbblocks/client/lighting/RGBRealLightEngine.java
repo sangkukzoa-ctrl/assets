@@ -30,6 +30,8 @@ import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3fc;
 
@@ -90,6 +92,19 @@ public final class RGBRealLightEngine {
    private static final int CNB_RECONCILE_POSITIONS_PER_PASS = 32;
    private static int CNB_RECONCILE_TICKS;
    private static Iterator<Long> CNB_RECONCILE_CURSOR;
+   // Cache-MISS recovery: reconnect can restore genuine C&B voxel data and
+   // BakedModel quads while forgetting the RGB source entirely. Rechecking
+   // CNB_CACHE alone can never discover a source absent from that map.
+   // Scan only ALREADY LOADED client chunks, starting near the player.
+   private static final int CNB_DISCOVERY_RADIUS_CHUNKS = 16;
+   private static final int CNB_DISCOVERY_CHUNKS_PER_PASS = 16;
+   private static final int CNB_DISCOVERY_INTERVAL_TICKS = 10;
+   private static final long CNB_DISCOVERY_RETRY_COOLDOWN_TICKS = 400L;
+   private static final List<int[]> CNB_DISCOVERY_OFFSETS = buildCnbDiscoveryOffsets();
+   private static final Map<Long, Long> CNB_DISCOVERY_LAST_CHECK = new ConcurrentHashMap<>();
+   private static int CNB_DISCOVERY_CURSOR;
+   private static long CNB_DISCOVERY_TICK;
+   private static Object CNB_DISCOVERY_WORLD;
 
    private RGBRealLightEngine() {
    }
@@ -113,6 +128,7 @@ public final class RGBRealLightEngine {
    }
 
    public static void invalidateAll() {
+      resetCnbDiscovery();
       RGBClientConfig.refreshCache();
       RGBLightEngine.invalidateAll();
       RGBSourceIndex.clear();
@@ -130,6 +146,7 @@ public final class RGBRealLightEngine {
    }
 
    public static void onClientDisconnect() {
+      resetCnbDiscovery();
       RGBLightPersistence.saveCurrentBlocking();
       CNB_CACHE.clear();
       CNB_RECONCILE_CURSOR = null;
@@ -551,6 +568,7 @@ public final class RGBRealLightEngine {
             // a dropped/overwritten model packet leaves the source cache stale.
             // Only AUTO scans; frozen MANUAL snapshots remain untouched.
             reconcileLoadedCnbSources();
+            discoverMissingLoadedCnbSources();
             // RGB light may still be correct when C&B's asynchronous
             // baked model loses all geometry after distant rapid bakes.
             // Check only loaded active C&B RGB sources, 12 per 40 ticks;
@@ -1247,6 +1265,7 @@ public final class RGBRealLightEngine {
    }
 
    static void restorePersistedCnbSources(List<RGBLightPersistence.PersistedCnbSource> sources) {
+      resetCnbDiscovery();
       // Recheck all newly restored sources in THIS dimension on next AUTO pass.
       CNB_RECONCILE_CURSOR = null;
       CNB_RECONCILE_TICKS = 0;
@@ -1321,6 +1340,7 @@ public final class RGBRealLightEngine {
    }
 
    static void prepareForPersistenceDimensionSwitch() {
+      resetCnbDiscovery();
       cancelActiveBatch();
       // Never continue a previous dimension's weak cache iterator.
       CNB_RECONCILE_CURSOR = null;
@@ -1550,6 +1570,82 @@ public final class RGBRealLightEngine {
     * which refreshes RGBSourceIndex, light propagation, and render dirtiness.
     * In MANUAL the same change MUST remain frozen until a user Bake command.
     */
+   private static List<int[]> buildCnbDiscoveryOffsets() {
+      List<int[]> offsets = new ArrayList<>();
+      offsets.add(new int[]{0, 0});
+      for (int ring = 1; ring <= CNB_DISCOVERY_RADIUS_CHUNKS; ring++) {
+         for (int x = -ring; x <= ring; x++) {
+            offsets.add(new int[]{x, -ring});
+            offsets.add(new int[]{x, ring});
+         }
+         for (int z = -ring + 1; z < ring; z++) {
+            offsets.add(new int[]{-ring, z});
+            offsets.add(new int[]{ring, z});
+         }
+      }
+      return offsets;
+   }
+
+   private static void resetCnbDiscovery() {
+      CNB_DISCOVERY_LAST_CHECK.clear();
+      CNB_DISCOVERY_CURSOR = 0;
+      CNB_DISCOVERY_TICK = 0L;
+      CNB_DISCOVERY_WORLD = null;
+   }
+
+   /**
+    * Recover genuine loaded C&B voxels whose RGB source was NEVER registered.
+    * Historical NeoForge two-client CHAOS: peer reopened with 4095 mixed
+    * microbits and BakedModel geometry, but RGB remained BLACK for >1680 ticks.
+    * Existing reconcileLoadedCnbSources() sees only active CNB_CACHE keys,
+    * so a missing source cannot be repaired by that algorithm.
+    *
+    * This scans 16 already-loaded chunks every ten ticks, center-first, over
+    * a 33x33 client-visible region. It creates NO chunks, never rescans all
+    * 4096 microbits synchronously, and never changes MANUAL/Bake snapshots.
+    */
+   private static void discoverMissingLoadedCnbSources() {
+      if (!RGBRuntime.clientTargetAuto()
+         || EFFECTIVE_MODE != RGBRealLightEngine.EffectiveMode.AUTO
+         || !ACTIVE_BATCH.isEmpty()) return;
+      Minecraft client = Minecraft.getInstance();
+      if (client == null || client.player == null || client.level == null) return;
+      if (CNB_DISCOVERY_WORLD != client.level) {
+         resetCnbDiscovery();
+         CNB_DISCOVERY_WORLD = client.level;
+      }
+      if (++CNB_DISCOVERY_TICK % CNB_DISCOVERY_INTERVAL_TICKS != 0L) return;
+      int cx = client.player.getBlockX() >> 4;
+      int cz = client.player.getBlockZ() >> 4;
+      int maxCandidates = 16;
+      for (int scanned = 0; scanned < CNB_DISCOVERY_CHUNKS_PER_PASS; scanned++) {
+         int[] off = CNB_DISCOVERY_OFFSETS.get(CNB_DISCOVERY_CURSOR);
+         CNB_DISCOVERY_CURSOR = (CNB_DISCOVERY_CURSOR + 1) % CNB_DISCOVERY_OFFSETS.size();
+         LevelChunk chunk = client.level.getChunkSource().getChunk(cx + off[0], cz + off[1], false);
+         if (chunk == null) continue;
+         for (BlockEntity entity : chunk.getBlockEntities().values()) {
+            if (entity == null || entity.isRemoved()
+                  || !entity.getClass().getName().contains("chiselsandbits")) continue;
+            BlockPos pos = entity.getBlockPos();
+            if (pos == null || !isStillChiseledBlock(pos)) continue;
+            long key = cnbKey(pos);
+            if (CNB_CACHE.containsKey(key) || CNB_PENDING.containsKey(key)) continue;
+            Long previous = CNB_DISCOVERY_LAST_CHECK.get(key);
+            if (previous != null &&
+                  CNB_DISCOVERY_TICK - previous < CNB_DISCOVERY_RETRY_COOLDOWN_TICKS)
+               continue;
+            CNB_DISCOVERY_LAST_CHECK.put(key, CNB_DISCOVERY_TICK);
+            // Preserve the owner's normal two-tick/16-attempt live source
+            // handler; a half-deserialized tile may become ready afterward.
+            scheduleCnbBlockEntity(entity, 2, CNB_REFRESH_ATTEMPTS);
+            if (--maxCandidates <= 0) break;
+         }
+         if (maxCandidates <= 0) break;
+      }
+      if (CNB_DISCOVERY_LAST_CHECK.size() > 65536)
+         CNB_DISCOVERY_LAST_CHECK.clear();
+   }
+
    private static void reconcileLoadedCnbSources() {
       if (++CNB_RECONCILE_TICKS < CNB_RECONCILE_INTERVAL_TICKS) return;
       CNB_RECONCILE_TICKS = 0;
