@@ -172,8 +172,12 @@ public final class RGBCnbGeometryBakeDebouncer {
       if (tileEntity instanceof BlockEntity tile) {
          Level world = tile.getLevel();
          Minecraft mc = Minecraft.getInstance();
+         // The host of a LAN multiplayer world owns an integrated server,
+         // but still has a fully separate CLIENT Level and must receive
+         // its own C&B trailing mesh updates. Reject server-side or stale
+         // levels; never reject a live client because a server exists.
          return world != null && world.isClientSide() && mc != null
-               && mc.level == world && mc.getSingleplayerServer() == null;
+               && mc.level == world;
       }
       try {
          Method hasLevel = tileEntity.getClass().getMethod("hasLevel");
@@ -182,7 +186,7 @@ public final class RGBCnbGeometryBakeDebouncer {
             Method getLevel = tileEntity.getClass().getMethod("getLevel");
             if (getLevel.invoke(tileEntity) instanceof Level level && level.isClientSide()) {
                Minecraft minecraft = Minecraft.getInstance();
-               return minecraft != null && minecraft.getSingleplayerServer() == null;
+               return minecraft != null && minecraft.level == level;
             } else {
                return false;
             }
