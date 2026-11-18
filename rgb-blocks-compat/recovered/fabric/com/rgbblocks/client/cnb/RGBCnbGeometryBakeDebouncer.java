@@ -131,7 +131,12 @@ public final class RGBCnbGeometryBakeDebouncer {
             // permanently keep the mesh invisible after rapid bakes.
             runUndebounced(() -> {
                try {
-                  Method update = live.getClass().getMethod("updateModelData");
+                  // C&B ships its actual native block entity behind loader
+                  // implementation classes that may be package-private or
+                  // inherit a protected model callback. A public-only
+                  // getMethod() reflection probe can silently miss its LAST
+                  // baked geometry update even when the voxel data is valid.
+                  Method update = findModelUpdateMethod(live.getClass());
                   update.invoke(live);
                   level.sendBlockUpdated(pos, level.getBlockState(pos), level.getBlockState(pos), 3);
                } catch (Throwable failure) {
@@ -140,6 +145,25 @@ public final class RGBCnbGeometryBakeDebouncer {
             });
          });
       }, 180L, TimeUnit.MILLISECONDS);
+   }
+
+   private static Method findModelUpdateMethod(Class<?> entityType) throws NoSuchMethodException {
+      try {
+         Method method = entityType.getMethod("updateModelData");
+         method.setAccessible(true);
+         return method;
+      } catch (NoSuchMethodException missingPublic) {
+         for (Class<?> cursor = entityType; cursor != null; cursor = cursor.getSuperclass()) {
+            try {
+               Method declared = cursor.getDeclaredMethod("updateModelData");
+               declared.setAccessible(true);
+               return declared;
+            } catch (NoSuchMethodException next) {
+               // A class may inherit its C&B model callback from its superclass.
+            }
+         }
+         throw missingPublic;
+      }
    }
 
    private static boolean isRemoteClientWorld(Object tileEntity) {
