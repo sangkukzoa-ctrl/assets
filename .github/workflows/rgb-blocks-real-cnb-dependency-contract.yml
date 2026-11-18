@@ -1,0 +1,24 @@
+name: RGB Blocks verify actual native CnB published dependency bytecode
+on:
+  workflow_dispatch:
+  push:
+    branches: [rgb-blocks-legacy-compat-audit]
+    paths:
+      - 'rgb-blocks-compat/verify_actual_cnb_dependency_jars.py'
+      - '.github/workflows/rgb-blocks-real-cnb-dependency-contract.yml'
+permissions:
+  contents: read
+concurrency:
+  group: rgb-cnb-real-dependency-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  actual-published-cnb-contract:
+    name: Exact MC1.20.1 Forge and MC1.21.1 NeoForge CnB jar methods
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Verify published C&B binary APIs against authoritative pinned source
+        run: python3 rgb-blocks-compat/verify_actual_cnb_dependency_jars.py
