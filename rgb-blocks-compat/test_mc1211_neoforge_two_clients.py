@@ -695,11 +695,11 @@ try:
             "RGB_PORT_INTEGRATED_SINGLEPLAYER_PASS",peer,235)
         assert result["integrated_client_loaded"], (
             "NeoForge saved dedicated-world did not open in actual integrated SingleplayerServer with RGB+C&B")
-                result["integrated_host_cnb_mesh_guard_verified"]=await_line(peerlog,
+        result["integrated_host_cnb_mesh_guard_verified"]=await_line(peerlog,
             "RGB_PORT_INTEGRATED_LAN_HOST_MESH_GUARD_PASS",peer,20)
         assert result["integrated_host_cnb_mesh_guard_verified"], (
             "NeoForge real integrated host client cannot execute C&B trailing geometry Bake repair")
-result["integrated_mixed_bits_restored"]=await_line(peerlog,
+        result["integrated_mixed_bits_restored"]=await_line(peerlog,
             "RGB_PORT_CNB_MIXED_PROBE_PASS",peer,145)
         assert result["integrated_mixed_bits_restored"], (
             "Integrated NeoForge C&B no longer contains exact mixed glow/normal/glass material bits")
