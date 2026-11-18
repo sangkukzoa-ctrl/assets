@@ -833,6 +833,15 @@ assert not result["crashes"],"Actual client RGB/C&B/Sodium/Iris Mixin or class c
 assert result["screenshots"],"No screenshot of real in-world RGB scene"
 if SHADER_ON:
     assert result["shader_active"],"Complementary Reimagined shader was not confirmed ACTIVE in Iris"
+if CHAOS_PROBE:
+    assert result.get("chaos",{}).get("rounds_passed")==4, (
+        "CHAOS failed to complete all four real C&B color rounds")
+    assert result["chaos"].get("peer_process_restarted_and_verified"), (
+        "CHAOS did not verify the actual second client JVM relaunch")
+    assert result["chaos"].get("restarted_peer_existing_mixed_source_restored"), (
+        "CHAOS peer relaunch lost original mixed C&B color light")
+    assert result["chaos"].get("zero_ghost_rgb_both_clients"), (
+        "CHAOS left C&B ghost emission after deleting the source")
 if STRICT_LIGHT_PROBE:
     assert result["rgb_light_propagation_verified"],"NeoForge adjacent RGB channel light did not propagate"
     assert result["cnb_sculpted_fixture"],"NeoForge Chisels & Bits sculpted RGB microbit fixture missing"
