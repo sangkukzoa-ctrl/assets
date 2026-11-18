@@ -344,20 +344,15 @@ rgbengine=CODE/"com/rgbblocks/client/lighting/RGBRealLightEngine.java"
 patch(rgbengine,lambda s:s.replace(
  "if (clientLevel() instanceof BlockGetter getter) {",
  "BlockGetter getter = clientLevel();\\n         if (getter != null) {".replace("\\n","\n")))
-# Original 1.3.1 C&B 26.x exposes BlockInformation as a record with
-# blockState(). On the supported Forge 1.20.1, Chisels & Bits 20.1.20
-# exposes IBlockInformation#getBlockState() instead. The port used to
-# swallow NoSuchMethodException while calculating C&B source statistics;
-# a real 4095-bit RGB glow sculpture then emitted BLACK, even though
-# RGB full blocks and native Forge tick bootstrapping worked.
-# This is a version-specific API translation only; preserve all emission math.
-def forge_cnb_information_api(source):
-    obsolete='invokeNoArg(information, "blockState")'
-    translated='invokeNoArg(information, "getBlockState")'
-    if obsolete not in source:
-        raise AssertionError("Original C&B BlockInformation accessor moved")
-    return source.replace(obsolete, translated)
-patch(rgbengine,forge_cnb_information_api)
+# Native Forge and NeoForge now share ONE tested C&B material-state reader:
+# blockState() for 1.21.1 and getBlockState() for 1.20.1. Previously Forge
+# blindly replaced the original call with getBlockState(), which would
+# overwrite the new two-way fallback and silently reintroduce regressions.
+# Keep both branches intact in the actual generated Forge RGB engine.
+source_reader=rgbengine.read_text(encoding="utf-8")
+assert 'invokeNoArg(information, "blockState")' in source_reader
+assert 'invokeNoArg(information, "getBlockState")' in source_reader
+assert "catch (NoSuchMethodException olderCnbApi)" in source_reader
 
 # Forge production runtime uses remapped Minecraft method names (SRG).
 # Reflective getMethod("getBlockPos") on C&B's BlockEntity fails even while
