@@ -86,6 +86,18 @@ assert len(shader_rows)==4 and {
 }==expected_modes,("One native LIVE/STRESS test has shader disabled",shader_rows)
 assert "RGB_PORT_SHADER_ON: '${{ matrix.shader }}'" in live_wf
 assert "RGB_PORT_SHADER_VARIANT: 'unbound'" in live_wf
+# Integrated-host tests also need the unpublished owner source, not a public
+# binary. GitHub draft-release list access requires push-equivalent privileges.
+for loader in ("1201-forge","1211-neoforge"):
+    integrated=(folder/f"rgb-blocks-{loader}-integrated-singleplayer.yml").read_text(
+        encoding="utf-8")
+    assert "contents: write" in integrated,(
+        "Integrated native game CI cannot read author-source DRAFT release",loader)
+    assert "persist-credentials: false" in integrated,(
+        "Integrated game checkout should not keep draft-read token",loader)
+    assert "rgb-blocks-compat/stage_owner_original.py" in integrated
+    assert "RGB_PORT_TEST_INTEGRATED: '1'" in integrated
+    assert "rgb-blocks-compat/inject_ci_integrated_probe.py" in integrated
 assert "fail-fast: false" in chaos_wf
 assert "actions/upload-artifact@v4" in chaos_wf
 assert "retention-days: 30" in chaos_wf
@@ -110,5 +122,8 @@ print("RGB_OWNER_CI_WORKFLOW_SOURCE_FIRST_PASS",
                   "public_rgb_mod_downloads":0,
                   "private_author_source_required":True,
                   "true_dual_client_unbound_chaos_preserved":True,
-                  "seeded_11_family_hostility_preserved":True},
+                  "seeded_11_family_hostility_preserved":True,
+                  "two_distinct_chaos_seeds_per_loader":True,
+                  "unbound_shader_on_in_all_native_live_stress":True,
+                  "integrated_host_owner_draft_token_access":True},
                  ensure_ascii=False),flush=True)
