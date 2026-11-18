@@ -713,12 +713,12 @@ try:
             "RGB_PORT_INTEGRATED_SINGLEPLAYER_PASS",peer,235,
             "real_integrated_minecraft_server_and_saved_rgb")
         assert result["integrated_client_loaded"],"Forge integrated SingleplayerServer could not load real GREEN RGB+C&B world"
-                result["integrated_host_cnb_mesh_guard_verified"]=await_pattern(peerlog,
+        result["integrated_host_cnb_mesh_guard_verified"]=await_pattern(peerlog,
             "RGB_PORT_INTEGRATED_LAN_HOST_MESH_GUARD_PASS",peer,20,
             "real_integrated_host_client_cnb_mesh_guard")
         assert result["integrated_host_cnb_mesh_guard_verified"], (
             "Forge real integrated host client cannot execute C&B trailing geometry Bake repair")
-result["integrated_mixed_bits_restored"]=await_pattern(peerlog,
+        result["integrated_mixed_bits_restored"]=await_pattern(peerlog,
             "RGB_PORT_CNB_MIXED_PROBE_PASS",peer,145,
             "integrated_five_material_mixed_sculpted_cnb")
         assert result["integrated_mixed_bits_restored"],"Original C&B RGB Glow/Normal/Glass counts lost in integrated world"
