@@ -131,6 +131,32 @@ for loader in ("1201_forge", "1211_neoforge"):
     assert "RGB_PORT_CHAOS_ROUND_PASS round=3" in runtime[:oracle]
     assert "RGB_PORT_CHAOS_NO_GHOST_LIGHT_PASS" in runtime[accepted:ghost]
 
+# Protect the ACTUAL released C&B binaries in real-world acceptance tests.
+# Forge 20.1.20 is a direct-class JAR; NeoForge 21.1.32 uses nested
+# META-INF/jarjar/{api,core}. Never silently change JAR contents between runs.
+dependency_source=(HERE/"verify_actual_cnb_dependency_jars.py").read_text("utf-8")
+dep_nodes=[node.value for node in ast.parse(dependency_source).body
+           if isinstance(node,ast.Assign) and any(
+               isinstance(target,ast.Name) and target.id=="VERSIONS"
+               for target in node.targets)]
+assert len(dep_nodes)==1
+native_dependencies=ast.literal_eval(dep_nodes[0])
+assert set(native_dependencies)=={"forge1201","neoforge1211"}
+for target,harness in (("forge1201","test_mc1201_forge_two_clients.py"),
+                       ("neoforge1211","test_mc1211_neoforge_two_clients.py")):
+    config=native_dependencies[target]
+    text=(HERE/harness).read_text("utf-8")
+    assert config["file"] in text and config["expected_sha256"] in text, (
+        "Real client test ecosystem must use verified exact published C&B JAR",
+        target,config["file"])
+    assert config["url"] in text.replace('"+cb',config["file"]).replace(
+        'S_MODS/cb',config["file"]).replace('SERVER/"mods"/cb',config["file"]) or (
+        config["url"].rsplit("/",1)[0] in text),target
+assert native_dependencies["forge1201"]["info_method"]=="getBlockState"
+assert native_dependencies["neoforge1211"]["info_method"]=="blockState"
+assert len(native_dependencies["neoforge1211"]["nested_sha256"])==2
+assert "RGB_CNB_BOTH_REAL_DEPENDENCY_JARS_VERIFIED" in dependency_source
+
 print("RGB_SOURCE_FIRST_OFFLINE_STATIC_PASS",json.dumps({
     "no_RGB_public_JAR_requests":True,
     "real_source_parser_invariant":True,
@@ -144,4 +170,6 @@ print("RGB_SOURCE_FIRST_OFFLINE_STATIC_PASS",json.dumps({
     "port_only_java_additions":1,
     "unmodified_author_java_count":25,
     "restarted_peer_preexisting_mixed_cnb_oracle":2,
+    "published_CNB_dependency_sha256_pinned":2,
+    "neoforge_real_jarjar_api_core_modules_pinned":2,
     "test_type":"static_not_game"}),flush=True)
