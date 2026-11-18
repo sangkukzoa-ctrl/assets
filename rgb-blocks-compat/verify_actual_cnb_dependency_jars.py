@@ -18,6 +18,7 @@ VERSIONS={
         "loader":"Forge",
         "version":"20.1.20",
         "file":"chisels-and-bits-forge-20.1.20.jar",
+        "expected_sha256":"682dab9c016b12b3da49ed4df037cc9483917cd50ec76b2bd6da4bfbf1237a2b",
         "url":"https://mediafilez.forgecdn.net/files/7620/767/chisels-and-bits-forge-20.1.20.jar",
         "upstream":"97a7ab0e25f8806ccb0fa483d5cbe40b181c8756",
         "info_api":"api/src/main/java/mod/chiselsandbits/api/blockinformation/IBlockInformation.java",
@@ -29,6 +30,10 @@ VERSIONS={
         "loader":"NeoForge",
         "version":"21.1.32",
         "file":"chisels-and-bits-neoforge-21.1.32.jar",
+        "expected_sha256":"982f4523abc12c5de1e84410f4e0ee29e134e854272c3bdb2c8fe24841a21265",
+        "nested_sha256":{
+          "META-INF/jarjar/chisels-and-bits-api-21.1.32.jar":"df68e9f53db006a18d999e4a39b543d3d90fe0962bd6d7f975ca5a973f683bf8",
+          "META-INF/jarjar/chisels-and-bits-core-21.1.32.jar":"1ce714fb438ea624bc04458097f3c80a1651d2e8b5d94ae34f31f77080e0aa8c"},
         "url":"https://mediafilez.forgecdn.net/files/7405/270/chisels-and-bits-neoforge-21.1.32.jar",
         "upstream":"3412262011aebd68996f33275c302e864ba9ee11",
         "info_api":"api/src/main/java/mod/chiselsandbits/api/blockinformation/BlockInformation.java",
@@ -76,6 +81,9 @@ for target,config in VERSIONS.items():
     assert 'register("chiseled"' in source_mods or '"chiseled",' in source_mods
     body=get(config["url"])
     digest=hashlib.sha256(body).hexdigest()
+    assert digest==config["expected_sha256"],(
+        "Changed C&B published binary; native RGB compatibility test would no longer be pinned",
+        target,digest,config["expected_sha256"])
     assert len(body)>250000,("Incomplete C&B JAR",target,len(body))
     assert zipfile.is_zipfile(io.BytesIO(body)),("Invalid C&B published JAR",target)
     with zipfile.ZipFile(io.BytesIO(body)) as jar:
@@ -112,6 +120,10 @@ for target,config in VERSIONS.items():
             with zipfile.ZipFile(io.BytesIO(inner)) as mod:
                 modules[entry]={name:mod.read(name) for name in mod.namelist()
                                 if name.endswith(".class")}
+        for name,wanted in config.get("nested_sha256",{}).items():
+            assert nested_manifest.get(name)==wanted,(
+                "NeoForge nested C&B API/Core module bytes changed",
+                name,nested_manifest.get(name),wanted)
         def find_class(entry):
             found=[(module,files[entry]) for module,files in modules.items()
                    if entry in files]
