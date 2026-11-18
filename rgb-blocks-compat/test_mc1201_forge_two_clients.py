@@ -213,6 +213,7 @@ result.update({"peer_joined":False,"peer_rgb_probe_verified":False,
                "integrated_requested":INTEGRATED_PROBE,
                "integrated_world_saved":False,
                "integrated_client_loaded":False,
+               "integrated_host_cnb_mesh_guard_verified":False,
                "integrated_mixed_bits_restored":False,
                "integrated_same_world_id":False,
                "integrated_screenshot":False})
@@ -712,7 +713,12 @@ try:
             "RGB_PORT_INTEGRATED_SINGLEPLAYER_PASS",peer,235,
             "real_integrated_minecraft_server_and_saved_rgb")
         assert result["integrated_client_loaded"],"Forge integrated SingleplayerServer could not load real GREEN RGB+C&B world"
-        result["integrated_mixed_bits_restored"]=await_pattern(peerlog,
+                result["integrated_host_cnb_mesh_guard_verified"]=await_pattern(peerlog,
+            "RGB_PORT_INTEGRATED_LAN_HOST_MESH_GUARD_PASS",peer,20,
+            "real_integrated_host_client_cnb_mesh_guard")
+        assert result["integrated_host_cnb_mesh_guard_verified"], (
+            "Forge real integrated host client cannot execute C&B trailing geometry Bake repair")
+result["integrated_mixed_bits_restored"]=await_pattern(peerlog,
             "RGB_PORT_CNB_MIXED_PROBE_PASS",peer,145,
             "integrated_five_material_mixed_sculpted_cnb")
         assert result["integrated_mixed_bits_restored"],"Original C&B RGB Glow/Normal/Glass counts lost in integrated world"
@@ -900,7 +906,7 @@ if MIXED_CNB_PROBE:
 if INTEGRATED_PROBE:
     assert all(result[k] for k in (
         "integrated_world_saved","integrated_client_loaded",
-        "integrated_mixed_bits_restored","integrated_same_world_id",
+        "integrated_mixed_bits_restored","integrated_host_cnb_mesh_guard_verified","integrated_same_world_id",
         "integrated_screenshot"
     )), "Forge real integrated SingleplayerServer original world and RGB+C&B acceptance failed"
 if DIMENSION_PROBE:
