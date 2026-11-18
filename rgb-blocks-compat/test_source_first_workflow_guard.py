@@ -65,7 +65,7 @@ assert "1313131" in chaos_wf and "2718281" in chaos_wf
 # Each native loader needs TWO independent whole-game random scenarios,
 # not just two numbers somewhere in comments or the same seed repeated.
 seed_rows=re.findall(
-    r"-\\s*\\{target:\\s*(forge1201|neoforge1211),[^\\n]*?\\bseed:\\s*'(\\d+)'",
+    r"-\s*\{target:\s*(forge1201|neoforge1211),[^\n]*?\bseed:\s*'(\d+)'",
     chaos_wf)
 for loader,required in {
     "forge1201":{"1313131","42"},
@@ -77,7 +77,7 @@ for loader,required in {
 # Both LIVE and STRESS must exercise Complementary Unbound, for BOTH loaders.
 live_wf=(folder/"rgb-blocks-cnb-post-login-and-distant-rapid-bake.yml").read_text("utf-8")
 shader_rows=re.findall(
-    r"-\\s*\\{target:\\s*(forge1201|neoforge1211),\\s*mode:\\s*(live|stress),[^\\n]*?\\bshader:\\s*'([01])'",
+    r"-\s*\{target:\s*(forge1201|neoforge1211),\s*mode:\s*(live|stress),[^\n]*?\bshader:\s*'([01])'",
     live_wf)
 expected_modes={(target,mode) for target in ("forge1201","neoforge1211")
                 for mode in ("live","stress")}
