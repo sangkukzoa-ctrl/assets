@@ -272,26 +272,20 @@ def pe(s):
     return s
 patch(engine,pe)
 
-# Preserve the original C&B RGB micro-voxel lighting across both generations.
-# C&B 21.1.40 exposes BlockInformation.blockState() as a record accessor,
-# while C&B 20.1.20 exposes IBlockInformation.getBlockState().
-# Never swallow all old-version RGB sources because one getter was renamed.
-def pcnbgetter(s):
-    needle='''if (!(invokeNoArg(information, "blockState") instanceof BlockState state)) {
-               return;
-            }'''
-    replacement='''Object rgbblocks$stateInfo;
-            try {
-               rgbblocks$stateInfo = invokeNoArg(information, "blockState");
-            } catch (ReflectiveOperationException oldApi) {
-               rgbblocks$stateInfo = invokeNoArg(information, "getBlockState");
-            }
-            if (!(rgbblocks$stateInfo instanceof BlockState state)) {
-               return;
-            }'''
-    if needle not in s:raise RuntimeError("Original C&B source accessor not found")
-    return s.replace(needle,replacement)
-patch(engine,pcnbgetter)
+# Preserve the author's original RGB microvoxel blending and the already
+# independently Java17/21 verified dual-loader C&B material accessor.
+# Do NOT reapply the retired single-version replacement: the authoritative
+# compatibility overlay already uses blockState() for NeoForge 1.21.1 and
+# getBlockState() for Forge 1.20.1. Rewriting it here used to abort source
+# generation before either native loader could compile.
+dualCnbReader=engine.read_text(encoding="utf-8")
+assert 'invokeNoArg(information, "blockState")' in dualCnbReader, (
+    "NeoForge 1.21.1 C&B record accessor was lost")
+assert 'invokeNoArg(information, "getBlockState")' in dualCnbReader, (
+    "Forge 1.20.1 C&B legacy material reader was lost")
+assert "catch (NoSuchMethodException olderCnbApi)" in dualCnbReader, (
+    "Both C&B loaders require the original-preserving dual API fallback")
+print("RGB_OWNER_CNB_DUAL_MATERIAL_READER_STAGED",flush=True)
 
 
 # Normalize 26.1.2 BlockState light damping to 1.21.1 world-aware queries.
