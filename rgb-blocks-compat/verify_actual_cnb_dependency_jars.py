@@ -81,7 +81,19 @@ for target,config in VERSIONS.items():
     with zipfile.ZipFile(io.BytesIO(body)) as jar:
         names=set(jar.namelist())
         for label,entry in MUST_INCLUDE_IN_JAR.items():
-            assert entry in names,("Published mod lacks required C&B "+label,target,entry)
+            if entry not in names:
+                matches=sorted(n for n in names if (
+                    "ChiseledBlockEntity" in n or
+                    "MultiStateObjectStatistics" in n or
+                    n.endswith("ModBlocks.class") or
+                    n.endswith("BlockInformation.class") or
+                    n.endswith("IBlockInformation.class")))
+                print("RGB_CNB_PUBLISHED_JAR_CLASS_LAYOUT_DIAGNOSTIC",
+                      json.dumps({"target":target,"jar":config["file"],
+                       "missing":entry,"related_classes":matches[:100],
+                       "class_entries":sum(x.endswith(".class") for x in names)}),
+                      flush=True)
+                raise AssertionError(("Published mod lacks required C&B "+label,target,entry))
         assert config["info_class"] in names,(
             "Published C&B API differs from the original intended game version",
             target,config["info_class"])
