@@ -25,6 +25,7 @@ on:
       - 'rgb-blocks-compat/test_cnb_missing_source_discovery_javac.py'
       - 'rgb-blocks-compat/test_cnb_blockinformation_accessors_javac.py'
       - 'rgb-blocks-compat/test_cnb_trailing_model_reflection_javac.py'
+      - 'rgb-blocks-compat/test_cnb_lan_host_client_bake_javac.py'
       - 'rgb-blocks-compat/recovered/fabric/com/rgbblocks/client/cnb/RGBCnbGeometryBakeDebouncer.java'
       - 'rgb-blocks-compat/cnb_chaos_choreography.py'
       - 'rgb-blocks-compat/test_cnb_chaos_choreography_offline.py'
@@ -65,6 +66,7 @@ jobs:
             rgb-blocks-compat/test_cnb_missing_source_discovery_javac.py \
             rgb-blocks-compat/test_cnb_blockinformation_accessors_javac.py \
             rgb-blocks-compat/test_cnb_trailing_model_reflection_javac.py \
+            rgb-blocks-compat/test_cnb_lan_host_client_bake_javac.py \
             rgb-blocks-compat/test_owner_private_release_source.py \
             rgb-blocks-compat/cnb_chaos_choreography.py \
             rgb-blocks-compat/test_cnb_chaos_choreography_offline.py
@@ -92,6 +94,8 @@ jobs:
         run: python3 rgb-blocks-compat/test_owner_source_runtime_transforms_offline.py
       - name: RUN real original-order network and SavedData source conversion for Forge 1.20.1
         run: python3 rgb-blocks-compat/test_owner_forge_runtime_packets_offline.py
+      - name: Test actual C&B rapid Bake LAN-host client and reject stale/server worlds on Java 17 and 21
+        run: python3 rgb-blocks-compat/test_cnb_lan_host_client_bake_javac.py
       - name: Confirm the original RGB Blocks Modrinth source URL is absent from the active build
         run: |
           ! grep -E 'cdn.modrinth.com/data/A48MxLWx|api.modrinth.com/v2/project/A48MxLWx' \
