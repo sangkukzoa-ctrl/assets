@@ -884,6 +884,15 @@ assert not result["fatal"],"Minecraft client fatal shader/renderer/C&B incompati
 assert result["screenshots"],"Failed to capture real game scene"
 if SHADER_ON:
     assert result["shader_enabled"],"Oculus failed to activate Complementary in real Forge 1.20.1 game"
+if CHAOS_PROBE:
+    assert result.get("chaos",{}).get("rounds_passed")==4, (
+        "CHAOS failed to complete all four real C&B color rounds")
+    assert result["chaos"].get("peer_process_restarted_and_verified"), (
+        "CHAOS did not verify the actual second client JVM relaunch")
+    assert result["chaos"].get("restarted_peer_existing_mixed_source_restored"), (
+        "CHAOS peer relaunch lost original mixed C&B color light")
+    assert result["chaos"].get("zero_ghost_rgb_both_clients"), (
+        "CHAOS left C&B ghost emission after deleting the source")
 assert result["rgb_light_propagation_verified"],"RGB light propagation runtime pixel-channel probe failed"
 assert result["cnb_sculpted_fixture"],"C&B 4095 RGB microbits fixture was not constructed"
 if MIXED_CNB_PROBE:
