@@ -103,6 +103,25 @@ assert 'client.Sodium06BlockRendererMixin' in neo
 assert 'client.Embeddium03BlockRendererMixin' in forge
 assert 'client.ForgeCnbLivePacketMixin' in forge
 
+# A four-round C&B CHAOS PASS is NOT sufficient if a restarted real client
+# has lost the original mixed sculpture's RGB source. Both native harnesses
+# must check the NEW peer JVM after relaunch and before deleting the chaos
+# fixture. Historical NeoForge evidence: 4095 voxels but BLACK RGB for
+# 1680 client ticks after the peer reconnected.
+for loader in ("1201_forge", "1211_neoforge"):
+    harness=HERE/("test_mc"+loader+"_two_clients.py")
+    runtime=harness.read_text(encoding="utf-8")
+    ast.parse(runtime,filename=str(harness))
+    start=runtime.index('result["chaos"]["peer_process_restarted_and_verified"]=True')
+    oracle=runtime.index('"RGB_PORT_CNB_MIXED_PROBE_PASS"',start)
+    accepted=runtime.index('result["chaos"]["restarted_peer_existing_mixed_source_restored"]=True',oracle)
+    ghost=runtime.index('result["chaos"]["zero_ghost_rgb_both_clients"]=True',accepted)
+    assert start<oracle<accepted<ghost
+    assert "0,peer,120" in runtime[oracle:accepted], (
+        "Rejoin source oracle must sample NEW peer from log offset zero",harness)
+    assert "RGB_PORT_CHAOS_ROUND_PASS round=3" in runtime[:oracle]
+    assert "RGB_PORT_CHAOS_NO_GHOST_LIGHT_PASS" in runtime[accepted:ghost]
+
 print("RGB_SOURCE_FIRST_OFFLINE_STATIC_PASS",json.dumps({
     "no_RGB_public_JAR_requests":True,
     "real_source_parser_invariant":True,
@@ -115,4 +134,5 @@ print("RGB_SOURCE_FIRST_OFFLINE_STATIC_PASS",json.dumps({
     "original_java_overlays_remaining":7,
     "port_only_java_additions":1,
     "unmodified_author_java_count":25,
+    "restarted_peer_preexisting_mixed_cnb_oracle":2,
     "test_type":"static_not_game"}),flush=True)
