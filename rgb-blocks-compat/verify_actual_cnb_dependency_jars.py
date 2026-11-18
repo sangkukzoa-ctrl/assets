@@ -79,33 +79,54 @@ for target,config in VERSIONS.items():
     assert len(body)>250000,("Incomplete C&B JAR",target,len(body))
     assert zipfile.is_zipfile(io.BytesIO(body)),("Invalid C&B published JAR",target)
     with zipfile.ZipFile(io.BytesIO(body)) as jar:
-        names=set(jar.namelist())
+        root_names=set(jar.namelist())
+        modules={"outer":{name:jar.read(name)
+                          for name in root_names if name.endswith(".class")}}
+        nested_manifest={}
+        nested_jars=sorted(
+            name for name in root_names if
+            name.startswith("META-INF/jarjar/chisels-and-bits-") and name.endswith(".jar"))
+        if target=="neoforge1211":
+            expected={
+                "META-INF/jarjar/chisels-and-bits-api-21.1.32.jar",
+                "META-INF/jarjar/chisels-and-bits-core-21.1.32.jar",
+            }
+            assert expected.issubset(set(nested_jars)), (
+                "Published 21.1.32 NeoForge JAR lacks embedded API and core",
+                nested_jars)
+            assert "META-INF/jarjar/metadata.json" in root_names, (
+                "NeoForge nested modules lack JarJar metadata")
+            jarjar_metadata=json.loads(jar.read("META-INF/jarjar/metadata.json"))
+            assert "jars" in jarjar_metadata and len(jarjar_metadata["jars"])>=2
+        else:
+            assert not nested_jars, (
+                "20.1.20 Forge JAR changed from normal direct-class package",
+                nested_jars)
+        for entry in nested_jars:
+            if "-api-" not in entry and "-core-" not in entry:
+                continue
+            inner=jar.read(entry)
+            assert zipfile.is_zipfile(io.BytesIO(inner)),(
+                "Published nested C&B module is not a ZIP",target,entry)
+            nested_manifest[entry]=hashlib.sha256(inner).hexdigest()
+            with zipfile.ZipFile(io.BytesIO(inner)) as mod:
+                modules[entry]={name:mod.read(name) for name in mod.namelist()
+                                if name.endswith(".class")}
+        def find_class(entry):
+            found=[(module,files[entry]) for module,files in modules.items()
+                   if entry in files]
+            assert len(found)==1, (
+                "C&B class missing/duplicate across actual published modules",
+                target,entry,
+                [key for key,value in modules.items() if entry in value],
+                {key:len(value) for key,value in modules.items()})
+            return found[0]
         for label,entry in MUST_INCLUDE_IN_JAR.items():
-            if entry not in names:
-                matches=sorted(n for n in names if (
-                    "ChiseledBlockEntity" in n or
-                    "MultiStateObjectStatistics" in n or
-                    n.endswith("ModBlocks.class") or
-                    n.endswith("BlockInformation.class") or
-                    n.endswith("IBlockInformation.class")))
-                print("RGB_CNB_PUBLISHED_JAR_CLASS_LAYOUT_DIAGNOSTIC",
-                      json.dumps({"target":target,"jar":config["file"],
-                       "missing":entry,"related_classes":matches[:100],
-                       "class_entries":sum(x.endswith(".class") for x in names),
-                       "size_bytes":len(body),
-                       "first_100_classes":sorted(n for n in names if n.endswith(".class"))[:100],
-                       "jar_jar_dependencies":sorted(n for n in names if n.endswith(".jar"))[:30],
-                       "mod_metadata":sorted(n for n in names if
-                           ("mods.toml" in n or "jarjar" in n or "manifest" in n.lower()))[:40]}),
-                      flush=True)
-                raise AssertionError(("Published mod lacks required C&B "+label,target,entry))
-        assert config["info_class"] in names,(
-            "Published C&B API differs from the original intended game version",
-            target,config["info_class"])
-        info_class=jar.read(config["info_class"])
-        tile_class=jar.read(MUST_INCLUDE_IN_JAR["tile"])
-        stats_class=jar.read(MUST_INCLUDE_IN_JAR["statistics"])
-        blocks_class=jar.read(MUST_INCLUDE_IN_JAR["blocks"])
+            find_class(entry)
+        info_location,info_class=find_class(config["info_class"])
+        tile_location,tile_class=find_class(MUST_INCLUDE_IN_JAR["tile"])
+        stats_location,stats_class=find_class(MUST_INCLUDE_IN_JAR["statistics"])
+        blocks_location,blocks_class=find_class(MUST_INCLUDE_IN_JAR["blocks"])
         assert config["info_method"].encode() in info_class, (
             "Published C&B information accessor differs from source contract",
             target,config["info_method"])
@@ -122,6 +143,10 @@ for target,config in VERSIONS.items():
             "stats":"getStatistics.getStateCounts",
             "material_accessor":config["info_method"],
             "model_regeneration":"updateModelData",
+            "bytecode_placements":{
+                "info":info_location,"statistics":stats_location,
+                "tile":tile_location,"blocks":blocks_location},
+            "nested_module_sha256":nested_manifest,
             "real_published_binary_verified":True,
         }),flush=True)
 print("RGB_CNB_BOTH_REAL_DEPENDENCY_JARS_VERIFIED",flush=True)
