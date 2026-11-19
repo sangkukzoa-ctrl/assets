@@ -2,6 +2,7 @@ package com.rgbblocks.client.cnb;
 
 import com.rgbblocks.client.lighting.RGBRenderInvalidator;
 import java.lang.reflect.Method;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,6 +28,11 @@ import net.minecraft.world.level.block.state.BlockState;
 public final class RGBCnbMeshIntegrity {
    private static final Map<Long,Integer> MISSING = new HashMap<>();
    private static final Map<Long,Long> REPAIRED = new HashMap<>();
+   // A C&B -> AIR -> stone -> C&B ABA can create a different tile at the
+   // SAME packed position while the 30-second repair cooldown is live.
+   // Associate the cooldown with the actual current tile, not coordinates.
+   // Weak handles do not retain long-unloaded model/level instances.
+   private static final Map<Long,WeakReference<BlockEntity>> OBSERVED_TILES = new HashMap<>();
    // Real C&B/Scena API failures must be visible to owner-hostile CI.
    // Log once per source per 30 seconds maximum; never flood player logs.
    private static final Map<Long,Long> LAST_ORACLE_ERROR = new HashMap<>();
@@ -40,6 +46,7 @@ public final class RGBCnbMeshIntegrity {
       lastLevel=null;
       MISSING.clear();
       REPAIRED.clear();
+      OBSERVED_TILES.clear();
       LAST_ORACLE_ERROR.clear();
       ticks=0L;
       cursor=0;
@@ -66,6 +73,8 @@ public final class RGBCnbMeshIntegrity {
          BlockPos pos=BlockPos.of(id.longValue());
          if(!level.isLoaded(pos)){
             MISSING.remove(id);
+            REPAIRED.remove(id);
+            OBSERVED_TILES.remove(id);
             continue;
          }
          try{
@@ -73,16 +82,30 @@ public final class RGBCnbMeshIntegrity {
             if(tile==null || tile.isRemoved() ||
               !tile.getClass().getName().contains("chiselsandbits")){
                MISSING.remove(id);
+               REPAIRED.remove(id);
+               OBSERVED_TILES.remove(id);
                continue;
             }
             String name=String.valueOf(BuiltInRegistries.BLOCK.getKey(
                  level.getBlockState(pos).getBlock()));
             if(!"chiselsandbits:chiseled".equals(name)){
                MISSING.remove(id);
+               REPAIRED.remove(id);
+               OBSERVED_TILES.remove(id);
                continue;
+            }
+            WeakReference<BlockEntity> observed=OBSERVED_TILES.get(id);
+            if(observed==null || observed.get()!=tile){
+               // A new physical tile MUST get its own three-strike grace
+               // and recovery opportunity, even inside the old tile's
+               // 600-tick cooldown. ABA may occur entirely between scans.
+               MISSING.remove(id);
+               REPAIRED.remove(id);
+               OBSERVED_TILES.put(id,new WeakReference<>(tile));
             }
             if(!hasActualVoxelStates(tile)){
                MISSING.remove(id);
+               REPAIRED.remove(id); // AIR-only -> Glow in-place can recover
                continue;
             }
             if(hasActualRenderedQuads(tile)){
@@ -119,6 +142,7 @@ public final class RGBCnbMeshIntegrity {
       cursor=(cursor+toInspect)%size;
       if(MISSING.size()>4096)MISSING.clear();
       if(REPAIRED.size()>4096)REPAIRED.clear();
+      if(OBSERVED_TILES.size()>4096)OBSERVED_TILES.clear();
    }
 
    private static boolean hasActualVoxelStates(BlockEntity tile)throws ReflectiveOperationException{
