@@ -26,18 +26,19 @@ final class GalleryStore {
     private final Context ctx;
     final ArrayList<Item> items = new ArrayList<>();
     final SequenceLedger sequence = new SequenceLedger();
-    private final File library, metadata;
+    private final File library, metadata, home;
     GalleryStore(Context ctx) { this(ctx,false); }
     GalleryStore(Context ctx,boolean externalSession) {
         this.ctx=ctx;
-        File home;
+        File selectedHome;
         if(externalSession) {
             File sessions=new File(ctx.getFilesDir(),"picker-sessions");
             if(!sessions.exists() && !sessions.mkdirs())throw new IllegalStateException("Picker storage unavailable");
             cleanExpiredSessions(sessions);
-            home=new File(sessions,"session-"+UUID.randomUUID().toString());
-            if(!home.mkdirs())throw new IllegalStateException("Picker session unavailable");
-        } else home=ctx.getFilesDir();
+            selectedHome=new File(sessions,"session-"+UUID.randomUUID().toString());
+            if(!selectedHome.mkdirs())throw new IllegalStateException("Picker session unavailable");
+        } else selectedHome=ctx.getFilesDir();
+        home=selectedHome;
         library=new File(home,"library");
         metadata=new File(home,"gallery.json");
         if (!library.exists() && !library.mkdirs()) throw new IllegalStateException("Cannot initialize library");
@@ -48,6 +49,7 @@ final class GalleryStore {
         return null;
     }
     File source(Item item) { return new File(library,item.path); }
+    String sessionId() { return home.equals(ctx.getFilesDir())?"main":home.getName(); }
     synchronized Item add(Uri uri) throws Exception {
         ContentResolver cr=ctx.getContentResolver();
         String mime=cr.getType(uri);

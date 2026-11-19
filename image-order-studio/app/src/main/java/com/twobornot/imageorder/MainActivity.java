@@ -20,10 +20,10 @@ import java.util.concurrent.*;
 
 /**
  * Sequence is set by taps IN THIS APP, never by a provider's returned ClipData ordering.
- * Rendered numbered images are the cross-site fallback when receivers re-sort attachments.
+ * All exported image bytes are preserved. Only the ordered URI list is constructed here.
  */
 public class MainActivity extends Activity {
-    private static final int IMPORT_IMAGES=100, CHOOSE_FOLDER=200, WRITE_OLD_GALLERY=300;
+    private static final int IMPORT_IMAGES=100, CHOOSE_FOLDER=200;
     private static final String SAMSUNG_GALLERY="com.sec.android.gallery3d";
     private static final String PHOTO_PREF="preferred_photo_source";
     private static final int NAVY=0xff182C46, BLUE=0xff2563EB, MUTED=0xff60748C;
@@ -31,7 +31,7 @@ public class MainActivity extends Activity {
     private final ExecutorService thumbWorker=Executors.newFixedThreadPool(2);
     private final Handler ui=new Handler(Looper.getMainLooper());
     private GalleryStore store;
-    private ImageExporter exporter;
+    private ImageExporter exporter; // thumbnail decoding only
     private GridView grid;
     private BaseAdapter adapter;
     private TextView status, subtitle;
@@ -48,7 +48,7 @@ public class MainActivity extends Activity {
     private boolean working=false;
     private boolean selectedOnly=false;
     private boolean selectedFirst=false;
-    private boolean pendingGalleryCombine=false;
+
     private final ArrayList<GalleryStore.Item> visibleItems = new ArrayList<>();
 
     private boolean ko() {return Locale.getDefault().getLanguage().equals("ko");}
@@ -84,8 +84,8 @@ public class MainActivity extends Activity {
         LinearLayout header=new LinearLayout(this);header.setPadding(dp(18),dp(18),dp(18),dp(13));
         header.setOrientation(LinearLayout.VERTICAL);header.setBackgroundColor(NAVY);root.addView(header);
         TextView title=text(externalMode?t("사진 첨부 · 순서 지정","Attach images · set order"):"Image Order Studio",23,0xffffffff,true);header.addView(title);
-        subtitle=text(externalMode?t("갤러리 선택 → 순서 확인 → 사이트에 첨부", "Pick photos → confirm order → return to website"):
-            t("선택한 순서가 곧 정답입니다", "Your selection order is authoritative"),12,0xffcbd8ee,false);
+        subtitle=text(externalMode?t("원본 사진 선택 → 그대로 첨부", "Select original images → attach unchanged"):
+            t("원본 그대로 · 선택 순서대로", "Original files · selected order"),12,0xffcbd8ee,false);
         header.addView(subtitle);
         LinearLayout toolbar=row(); toolbar.setPadding(dp(8),dp(10),dp(8),dp(5));root.addView(toolbar);
         addButton(toolbar,t("＋ 갤러리","＋ Gallery"),()->openPicker(),BLUE);
@@ -95,10 +95,10 @@ public class MainActivity extends Activity {
         if(!externalMode)addButton(toolbarOrder,t("다른 기능 · 설정","More tools / settings"),()->showOtherTools(),0xff6f8095);
         status=text("",13,NAVY,true);status.setPadding(dp(14),dp(8),dp(14),dp(5));root.addView(status);
         TextView instructions=text(externalMode?
-            t("사진의 파란 숫자가 업로드 순서입니다. 원하는 순서대로 누르고 '사이트에 첨부'를 누르세요.",
-              "Blue numbers indicate upload order. Tap photos in order, then press Return to website."):
-            t("갤러리에서 사진을 선택한 뒤 순서를 확인하세요. 파란 숫자가 실제 첨부 순서입니다.",
-              "Choose photos from the gallery; confirm the numbered sequence before exporting."),12,MUTED,false);
+            t("파란 숫자는 업로드 순서입니다. 사진 내용은 변경하지 않습니다.",
+              "Blue numbers show the upload order. Image contents are never changed."):
+            t("갤러리에서 사진을 순서대로 선택하세요. 원본 이미지 그대로 전달됩니다.",
+              "Select images in order. Original image bytes will be sent unchanged."),12,MUTED,false);
         instructions.setPadding(dp(14),0,dp(14),dp(12));root.addView(instructions);
         grid=new GridView(this);grid.setNumColumns(GridView.AUTO_FIT);grid.setColumnWidth(dp(109));
         grid.setHorizontalSpacing(dp(6));grid.setVerticalSpacing(dp(6));grid.setPadding(dp(9),dp(8),dp(9),dp(10));
@@ -132,15 +132,13 @@ public class MainActivity extends Activity {
         if(externalMode) {
             selectedFirst=true;
             LinearLayout primary=row();primary.setPadding(dp(8),dp(6),dp(8),dp(4));root.addView(primary);
-            addButton(primary,t("✓ 사이트에 첨부","✓ Return images to website"),()->returnToCaller(),BLUE);
+            addButton(primary,t("✓ 원본 그대로 첨부","✓ Attach originals"),()->returnToCaller(),BLUE);
             LinearLayout secondary=row();secondary.setPadding(dp(8),0,dp(8),dp(10));root.addView(secondary);
             addButton(secondary,t("처음부터 선택","Restart order"),()->confirmClearSequence(),NAVY);
             addButton(secondary,t("취소하고 돌아가기","Cancel and return"),()->cancelExternal(),0xff6f8095);
         } else {
             LinearLayout primary=row();primary.setPadding(dp(8),dp(6),dp(8),dp(6));root.addView(primary);
-            addButton(primary,t("＋ 사진 선택 · 순서대로 업로드 준비", "＋ Select photos · prepare upload"),this::openPicker,BLUE);
-            LinearLayout more=row();more.setPadding(dp(8),0,dp(8),dp(7));root.addView(more);
-            addButton(more,t("설정", "Settings"),this::showOtherTools,0xff6f8095);
+            addButton(primary,t("✓ 원본 순서대로 공유","✓ Share originals in order"),this::shareOriginals,BLUE);
         }
     }
     private LinearLayout row() {
@@ -228,7 +226,7 @@ public class MainActivity extends Activity {
     private void openPicker() {
         if(working)return;
         Intent gallery=new Intent(this,NativeGalleryActivity.class);
-        gallery.putExtra(NativeGalleryActivity.EXTRA_MAX_SELECTION,externalMode&&!externalAllowsMultiple?12:100);
+        gallery.putExtra(NativeGalleryActivity.EXTRA_MAX_SELECTION,externalMode&&!externalAllowsMultiple?1:100);
         startActivityForResult(gallery,IMPORT_IMAGES);
     }
     private boolean trySamsungPicker() {
@@ -359,7 +357,7 @@ public class MainActivity extends Activity {
                     ui.postDelayed(()->{
                         if(isFinishing()||working)return;
                         if(externalMode) returnToCaller();
-                        else publishGallery(false);
+                        else shareOriginals();
                     },250);
                 }
                 // Avoid an extra OK dialog after a successful native photo selection.
@@ -373,36 +371,50 @@ public class MainActivity extends Activity {
     private void cancelExternal(){
         setResult(RESULT_CANCELED);finish();
     }
-    /** Return real content:// file grants directly to the image-upload requester. */
+    /** Only the order of URI references is changed; no image bytes are encoded or rendered. */
     private void returnToCaller() {
         if(!externalMode||!hasSelection()||working)return;
         List<String> ids=store.sequence.snapshot();
-        if(PickerDecision.needsCombine(ids.size(),externalAllowsMultiple)) {
-            if(ids.size()>12){toastDialog(t("이 요청에서는 최대 12장을 선택하세요.",
-               "For this single-file upload, select up to 12 photos."));return;}
-            deliverToCaller(ids,true);
+        if(!externalAllowsMultiple && ids.size()!=1) {
+            toastDialog(t("이 화면에는 원본 사진 한 장만 첨부할 수 있습니다.",
+                "This upload accepts one original image. Please select one photo."));
             return;
         }
-        deliverToCaller(ids,false);
+        deliverToCaller(ids);
     }
-    private void deliverToCaller(List<String> ids,boolean combine) {
-        boolean png="image/png".equals(requestedMime);
-        run(t("사이트에 첨부할 파일 준비 중…","Preparing upload for website…"),()->{
-            List<File> files;
-            if(combine)files=Collections.singletonList(exporter.renderCombined(store,ids,!png));
-            else files=exporter.renderNumbered(store,ids,!png);
-            if(!externalAllowsMultiple && files.size()!=1)throw new IOException("Single-image caller cannot receive multiple images");
-            ArrayList<Uri> uris=new ArrayList<>();
-            for(File f:files)uris.add(FileProvider.getUriForFile(this,getPackageName()+".provider",f));
+    private void deliverToCaller(List<String> ids) {
+        run(t("원본 사진 전달 중…","Returning original images…"),()->{
+            ArrayList<Uri> uris=originalUris(ids);
+            ArrayList<String> mimes=originalMimes(ids);
+            if(uris.isEmpty())throw new IOException("No originals to deliver");
+            String mime=OriginalDelivery.commonMime(mimes);
             Intent result=new Intent();
             result.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            ClipData clip=ClipData.newRawUri("Image Order Studio",uris.get(0));
+            ClipData clip=ClipData.newRawUri("original-images",uris.get(0));
             for(int j=1;j<uris.size();j++)clip.addItem(new ClipData.Item(uris.get(j)));
             result.setClipData(clip);
-            if(uris.size()==1)result.setDataAndType(uris.get(0),png?"image/png":"image/jpeg");
-            else result.setType(png?"image/png":"image/jpeg");
+            if(uris.size()==1)result.setDataAndType(uris.get(0),mime);
+            else result.setType(mime);
             ui.post(()->{setResult(RESULT_OK,result);finish();});
         });
+    }
+    private ArrayList<Uri> originalUris(List<String> ids) throws IOException {
+        ArrayList<Uri> uris=new ArrayList<>();
+        for(String id:ids){
+            GalleryStore.Item item=store.find(id);
+            if(item==null||!store.source(item).isFile())throw new IOException("Original image missing: "+id);
+            uris.add(OriginalImageProvider.uriFor(this,store,item));
+        }
+        return uris;
+    }
+    private ArrayList<String> originalMimes(List<String> ids) throws IOException {
+        ArrayList<String> mimes=new ArrayList<>();
+        for(String id:ids){
+            GalleryStore.Item item=store.find(id);
+            if(item==null)throw new IOException("Missing image: "+id);
+            mimes.add(item.mime);
+        }
+        return mimes;
     }
     @Override public void onBackPressed() {
         if(externalMode){if(!working)cancelExternal();}
@@ -449,85 +461,50 @@ public class MainActivity extends Activity {
         startActivityForResult(intent,CHOOSE_FOLDER);
     }
     private void saveToFolder(Uri tree) {
-        List<String> ids=store.sequence.snapshot();
-        run(t("번호 이미지 저장 중…","Saving numbered images…"),()->{
-            List<File> files=exporter.renderNumbered(store,ids,true);
-            exporter.saveToTree(tree,files);
-            ui.post(()->toastDialog(t("순서가 기록된 ","Saved ")+files.size()+t("개 이미지를 저장했습니다."," numbered images.")));
-        });
-    }
-    private void shareNumbered(boolean compact) {
         if(!hasSelection())return;
         List<String> ids=store.sequence.snapshot();
-        run(t("순번 이미지 생성 중…","Rendering numbered images…"),()->{
-            List<File> files=exporter.renderNumbered(store,ids,compact);
-            ui.post(()->shareFiles(files,compact?"image/jpeg":"image/png"));
+        run(t("원본 사진 저장 중…","Saving original images…"),()->{
+            android.content.ContentResolver cr=getContentResolver();
+            Uri parent=DocumentsContract.buildDocumentUriUsingTree(tree,DocumentsContract.getTreeDocumentId(tree));
+            int saved=0;
+            for(String id:ids){
+                GalleryStore.Item item=store.find(id);
+                if(item==null)throw new IOException("Missing image: "+id);
+                Uri dest=DocumentsContract.createDocument(cr,parent,item.mime,item.name);
+                if(dest==null)throw new IOException("Cannot create original "+item.name);
+                try(java.io.InputStream in=new java.io.FileInputStream(store.source(item));
+                    java.io.OutputStream out=cr.openOutputStream(dest,"w")){
+                    if(out==null)throw new IOException("Cannot write original "+item.name);
+                    byte[] b=new byte[65536];int n;
+                    while((n=in.read(b))!=-1)out.write(b,0,n);
+                }
+                saved++;
+            }
+            int done=saved;
+            ui.post(()->toastDialog(t("원본 이미지 ","Saved ")+done
+                +t("장을 내용 변경 없이 저장했습니다."," original files without alteration.")));
         });
     }
-    @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] grants) {
-        super.onRequestPermissionsResult(request,permissions,grants);
-        if(request==WRITE_OLD_GALLERY) {
-            if(grants.length>0 && grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED)
-                publishGallery(pendingGalleryCombine);
-            else toastDialog(t("이 Android 버전에서는 갤러리 저장 권한이 필요합니다. 앱 내부 공유 기능은 계속 이용할 수 있습니다.",
-                "This Android version requires Gallery write permission. You can still share images from inside the app."));
-        }
-    }
-    private void publishGallery(boolean combined) {
-        if(!hasSelection()||working)return;
-        if(Build.VERSION.SDK_INT<29 && checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                !=android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            pendingGalleryCombine=combined;
-            requestPermissions(new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE},WRITE_OLD_GALLERY);
-            return;
-        }
-        List<String> ids=store.sequence.snapshot();
-        if(combined&&ids.size()>12){toastDialog(t("한 장 결합은 최대 12장입니다. '갤러리 앨범에 저장'을 이용하세요.",
-            "Single-image combining supports 12 images. Use Save to Gallery album."));return;}
-        run(t("갤러리 앨범에 순서대로 저장 중…","Publishing numbered images into Gallery…"),()->{
-            List<File> results=combined?Collections.singletonList(exporter.renderCombined(store,ids,true)):
-                exporter.renderNumbered(store,ids,true);
-            // Keep independent copies in the SAF source for system Files pickers.
-            OrderedOutbox.publish(this,results);
-            List<Uri> added=GalleryMediaExporter.publish(this,results);
-            ui.post(()->new AlertDialog.Builder(this)
-                .setTitle(t("갤러리에서 바로 선택할 수 있습니다","Ready in your Gallery"))
-                .setMessage(t("사진 "+added.size()+"장을 'Image Order Studio' 앨범에 저장했습니다.\n\n원래 사이트의 이미지 첨부 화면으로 돌아가 일반 갤러리에서 이 앨범을 선택하세요. 이미지에는 순서가 직접 표시되어 있습니다.",
-                    "Saved "+added.size()+" images in the Image Order Studio album.\n\nReturn to the website and select this album from its regular image picker. Visible image labels preserve your order."))
-                .setPositiveButton(t("확인","OK"),(d,w)->{})
-                .show());
-        });
-    }
-
     private void showOtherTools() {
         String[] items={
-            t("JPG 번호 이미지 공유","Share numbered JPG"),
-            t("PNG 번호 이미지 공유","Share numbered PNG"),
-            t("저장 폴더 선택","Save into selected folder"),
-            t("이미지 순서 목록 복사","Copy selection sequence"),
-            t("원본 이미지 공유","Share original bytes"),
-            t("삼성 갤러리 앱 직접 열기 (공유로 가져오기)","Open Samsung Gallery (import via Share)"),
+            t("원본 이미지 순서대로 공유","Share originals in order"),
+            t("원본 파일 폴더에 저장","Save original files to folder"),
+            t("선택 순서 목록 복사","Copy sequence list"),
             t("선택한 이미지만 보기","Show selected only"),
-            t("선택순 먼저 보기","Sort selected first"),
-            t("선택 순서 초기화","Clear selection order"),
-            t("보관함 비우기","Clear private library"),
-            t("어디서든 빠른 실행 설정","Quick Settings shortcut instructions")
+            t("선택순 먼저 보기","Show selected first"),
+            t("선택 순서 초기화","Clear selection"),
+            t("보관함 비우기","Clear library")
         };
-        new AlertDialog.Builder(this).setTitle(t("다른 기능 · 설정","More tools and settings"))
+        new AlertDialog.Builder(this).setTitle(t("설정","Options"))
             .setItems(items,(d,i)->{
                 switch(i){
-                    case 0:shareNumbered(true);break;
-                    case 1:shareNumbered(false);break;
-                    case 2:pickFolder();break;
-                    case 3:copyManifest();break;
-                    case 4:shareOriginals();break;
-                    case 5:openFullSamsungGallery();break;
-                    case 6:selectedOnly=!selectedOnly;rebuildVisible();updateCounters();break;
-                    case 7:selectedFirst=!selectedFirst;rebuildVisible();updateCounters();break;
-                    case 8:confirmClearSequence();break;
-                    case 9:confirmClearLibrary();break;
-                    case 10:toastDialog(t("상단 빠른 설정 패널을 두 번 내리고 편집(＋)에서 'Image Order Studio' 타일을 추가하세요. 어떤 앱에서도 빠르게 실행할 수 있습니다.",
-                        "Expand Quick Settings, tap Edit (+), add the Image Order Studio tile. Open it from any app."));break;
+                    case 0:shareOriginals();break;
+                    case 1:pickFolder();break;
+                    case 2:copyManifest();break;
+                    case 3:selectedOnly=!selectedOnly;rebuildVisible();updateCounters();break;
+                    case 4:selectedFirst=!selectedFirst;rebuildVisible();updateCounters();break;
+                    case 5:confirmClearSequence();break;
+                    case 6:confirmClearLibrary();break;
                 }
             }).setNegativeButton(t("닫기","Close"),null).show();
     }
@@ -543,36 +520,24 @@ public class MainActivity extends Activity {
             .setPrimaryClip(ClipData.newPlainText("Image Order Studio",text.toString()));
         toastDialog(t("선택한 이미지 순서를 복사했습니다.","Image sequence copied to clipboard."));
     }
-    private void shareCombined() {
-        if(!hasSelection())return;
-        List<String> ids=store.sequence.snapshot();
-        run(t("단일 이미지 생성 중…","Building a single image…"),()->{
-            File f=exporter.renderCombined(store,ids);
-            ui.post(()->shareFiles(Collections.singletonList(f),"image/png"));
-        });
-    }
+    /** Shares the original bitstreams with their original names and MIME types. */
     private void shareOriginals() {
-        if(!hasSelection())return;
-        ArrayList<File> files=new ArrayList<>();
-        for(String id:store.sequence.snapshot()) {
-            GalleryStore.Item item=store.find(id);if(item!=null)files.add(store.source(item));
-        }
-        shareFiles(files,"image/*");
-    }
-    private void shareFiles(List<File> files,String mime) {
-        if(files.isEmpty())return;
-        ArrayList<Uri> uris=new ArrayList<>();
-        for(File f:files)uris.add(FileProvider.getUriForFile(this,getPackageName()+".provider",f));
-        Intent i=new Intent(uris.size()==1?Intent.ACTION_SEND:Intent.ACTION_SEND_MULTIPLE);
-        i.setType(mime);
-        if(uris.size()==1)i.putExtra(Intent.EXTRA_STREAM,uris.get(0));
-        else i.putParcelableArrayListExtra(Intent.EXTRA_STREAM,uris);
-        android.content.ClipData cd=android.content.ClipData.newRawUri("ordered-image",uris.get(0));
-        for(int j=1;j<uris.size();j++)cd.addItem(new android.content.ClipData.Item(uris.get(j)));
-        i.setClipData(cd);
-        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        try{startActivity(Intent.createChooser(i,t("이미지 업로드 / 공유","Upload / share images")));}
-        catch(Exception ex){toastDialog(ex.toString());}
+        if(!hasSelection()||working)return;
+        List<String> ids=store.sequence.snapshot();
+        try {
+            ArrayList<Uri> uris=originalUris(ids);
+            ArrayList<String> mimes=originalMimes(ids);
+            String mime=OriginalDelivery.commonMime(mimes);
+            Intent intent=new Intent(uris.size()==1?Intent.ACTION_SEND:Intent.ACTION_SEND_MULTIPLE);
+            intent.setType(mime);
+            if(uris.size()==1)intent.putExtra(Intent.EXTRA_STREAM,uris.get(0));
+            else intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM,uris);
+            ClipData cd=ClipData.newRawUri("original-images",uris.get(0));
+            for(int j=1;j<uris.size();j++)cd.addItem(new ClipData.Item(uris.get(j)));
+            intent.setClipData(cd);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(intent,t("원본 이미지 전송","Send original images")));
+        }catch(Exception ex){toastDialog(t("원본 공유 실패: ","Cannot share originals: ")+ex.toString());}
     }
     private boolean hasSelection() {
         if(store.sequence.size()>0)return true;

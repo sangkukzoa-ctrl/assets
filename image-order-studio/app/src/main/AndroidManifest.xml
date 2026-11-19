@@ -40,6 +40,9 @@
                 <data android:mimeType="image/*" />
             </intent-filter>
         </activity>
+        <provider android:name=".OriginalImageProvider"
+            android:authorities="${applicationId}.originals"
+            android:exported="false" android:grantUriPermissions="true" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"
