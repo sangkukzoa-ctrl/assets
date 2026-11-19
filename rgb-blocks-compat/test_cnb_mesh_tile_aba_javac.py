@@ -75,10 +75,20 @@ public final class CnbMeshTileABARegression {
     boolean removed;
     boolean geometry;
     boolean rendered;
+    boolean failNextUpdate;
+    int attempts;
     int repairs;
     BlockEntity(boolean geometry){this.geometry=geometry;}
     public boolean isRemoved(){return removed;}
-    public void updateModelData(){repairs++;rendered=true;}
+    public void updateModelData(){
+      attempts++;
+      if(failNextUpdate){
+        failNextUpdate=false;
+        throw new IllegalStateException("transient Scena model publication failure");
+      }
+      repairs++;
+      rendered=true;
+    }
   }
   static final class Level {
     boolean loaded=true;
@@ -105,8 +115,12 @@ public final class CnbMeshTileABARegression {
   }
   static boolean hasActualVoxelStates(BlockEntity tile){return tile.geometry;}
   static boolean hasActualRenderedQuads(BlockEntity tile){return tile.rendered;}
+  static boolean expectTransientFailure;
+  static int transientFailureLogs;
   static void logOracleFailure(Long id,BlockPos pos,Throwable error){
-    throw new AssertionError("Production watchdog swallowed a real Java error at "+pos,error);
+    if(!expectTransientFailure)
+      throw new AssertionError("Production watchdog swallowed a real Java error at "+pos,error);
+    transientFailureLogs++;
   }
   /* EXACT_PRODUCTION_METHODS */
   static final Set<Long> SOURCES=Set.of(123456789L);
@@ -188,13 +202,33 @@ public final class CnbMeshTileABARegression {
     require(afterReload.repairs==1,"New world inherited previous repair throttling");
     require(OBSERVED_TILES.size()==1,"Watchdog retained tile references across worlds");
 
-    require(RGBRenderInvalidator.calls==6,"Unexpected number of bounded repairs: "+
+    // Real C&B/Scena may reject an update while an asynchronous payload is
+    // still being published. That first failure must NOT consume the 600
+    // tick recovery cooldown. Three new samples must retry successfully.
+    BlockEntity transientTile=new BlockEntity(true);
+    transientTile.failNextUpdate=true;
+    reload.tile=transientTile;
+    expectTransientFailure=true;
+    samples(3);
+    require(transientTile.attempts==1 && transientTile.repairs==0,
+      "Transient model callback unexpectedly succeeded");
+    require(!REPAIRED.containsKey(123456789L),
+      "Failed C&B model update incorrectly consumed its 30s retry cooldown");
+    samples(3);
+    expectTransientFailure=false;
+    require(transientTile.attempts==2 && transientTile.repairs==1,
+      "Failed native C&B update never retried after its own 3-strike grace");
+    require(transientFailureLogs==1,
+      "Transient C&B failure was either hidden or logged repeatedly");
+
+    require(RGBRenderInvalidator.calls==7,"Unexpected number of bounded repairs: "+
       RGBRenderInvalidator.calls);
     System.out.println("RGB_PORT_CNB_MESH_TILE_ABA_REAL_JAVAC_PASS"+
        " unseen_air_aba=true inspected_air_reset=true"+
        " per_entity_three_strikes=true same_tile_cooldown_preserved=true"+
        " chunk_unload_reset=true air_to_glow_in_place=true"+
-       " dimension_reload_reset=true repair_calls="+RGBRenderInvalidator.calls);
+       " dimension_reload_reset=true transient_update_retry=true"+
+       " repair_calls="+RGBRenderInvalidator.calls);
   }
 }
 '''.replace("/* EXACT_PRODUCTION_METHODS */",real_methods)
