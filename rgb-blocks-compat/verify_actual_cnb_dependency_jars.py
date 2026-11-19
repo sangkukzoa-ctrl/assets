@@ -45,10 +45,12 @@ BASE="https://raw.githubusercontent.com/ChiselsAndBits/Chisels-and-Bits/"
 STAT_API="api/src/main/java/mod/chiselsandbits/api/multistate/statistics/IMultiStateObjectStatistics.java"
 TILE_API="core/src/main/java/mod/chiselsandbits/block/entities/ChiseledBlockEntity.java"
 BLOCKS_API="core/src/main/java/mod/chiselsandbits/registrars/ModBlocks.java"
+MODEL_EXECUTOR_API="core/src/main/java/mod/chiselsandbits/client/model/data/ChiseledBlockModelDataExecutor.java"
 MUST_INCLUDE_IN_JAR={
     "tile":"mod/chiselsandbits/block/entities/ChiseledBlockEntity.class",
     "statistics":"mod/chiselsandbits/api/multistate/statistics/IMultiStateObjectStatistics.class",
     "blocks":"mod/chiselsandbits/registrars/ModBlocks.class",
+    "model_executor":"mod/chiselsandbits/client/model/data/ChiseledBlockModelDataExecutor.class",
 }
 
 def get(url):
@@ -68,6 +70,20 @@ for target,config in VERSIONS.items():
     source_stat=upstream(config,STAT_API)
     source_tile=upstream(config,TILE_API)
     source_mods=upstream(config,BLOCKS_API)
+    source_model_executor=upstream(config,MODEL_EXECUTOR_API)
+    # Both actual shipped C&B versions dispatch native model baking to
+    # CompletableFuture, then publish tile model data only on completion.
+    # updateModelData() returning from RGB's reflection is NOT a quad-ready
+    # result. A bounded retry when quads remain EMPTY is required.
+    for asynchronous_stage in (
+        "CompletableFuture.supplyAsync(",
+        ".thenAcceptAsync(tileEntity::setModelData, recalculationService)",
+        ".thenRunAsync(onCompleteCallback, recalculationService)",
+        "requestModelDataRefresh(tileEntity)",
+    ):
+        assert asynchronous_stage in source_model_executor, (
+            "Published C&B upstream async model publication changed",
+            target,asynchronous_stage)
     if target=="forge1201":
         assert "interface IBlockInformation" in source_info
         assert "BlockState getBlockState()" in source_info
@@ -139,6 +155,12 @@ for target,config in VERSIONS.items():
         tile_location,tile_class=find_class(MUST_INCLUDE_IN_JAR["tile"])
         stats_location,stats_class=find_class(MUST_INCLUDE_IN_JAR["statistics"])
         blocks_location,blocks_class=find_class(MUST_INCLUDE_IN_JAR["blocks"])
+        model_location,model_class=find_class(MUST_INCLUDE_IN_JAR["model_executor"])
+        for stage in (b"supplyAsync",b"thenAcceptAsync",b"thenRunAsync",
+                      b"requestModelDataRefresh"):
+            assert stage in model_class,(
+                "Published native C&B bytecode no longer has async model pipeline",
+                target,stage)
         assert config["info_method"].encode() in info_class, (
             "Published C&B information accessor differs from source contract",
             target,config["info_method"])
@@ -155,9 +177,12 @@ for target,config in VERSIONS.items():
             "stats":"getStatistics.getStateCounts",
             "material_accessor":config["info_method"],
             "model_regeneration":"updateModelData",
+            "model_build_async":"supplyAsync_thenAcceptAsync_thenRunAsync",
+            "async_model_jar_bytecode_verified":True,
             "bytecode_placements":{
                 "info":info_location,"statistics":stats_location,
-                "tile":tile_location,"blocks":blocks_location},
+                "tile":tile_location,"blocks":blocks_location,
+                "model_executor":model_location},
             "nested_module_sha256":nested_manifest,
             "real_published_binary_verified":True,
         }),flush=True)
