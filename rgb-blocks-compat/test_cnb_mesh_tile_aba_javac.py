@@ -32,7 +32,8 @@ real_methods="\n".join((
 ))
 for token in ("OBSERVED_TILES", "observed.get()!=tile", "REPAIRED.remove(id)",
               "level.getBlockEntity(pos)","!hasActualVoxelStates(tile)",
-              "if(ticks-previous<REPAIR_COOLDOWN_TICKS)continue"):
+              "TRANSIENT_RETRY_TICKS", "MAX_TRANSIENT_REPAIRS",
+              "if(ticks-previous<delay)continue"):
     assert token in real_methods,("Lost native mesh repair identity guard",token)
 
 java=r'''package mod.chiselsandbits;
@@ -43,6 +44,9 @@ import java.lang.reflect.Method;
 public final class CnbMeshTileABARegression {
   private static final Map<Long,Integer> MISSING=new HashMap<>();
   private static final Map<Long,Long> REPAIRED=new HashMap<>();
+  private static final Map<Long,Integer> REPAIR_ATTEMPTS=new HashMap<>();
+  private static final long TRANSIENT_RETRY_TICKS=160L;
+  private static final int MAX_TRANSIENT_REPAIRS=3;
   private static final Map<Long,WeakReference<BlockEntity>> OBSERVED_TILES=new HashMap<>();
   private static final Map<Long,Long> LAST_ORACLE_ERROR=new HashMap<>();
   private static Level lastLevel;
@@ -76,6 +80,7 @@ public final class CnbMeshTileABARegression {
     boolean geometry;
     boolean rendered;
     boolean failNextUpdate;
+    boolean holdAsyncModel;
     int attempts;
     int repairs;
     BlockEntity(boolean geometry){this.geometry=geometry;}
@@ -87,7 +92,7 @@ public final class CnbMeshTileABARegression {
         throw new IllegalStateException("transient Scena model publication failure");
       }
       repairs++;
-      rendered=true;
+      if(!holdAsyncModel)rendered=true;
     }
   }
   static final class Level {
@@ -221,13 +226,57 @@ public final class CnbMeshTileABARegression {
     require(transientFailureLogs==1,
       "Transient C&B failure was either hidden or logged repeatedly");
 
-    require(RGBRenderInvalidator.calls==7,"Unexpected number of bounded repairs: "+
+    // C&B's real updateModelData() returns BEFORE an async Scena future
+    // actually publishes model data. Simulate normal successful Java method
+    // return yet indefinitely empty actual baked model, 3 repair attempts,
+    // a long cap, and exactly one new bounded series after 600 ticks.
+    BlockEntity asyncTile=new BlockEntity(true);
+    asyncTile.holdAsyncModel=true;
+    reload.tile=asyncTile;
+    samples(3);
+    require(asyncTile.repairs==1 && !asyncTile.rendered,
+      "First callback must be asynchronous and still empty");
+    samples(3); // only 120 ticks elapsed, no immediate retry storm
+    require(asyncTile.repairs==1,"Async mesh retried too aggressively");
+    sample(); // 160 ticks, try #2
+    require(asyncTile.repairs==2,"Async missing quads never retried after 8 seconds");
+    samples(3);
+    require(asyncTile.repairs==2,"Second Scena retry was not spaced");
+    sample(); // 160 ticks, try #3
+    require(asyncTile.repairs==3,"Third bounded retry was skipped");
+    require(REPAIR_ATTEMPTS.get(123456789L)==3,
+      "Missing async-mesh retry quota");
+    samples(14); // 560 ticks, long cool-off blocks retry #4
+    require(asyncTile.repairs==3,"Unlimited repeated C&B mesh model bakes");
+    sample(); // 600 ticks, new bounded series may start
+    require(asyncTile.repairs==4,"Long 30-second cooldown did not rearm the mesh");
+    require(REPAIR_ATTEMPTS.get(123456789L)==1,
+      "Full cooldown must begin a fresh bounded cycle");
+    asyncTile.rendered=true; // C&B publishes after its future completes
+    sample();
+    require(MISSING.isEmpty() && REPAIRED.isEmpty() && REPAIR_ATTEMPTS.isEmpty(),
+      "Real model publication failed to finish recovery quota");
+
+    // An async update that DOES complete should not trigger a redundant bake.
+    BlockEntity delayedSuccess=new BlockEntity(true);
+    delayedSuccess.holdAsyncModel=true;
+    reload.tile=delayedSuccess;
+    samples(3);
+    require(delayedSuccess.repairs==1,"Deferred success first update failed");
+    delayedSuccess.rendered=true;
+    samples(5);
+    require(delayedSuccess.repairs==1,
+      "Already-published C&B async quads received a redundant model retry");
+
+    require(RGBRenderInvalidator.calls==12,"Unexpected bounded repair calls: "+
       RGBRenderInvalidator.calls);
     System.out.println("RGB_PORT_CNB_MESH_TILE_ABA_REAL_JAVAC_PASS"+
        " unseen_air_aba=true inspected_air_reset=true"+
        " per_entity_three_strikes=true same_tile_cooldown_preserved=true"+
        " chunk_unload_reset=true air_to_glow_in_place=true"+
        " dimension_reload_reset=true transient_update_retry=true"+
+       " async_missing_quads_bounded_retries=true"+
+       " completed_async_no_extra_bake=true"+
        " repair_calls="+RGBRenderInvalidator.calls);
   }
 }
