@@ -1,7 +1,5 @@
-# Privacy / 개인정보 처리 · v0.5.1
+# Privacy / 개인정보
 
-Image Order Studio processes images locally and has **no INTERNET permission, analytics, advertising SDK, or account**. Image and album read permissions are used only to display photographs on the device. On Android 14+, the app respects user-selected limited access.
+Image Order Studio works locally, without INTERNET permission, ads or analytics. The picker uses Android gallery read permission on explicit user action. Original bytes are copied into private app storage strictly for sharing and temporary grant access, and uploaded only when the user chooses a destination application. No photo pixels, metadata or file type are edited in the upload pipeline. Private copies are removable by clearing the app library; temporary picker sessions expire.
 
-**This APK does not register an AccessibilityService.** No other-app screen scanning, overlay interception, notification monitoring, SMS permission, or background data collection is used. The quick-settings tile is a user-triggered launch shortcut.
-
-사진과 선택한 순서는 기기 내부에서만 처리됩니다. 광고, 인터넷 연결, 계정 등록, 백그라운드 화면 감시, 접근성 서비스는 없습니다. 갤러리 읽기 권한은 사진과 앨범을 표시하는 데 사용하며, 일부 사진만 허용하는 Android 권한도 지원합니다.
+선택한 사진은 원본 그대로 앱 내부 저장소에 복사하여 사용자가 선택한 앱에만 제공하며, 앱 자체는 인터넷으로 업로드하지 않습니다. 원본 이미지 내용 및 메타데이터를 수정하지 않습니다.

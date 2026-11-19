@@ -1,19 +1,20 @@
-# Image Order Studio v0.5.1 — Play Protect installation fix / 설치 차단 해결
+# Image Order Studio v0.5.2 — 원본 무변경 업로드 / Unmodified Original Upload
 
-Developer: 2bornot · Android 8+ · Korean/English · no ads and no internet permission
+## 핵심 수정
 
-## 한국어
-- Google Play 프로텍트가 차단할 수 있는 접근성 서비스와 관련 팝업 기능을 앱에서 완전히 제거했습니다.
-- 앱 내부 사진/앨범 갤러리, 순서 번호 표시, 표준 `GET_CONTENT`/`PICK` 업로드 응답, 갤러리 전용 앨범, 파일 선택기, 빠른 설정 타일을 유지합니다.
-- 기존 패키지 `com.twobornot.imageorder` / 기존 서명 인증서를 유지합니다. versionCode 7, versionName 0.5.1.
-- Android 시스템 전용 Photo Picker는 제3자 앱에서 강제로 대체할 수 없습니다. 자동 업로드 감지는 더 이상 제공하지 않습니다.
-- Play 프로텍트 해제/무시를 권유하지 않습니다.
+- 사진을 선택하면 이미지 자체를 수정하지 않고 원본 파일의 바이트를 그대로 전달합니다.
+- 사진에 숫자를 인쇄하는 기존 업로드 경로, JPG 변환, 리사이즈, 이미지 결합을 업로드 흐름에서 제거했습니다.
+- 번호는 앱의 갤러리 선택 화면에만 보입니다.
+- 순서 배열은 사용자가 선택한 순서대로 ClipData/EXTRA_STREAM에 담습니다.
+- 원본 파일명·MIME은 읽기 전용 content provider로 제공됩니다.
+- 한 장만 지원하는 입력창에서는 사진 한 장만 선택할 수 있습니다. 여러 장을 무단으로 합치지 않습니다.
+- 앱 직접 실행도 원본 사진 선택 후 Android 공유 메뉴로 이어집니다.
+- 접근성 서비스는 계속 제외합니다.
+
+## 제한
+
+Android가 통제하는 Photo Picker를 모든 앱에서 강제로 대체할 수는 없습니다. 이미지 수신 사이트가 배열을 자체 정렬하면 송신 앱의 원본 보존과 별개로 순서가 바뀔 수 있습니다.
 
 ## English
-- Removed the AccessibilityService and optional overlay entirely, to avoid Google Play Protect's sensitive-permission internet-sideloading block.
-- Kept the local album gallery, ordered image picking, standard GET_CONTENT/PICK callbacks, Gallery album publishing, DocumentsProvider, and Quick Settings tile.
-- Same app ID and signing certificate, versionCode 7.
-- The system-only Android Photo Picker cannot be overridden by an ordinary third-party app.
 
-## QA
-Android source checks reject any accessibility service, notification listener, or SMS permissions. Release CI verifies the final compiled AndroidManifest and APK signature, installs the signed APK on an emulator, and publishes a stable beta only after success.
+This update sends original file bytes and original MIME/filenames in user-selected URI order. No stamping, recompression, resizing or collaging occurs in the default upload pipeline. Rank badges are UI-only. A one-file attachment receives exactly one original.
