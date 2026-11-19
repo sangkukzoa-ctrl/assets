@@ -57,7 +57,7 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs --min-sdk-version 26 ImageOrderStudio.apk | tee signature.txt
           grep -F 'Verified using v2 scheme (APK Signature Scheme v2): true' signature.txt
           grep -F 'Verified using v3 scheme (APK Signature Scheme v3): true' signature.txt
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='8' versionName='0.5.2'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='9' versionName='0.5.3'"
           if "$ANDROID_HOME/build-tools/35.0.0/aapt" dump xmltree ImageOrderStudio.apk AndroidManifest.xml | grep -E 'BIND_ACCESSIBILITY_SERVICE|android.accessibilityservice|UploadAssistService'; then
             echo '::error::Sideload-blocking accessibility service is present'
             exit 1
