@@ -116,7 +116,8 @@ public final class RGBCnbMeshIntegrity {
             if(strikes<3)continue; // 6-second grace for normal async mesh load
             long previous=REPAIRED.getOrDefault(id,-REPAIR_COOLDOWN_TICKS);
             if(ticks-previous<REPAIR_COOLDOWN_TICKS)continue;
-            REPAIRED.put(id,ticks);
+            // A failed C&B/Scena model callback is NOT a successful
+            // repair. Do not poison the next retry with a 600-tick cooldown.
             MISSING.remove(id);
             // Safe on CLIENT game thread, and only for a CURRENT loaded tile.
             // C&B's own async update publishes the model then requests the
@@ -126,10 +127,13 @@ public final class RGBCnbMeshIntegrity {
                   Method update=findZeroArg(tile.getClass(),"updateModelData");
                   update.invoke(tile);
                   RGBRenderInvalidator.dirtyAround(pos,2);
+                  REPAIRED.put(id,ticks); // consume cooldown only on success
                   System.out.println("[RGB Blocks] Restoring missing C&B mesh quads at "
                      +pos+" without modifying RGB or voxel data");
                }catch(Throwable err){
-                  System.err.println("[RGB Blocks] C&B mesh integrity refresh failed: "+err);
+                  // Existing 600-tick per-position diagnostic throttle;
+                  // a transient async model failure retries after 3 strikes.
+                  logOracleFailure(id,pos,err);
                }
             });
          }catch(Throwable failure){
