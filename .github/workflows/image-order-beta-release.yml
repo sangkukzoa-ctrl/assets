@@ -143,7 +143,7 @@ jobs:
             adb shell dumpsys activity activities | grep -F 'com.twobornot.imageorder'
             adb shell dumpsys package com.twobornot.imageorder | grep -F 'android.intent.action.GET_CONTENT'
             adb shell dumpsys package com.twobornot.imageorder | grep -F 'android.intent.action.PICK'
-            adb shell dumpsys package com.twobornot.imageorder | grep -F 'com.twobornot.imageorder.NativeGalleryActivity'
+            adb shell dumpsys package com.twobornot.imageorder | grep -F 'NativeGalleryActivity'
             adb shell dumpsys package com.twobornot.imageorder | grep -F 'com.twobornot.imageorder.originals'
             adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n com.twobornot.imageorder/.NativeGalleryActivity
             sleep 2
