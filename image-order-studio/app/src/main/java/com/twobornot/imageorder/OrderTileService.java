@@ -9,7 +9,7 @@ import android.service.quicksettings.TileService;
 public final class OrderTileService extends TileService {
     @Override public void onClick() {
         super.onClick();
-        Intent launch=new Intent(this,MainActivity.class);
+        Intent launch=new Intent(this,NativeGalleryActivity.class);
         launch.setAction(Intent.ACTION_MAIN);
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP);
         if(Build.VERSION.SDK_INT>=34){

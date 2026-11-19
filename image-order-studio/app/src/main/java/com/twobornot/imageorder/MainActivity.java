@@ -31,7 +31,6 @@ public class MainActivity extends Activity {
     private final ExecutorService thumbWorker=Executors.newFixedThreadPool(2);
     private final Handler ui=new Handler(Looper.getMainLooper());
     private GalleryStore store;
-    private ImageExporter exporter; // thumbnail decoding only
     private GridView grid;
     private BaseAdapter adapter;
     private TextView status, subtitle;
@@ -63,7 +62,7 @@ public class MainActivity extends Activity {
         externalAllowsMultiple=externalMode && launch.getBooleanExtra(Intent.EXTRA_ALLOW_MULTIPLE,false);
         if(externalMode && Intent.ACTION_PICK.equals(launch.getAction())) externalAllowsMultiple=false;
         if(externalMode && launch.getType()!=null)requestedMime=launch.getType();
-        store=new GalleryStore(this,externalMode);exporter=new ImageExporter(this);
+        store=new GalleryStore(this,externalMode);
         setup();rebuildVisible();updateCounters();
         if(externalMode) ui.post(this::openPicker);
         else handleIncoming(launch);
@@ -75,8 +74,14 @@ public class MainActivity extends Activity {
     private static boolean isExternalImageRequest(Intent intent) {
         if(intent==null)return false;
         String a=intent.getAction(), type=intent.getType();
-        return (Intent.ACTION_GET_CONTENT.equals(a)||Intent.ACTION_PICK.equals(a))
-            && type!=null && type.startsWith("image/");
+        if(Intent.ACTION_GET_CONTENT.equals(a))return type!=null && type.startsWith("image/");
+        if(!Intent.ACTION_PICK.equals(a))return false;
+        if(type!=null && (type.startsWith("image/") || type.contains("cursor.dir/image")))return true;
+        Uri data=intent.getData();
+        if(data==null || !"content".equals(data.getScheme()))return false;
+        String authority=data.getAuthority(), path=data.getPath();
+        return authority!=null && authority.startsWith("media") && path!=null
+            && path.contains("images");
     }
     private void setup() {
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
@@ -187,7 +192,7 @@ public class MainActivity extends Activity {
         thumbWorker.execute(()->{
             Bitmap bmp=null;
             try {
-                bmp=ImageExporter.decode(store.source(item),256,160000);
+                bmp=ThumbnailDecoder.decode(store.source(item),256,160000);
             } catch(Exception ignored) {}
             final Bitmap result=bmp;
             ui.post(()->{
@@ -227,6 +232,11 @@ public class MainActivity extends Activity {
         if(working)return;
         Intent gallery=new Intent(this,NativeGalleryActivity.class);
         gallery.putExtra(NativeGalleryActivity.EXTRA_MAX_SELECTION,externalMode&&!externalAllowsMultiple?1:100);
+        gallery.putExtra(NativeGalleryActivity.EXTRA_ACCEPTED_MIME,externalMode?requestedMime:"image/*");
+        if(externalMode) {
+            String[] accepted=getIntent().getStringArrayExtra(Intent.EXTRA_MIME_TYPES);
+            if(accepted!=null)gallery.putExtra(NativeGalleryActivity.EXTRA_MIME_TYPES,accepted);
+        }
         startActivityForResult(gallery,IMPORT_IMAGES);
     }
     private boolean trySamsungPicker() {
@@ -317,7 +327,10 @@ public class MainActivity extends Activity {
     @Override protected void onActivityResult(int request,int result,Intent data) {
         super.onActivityResult(request,result,data);
         if(result!=RESULT_OK||data==null){
-            if(request==IMPORT_IMAGES)nativePickerOrdered=false;
+            if(request==IMPORT_IMAGES) {
+                nativePickerOrdered=false;
+                if(externalMode)cancelExternal();
+            }
             return;
         }
         if(request==IMPORT_IMAGES) {
@@ -328,10 +341,34 @@ public class MainActivity extends Activity {
             boolean trustOrder=data.getBooleanExtra(NativeGalleryActivity.EXTRA_ORDER_VERIFIED,false)
                 || PickerDecision.trustNativeOrder(nativePickerOrdered,uris.size());
             nativePickerOrdered=false;
-            importAll(uris,trustOrder);
+            if(trustOrder && !uris.isEmpty()) {
+                // NativeGalleryActivity has already established the user's exact tap order.
+                // Forward the ORIGINAL content URIs immediately. Do not re-import or re-encode.
+                if(externalMode)deliverDirectToCaller(uris);
+                else shareDirectOriginals(uris);
+            } else importAll(uris,false);
         } else if(request==CHOOSE_FOLDER) {
             Uri tree=data.getData();if(tree!=null) saveToFolder(tree);
         }
+    }
+    private void deliverDirectToCaller(ArrayList<Uri> uris) {
+        if(!externalMode || uris.isEmpty())return;
+        if(!externalAllowsMultiple && uris.size()!=1) {
+            toastDialog(t("이미지 한 장을 선택하세요.","Select exactly one image."));
+            return;
+        }
+        try {
+            Intent result=MediaIntentResult.forSelection(getContentResolver(),uris);
+            setResult(RESULT_OK,result);
+            finish();
+        }catch(Exception ex){toastDialog(t("원본 전달 실패: ","Cannot return originals: ")+ex);}
+    }
+    private void shareDirectOriginals(ArrayList<Uri> uris) {
+        if(uris.isEmpty())return;
+        try {
+            Intent share=MediaIntentResult.forShare(getContentResolver(),uris);
+            startActivity(Intent.createChooser(share,t("원본 이미지 첨부","Attach original images")));
+        }catch(Exception ex){toastDialog(t("원본 공유 실패: ","Cannot share originals: ")+ex);}
     }
     private void importAll(List<Uri> uris,boolean sourceHasVerifiedOrder) {
         if(uris.isEmpty()||working)return;
@@ -387,14 +424,7 @@ public class MainActivity extends Activity {
             ArrayList<Uri> uris=originalUris(ids);
             ArrayList<String> mimes=originalMimes(ids);
             if(uris.isEmpty())throw new IOException("No originals to deliver");
-            String mime=OriginalDelivery.commonMime(mimes);
-            Intent result=new Intent();
-            result.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            ClipData clip=ClipData.newRawUri("original-images",uris.get(0));
-            for(int j=1;j<uris.size();j++)clip.addItem(new ClipData.Item(uris.get(j)));
-            result.setClipData(clip);
-            if(uris.size()==1)result.setDataAndType(uris.get(0),mime);
-            else result.setType(mime);
+            Intent result=MediaIntentResult.forSelection(uris,mimes);
             ui.post(()->{setResult(RESULT_OK,result);finish();});
         });
     }
@@ -527,15 +557,7 @@ public class MainActivity extends Activity {
         try {
             ArrayList<Uri> uris=originalUris(ids);
             ArrayList<String> mimes=originalMimes(ids);
-            String mime=OriginalDelivery.commonMime(mimes);
-            Intent intent=new Intent(uris.size()==1?Intent.ACTION_SEND:Intent.ACTION_SEND_MULTIPLE);
-            intent.setType(mime);
-            if(uris.size()==1)intent.putExtra(Intent.EXTRA_STREAM,uris.get(0));
-            else intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM,uris);
-            ClipData cd=ClipData.newRawUri("original-images",uris.get(0));
-            for(int j=1;j<uris.size();j++)cd.addItem(new ClipData.Item(uris.get(j)));
-            intent.setClipData(cd);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Intent intent=MediaIntentResult.forShare(uris,mimes);
             startActivity(Intent.createChooser(intent,t("원본 이미지 전송","Send original images")));
         }catch(Exception ex){toastDialog(t("원본 공유 실패: ","Cannot share originals: ")+ex.toString());}
     }

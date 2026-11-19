@@ -40,6 +40,8 @@ jobs:
           java -cp build/testclasses SequenceLedgerTest
           javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/PickerDecision.java tests/PickerDecisionTest.java
           java -cp build/testclasses com.twobornot.imageorder.PickerDecisionTest
+          javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/ImageMimePolicy.java tests/ImageMimePolicyTest.java
+          java -cp build/testclasses com.twobornot.imageorder.ImageMimePolicyTest
           javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/MediaNaming.java tests/MediaNamingTest.java
           java -cp build/testclasses com.twobornot.imageorder.MediaNamingTest
           javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/OriginalDelivery.java app/src/main/java/com/twobornot/imageorder/SequenceLedger.java tests/OriginalDeliveryTest.java
@@ -47,7 +49,7 @@ jobs:
           gradle --no-daemon :app:assembleRelease --stacktrace
           test -s app/build/outputs/apk/release/app-release-unsigned.apk
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | tee /tmp/imageorder-aapt.txt
-          grep -F "package: name='com.twobornot.imageorder' versionCode='8' versionName='0.5.2'" /tmp/imageorder-aapt.txt
+          grep -F "package: name='com.twobornot.imageorder' versionCode='9' versionName='0.5.3'" /tmp/imageorder-aapt.txt
           grep -F "sdkVersion:'26'" /tmp/imageorder-aapt.txt
           ! grep -F 'BIND_ACCESSIBILITY_SERVICE' /tmp/imageorder-aapt.txt
           ! grep -F 'AccessibilityService' /tmp/imageorder-aapt.txt
@@ -111,7 +113,7 @@ jobs:
           grep -F 'Verified using v2 scheme (APK Signature Scheme v2): true' signature-report.txt
           grep -F 'Verified using v3 scheme (APK Signature Scheme v3): true' signature-report.txt
           "$BUILD_TOOLS/zipalign" -c -p 4 ImageOrderStudio.apk
-          "$BUILD_TOOLS/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='8' versionName='0.5.2'"
+          "$BUILD_TOOLS/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='9' versionName='0.5.3'"
           test "$(stat -c %s ImageOrderStudio.apk)" -gt 200000
           if "$BUILD_TOOLS/aapt" dump xmltree ImageOrderStudio.apk AndroidManifest.xml | grep -E 'BIND_ACCESSIBILITY_SERVICE|android.accessibilityservice|UploadAssistService'; then
             echo '::error::Sensitive Accessibility component present in a sideloaded APK'
@@ -141,8 +143,18 @@ jobs:
             adb shell dumpsys activity activities | grep -F 'com.twobornot.imageorder'
             adb shell dumpsys package com.twobornot.imageorder | grep -F 'android.intent.action.GET_CONTENT'
             adb shell dumpsys package com.twobornot.imageorder | grep -F 'android.intent.action.PICK'
+            adb shell dumpsys package com.twobornot.imageorder | grep -F 'com.twobornot.imageorder.NativeGalleryActivity'
+            adb shell dumpsys package com.twobornot.imageorder | grep -F 'com.twobornot.imageorder.originals'
+            adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n com.twobornot.imageorder/.NativeGalleryActivity
+            sleep 2
+            adb shell dumpsys activity activities | grep -F 'NativeGalleryActivity'
             adb shell dumpsys package com.twobornot.imageorder | grep -F 'com.twobornot.imageorder.documents'
             adb shell dumpsys package com.twobornot.imageorder | grep -F 'android.service.quicksettings.action.QS_TILE'
+            # The signed install has passed; Android instrumented tests use the debug package
+            # to verify actual original MediaStore byte streams, ClipData order and MIME.
+            adb uninstall com.twobornot.imageorder
+            cd image-order-studio
+            gradle --no-daemon :app:connectedDebugAndroidTest --stacktrace
             adb logcat -d -s AndroidRuntime:E | tee /tmp/imageorder-crashes.txt
             ! grep -q 'FATAL EXCEPTION.*com.twobornot.imageorder' /tmp/imageorder-crashes.txt
       - name: Package public sources, hashes, release notes

@@ -11,12 +11,13 @@
         <intent><action android:name="android.intent.action.GET_CONTENT" /><data android:mimeType="image/*" /></intent>
     </queries>
     <application android:allowBackup="false" android:label="Image Order Studio" android:icon="@drawable/ic_launcher" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:usesCleartextTraffic="false">
-        <activity android:name=".NativeGalleryActivity" android:exported="false" android:screenOrientation="unspecified" />
-        <activity android:name=".MainActivity" android:screenOrientation="unspecified" android:exported="true">
+        <activity android:name=".NativeGalleryActivity" android:exported="true" android:screenOrientation="unspecified">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+        <activity android:name=".MainActivity" android:screenOrientation="unspecified" android:exported="true">
             <!-- Advertise as an image picker for requesting apps and compatible browsers. -->
             <intent-filter>
                 <action android:name="android.intent.action.GET_CONTENT" />

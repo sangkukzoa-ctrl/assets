@@ -1,3 +1,7 @@
+# Image Order Studio / 이미지 순서 스튜디오 v0.5.3
+
+**Fixed goal:** one native-like Android gallery that is automatically selectable for image upload wherever the Android platform permits, returning unchanged original URIs in the exact user-tap order. Universal system-level upload integration remains an active objective.
+
 # Image Order Studio v0.5.2 — Original-byte order-only upload
 
 By 2bornot. Android 8.0+, offline, no ads.

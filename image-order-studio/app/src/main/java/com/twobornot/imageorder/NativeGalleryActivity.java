@@ -24,6 +24,8 @@ import java.util.concurrent.*;
 public final class NativeGalleryActivity extends Activity {
     static final String EXTRA_MAX_SELECTION="com.twobornot.imageorder.MAX_SELECTION";
     static final String EXTRA_ORDER_VERIFIED="com.twobornot.imageorder.ORDER_VERIFIED";
+    static final String EXTRA_ACCEPTED_MIME="com.twobornot.imageorder.ACCEPTED_MIME";
+    static final String EXTRA_MIME_TYPES="com.twobornot.imageorder.MIME_TYPES";
     private static final int PERMISSION=27, FALLBACK=28;
     private static final int NAVY=0xff0e1218, BLUE=0xff73c2f7, CARD=0xff20262e;
     private final ArrayList<Photo> photos=new ArrayList<>();
@@ -33,6 +35,9 @@ public final class NativeGalleryActivity extends Activity {
     private String activeAlbum=null;
     private boolean albumsTab=true;
     private int maxSelection=100;
+    private String acceptedMime="image/*";
+    private String[] acceptedMimeTypes=null;
+    private boolean launchedFromHome=false;
     private GridView grid;
     private BaseAdapter adapter;
     private TextView heading, confirm, photosTab, albumsTabView, hint;
@@ -45,9 +50,11 @@ public final class NativeGalleryActivity extends Activity {
     private final Set<String> pending=Collections.synchronizedSet(new HashSet<>());
 
     private static final class Photo {
-        final String key, album, name;
+        final String key, album, name, mime;
         final Uri uri;
-        Photo(String key,String album,String name,Uri uri){this.key=key;this.album=album;this.name=name;this.uri=uri;}
+        Photo(String key,String album,String name,String mime,Uri uri){
+            this.key=key;this.album=album;this.name=name;this.mime=mime;this.uri=uri;
+        }
     }
     private boolean ko(){return Locale.getDefault().getLanguage().equals("ko");}
     private String t(String kr,String en){return ko()?kr:en;}
@@ -59,6 +66,10 @@ public final class NativeGalleryActivity extends Activity {
     @Override public void onCreate(Bundle b){
         super.onCreate(b);
         maxSelection=Math.max(1,Math.min(200,getIntent().getIntExtra(EXTRA_MAX_SELECTION,100)));
+        acceptedMime=getIntent().getStringExtra(EXTRA_ACCEPTED_MIME);
+        if(acceptedMime==null)acceptedMime="image/*";
+        acceptedMimeTypes=getIntent().getStringArrayExtra(EXTRA_MIME_TYPES);
+        launchedFromHome=Intent.ACTION_MAIN.equals(getIntent().getAction());
         getWindow().setStatusBarColor(NAVY);getWindow().setNavigationBarColor(NAVY);
         makeUi();
         if(hasPermission())reload();else askPermission();
@@ -94,6 +105,7 @@ public final class NativeGalleryActivity extends Activity {
                 else if(ordered.size()<maxSelection)ordered.put(photo.key,photo.uri);
                 else Toast.makeText(this,t("최대 ","Maximum ")+maxSelection+t("장"," images"),Toast.LENGTH_SHORT).show();
                 updateSelection();adapter.notifyDataSetChanged();
+                if(maxSelection==1 && ordered.size()==1)finishSelection();
             }
         });
         LinearLayout bottom=new LinearLayout(this);bottom.setGravity(Gravity.CENTER);
@@ -198,17 +210,20 @@ public final class NativeGalleryActivity extends Activity {
             ArrayList<Photo> list=new ArrayList<>();
             Uri uri=Build.VERSION.SDK_INT>=29?MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL):MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
             String[] cols={MediaStore.Images.Media._ID,MediaStore.Images.Media.DISPLAY_NAME,
-                MediaStore.Images.Media.BUCKET_DISPLAY_NAME};
+                MediaStore.Images.Media.BUCKET_DISPLAY_NAME,MediaStore.Images.Media.MIME_TYPE};
             try(Cursor c=getContentResolver().query(uri,cols,null,null,
                 MediaStore.Images.Media.DATE_ADDED+" DESC, "+MediaStore.Images.Media._ID+" DESC")){
                 if(c!=null){
                     int idIndex=c.getColumnIndexOrThrow(MediaStore.Images.Media._ID);
                     int nm=c.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME);
                     int bucket=c.getColumnIndexOrThrow(MediaStore.Images.Media.BUCKET_DISPLAY_NAME);
+                    int mimeColumn=c.getColumnIndexOrThrow(MediaStore.Images.Media.MIME_TYPE);
                     while(c.moveToNext() && list.size()<10000){
                         long id=c.getLong(idIndex);String name=c.getString(nm),folder=c.getString(bucket);
+                        String mime=c.getString(mimeColumn);
+                        if(!ImageMimePolicy.accepts(acceptedMime,acceptedMimeTypes,mime))continue;
                         if(folder==null||folder.isEmpty())folder=t("기타","Other");
-                        list.add(new Photo(String.valueOf(id),folder,name,
+                        list.add(new Photo(String.valueOf(id),folder,name,mime,
                             ContentUris.withAppendedId(uri,id)));
                     }
                 }
@@ -232,7 +247,8 @@ public final class NativeGalleryActivity extends Activity {
                 if(max>1)i.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX,Math.min(max,maxSelection));
             }else{
                 i=new Intent(Intent.ACTION_GET_CONTENT);i.setType("image/*");
-                i.addCategory(Intent.CATEGORY_OPENABLE);i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,maxSelection>1);
                 i=Intent.createChooser(i,t("사진 선택","Select photos"));
                 i.putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS,new ComponentName[]{new ComponentName(this,MainActivity.class)});
             }
@@ -251,7 +267,9 @@ public final class NativeGalleryActivity extends Activity {
         ordered.clear();photos.clear();albums.clear();
         for(int i=0;i<uris.size();i++){
             Uri uri=uris.get(i);
-            Photo p=new Photo("fallback:"+i,t("선택한 사진","Imported Photos"),"Photo "+(i+1),uri);
+            String mime=getContentResolver().getType(uri);
+            if(!ImageMimePolicy.accepts(acceptedMime,acceptedMimeTypes,mime))continue;
+            Photo p=new Photo("fallback:"+i,t("선택한 사진","Imported Photos"),"Photo "+(i+1),mime,uri);
             photos.add(p);albums.computeIfAbsent(p.album,k->new ArrayList<>()).add(p);
         }
         albumsTab=false;activeAlbum=null;renderList();
@@ -261,17 +279,20 @@ public final class NativeGalleryActivity extends Activity {
         if(ordered.isEmpty()){
             Toast.makeText(this,t("사진을 순서대로 선택하세요","Select photos in order"),Toast.LENGTH_SHORT).show();return;
         }
-        Intent data=new Intent();data.setType("image/*");
-        data.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        ClipData clips=null;
-        for(Uri uri:ordered.values()){
-            if(clips==null)clips=ClipData.newRawUri("Image Order Studio",uri);
-            else clips.addItem(new ClipData.Item(uri));
+        try {
+            ArrayList<Uri> uris=new ArrayList<>(ordered.values());
+            if(launchedFromHome) {
+                Intent share=MediaIntentResult.forShare(getContentResolver(),uris);
+                startActivity(Intent.createChooser(share,t("원본 이미지 첨부","Attach original images")));
+            } else {
+                Intent data=MediaIntentResult.forSelection(getContentResolver(),uris);
+                data.putExtra(EXTRA_ORDER_VERIFIED,true);
+                setResult(RESULT_OK,data);
+            }
+            finish();
+        }catch(Exception ex){
+            Toast.makeText(this,t("원본 전달 실패: ","Cannot share original: ")+ex.toString(),Toast.LENGTH_LONG).show();
         }
-        data.setClipData(clips);
-        data.setData(ordered.values().iterator().next());
-        data.putExtra(EXTRA_ORDER_VERIFIED,true);
-        setResult(RESULT_OK,data);finish();
     }
     @Override public void onBackPressed(){
         if(!albumsTab && activeAlbum!=null){activeAlbum=null;albumsTab=true;renderList();return;}
