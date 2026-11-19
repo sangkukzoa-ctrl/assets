@@ -28,6 +28,12 @@ import net.minecraft.world.level.block.state.BlockState;
 public final class RGBCnbMeshIntegrity {
    private static final Map<Long,Integer> MISSING = new HashMap<>();
    private static final Map<Long,Long> REPAIRED = new HashMap<>();
+   // Native C&B updateModelData() merely STARTS an asynchronous Scena job.
+   // A successful call return cannot prove that baked quads were published.
+   // Allow two spaced retries on a still-empty model, then throttle for 30s.
+   private static final Map<Long,Integer> REPAIR_ATTEMPTS = new HashMap<>();
+   private static final long TRANSIENT_RETRY_TICKS = 160L; // 8 seconds
+   private static final int MAX_TRANSIENT_REPAIRS = 3;
    // A C&B -> AIR -> stone -> C&B ABA can create a different tile at the
    // SAME packed position while the 30-second repair cooldown is live.
    // Associate the cooldown with the actual current tile, not coordinates.
@@ -46,6 +52,7 @@ public final class RGBCnbMeshIntegrity {
       lastLevel=null;
       MISSING.clear();
       REPAIRED.clear();
+      REPAIR_ATTEMPTS.clear();
       OBSERVED_TILES.clear();
       LAST_ORACLE_ERROR.clear();
       ticks=0L;
@@ -74,6 +81,7 @@ public final class RGBCnbMeshIntegrity {
          if(!level.isLoaded(pos)){
             MISSING.remove(id);
             REPAIRED.remove(id);
+            REPAIR_ATTEMPTS.remove(id);
             OBSERVED_TILES.remove(id);
             continue;
          }
@@ -83,6 +91,7 @@ public final class RGBCnbMeshIntegrity {
               !tile.getClass().getName().contains("chiselsandbits")){
                MISSING.remove(id);
                REPAIRED.remove(id);
+               REPAIR_ATTEMPTS.remove(id);
                OBSERVED_TILES.remove(id);
                continue;
             }
@@ -91,6 +100,7 @@ public final class RGBCnbMeshIntegrity {
             if(!"chiselsandbits:chiseled".equals(name)){
                MISSING.remove(id);
                REPAIRED.remove(id);
+               REPAIR_ATTEMPTS.remove(id);
                OBSERVED_TILES.remove(id);
                continue;
             }
@@ -101,21 +111,34 @@ public final class RGBCnbMeshIntegrity {
                // 600-tick cooldown. ABA may occur entirely between scans.
                MISSING.remove(id);
                REPAIRED.remove(id);
+               REPAIR_ATTEMPTS.remove(id);
                OBSERVED_TILES.put(id,new WeakReference<>(tile));
             }
             if(!hasActualVoxelStates(tile)){
                MISSING.remove(id);
                REPAIRED.remove(id); // AIR-only -> Glow in-place can recover
+               REPAIR_ATTEMPTS.remove(id);
                continue;
             }
             if(hasActualRenderedQuads(tile)){
                MISSING.remove(id);
+               // Once Scena actually publishes quads the attempt series
+               // is complete, even if the model is later chiseled again.
+               REPAIRED.remove(id);
+               REPAIR_ATTEMPTS.remove(id);
                continue;
             }
             int strikes=MISSING.merge(id,1,Integer::sum);
             if(strikes<3)continue; // 6-second grace for normal async mesh load
             long previous=REPAIRED.getOrDefault(id,-REPAIR_COOLDOWN_TICKS);
-            if(ticks-previous<REPAIR_COOLDOWN_TICKS)continue;
+            int attempts=REPAIR_ATTEMPTS.getOrDefault(id,0);
+            long delay=attempts>=MAX_TRANSIENT_REPAIRS
+                ? REPAIR_COOLDOWN_TICKS : TRANSIENT_RETRY_TICKS;
+            if(ticks-previous<delay)continue;
+            if(attempts>=MAX_TRANSIENT_REPAIRS){
+               // Restart at most one new bounded cycle after 30 seconds.
+               REPAIR_ATTEMPTS.remove(id);
+            }
             // A failed C&B/Scena model callback is NOT a successful
             // repair. Do not poison the next retry with a 600-tick cooldown.
             MISSING.remove(id);
@@ -127,7 +150,9 @@ public final class RGBCnbMeshIntegrity {
                   Method update=findZeroArg(tile.getClass(),"updateModelData");
                   update.invoke(tile);
                   RGBRenderInvalidator.dirtyAround(pos,2);
-                  REPAIRED.put(id,ticks); // consume cooldown only on success
+                  REPAIRED.put(id,ticks); // tracks REQUEST, not completion
+                  REPAIR_ATTEMPTS.merge(id,1,(oldValue,one)->Math.min(
+                      MAX_TRANSIENT_REPAIRS,oldValue+one));
                   System.out.println("[RGB Blocks] Restoring missing C&B mesh quads at "
                      +pos+" without modifying RGB or voxel data");
                }catch(Throwable err){
@@ -146,6 +171,7 @@ public final class RGBCnbMeshIntegrity {
       cursor=(cursor+toInspect)%size;
       if(MISSING.size()>4096)MISSING.clear();
       if(REPAIRED.size()>4096)REPAIRED.clear();
+      if(REPAIR_ATTEMPTS.size()>4096)REPAIR_ATTEMPTS.clear();
       if(OBSERVED_TILES.size()>4096)OBSERVED_TILES.clear();
    }
 
