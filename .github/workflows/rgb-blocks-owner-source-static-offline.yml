@@ -24,6 +24,7 @@ on:
       - 'rgb-blocks-compat/test_source_first_workflow_guard.py'
       - 'rgb-blocks-compat/test_cnb_mesh_oracle_javac.py'
       - 'rgb-blocks-compat/test_cnb_nonpublic_model_reflection_javac.py'
+      - 'rgb-blocks-compat/test_cnb_mesh_tile_aba_javac.py'
       - 'rgb-blocks-compat/test_cnb_live_source_reconcile_javac.py'
       - 'rgb-blocks-compat/test_cnb_missing_source_discovery_javac.py'
       - 'rgb-blocks-compat/test_cnb_blockinformation_accessors_javac.py'
@@ -87,6 +88,7 @@ jobs:
             rgb-blocks-compat/test_source_first_workflow_guard.py \
             rgb-blocks-compat/test_cnb_mesh_oracle_javac.py \
             rgb-blocks-compat/test_cnb_nonpublic_model_reflection_javac.py \
+            rgb-blocks-compat/test_cnb_mesh_tile_aba_javac.py \
             rgb-blocks-compat/test_cnb_live_source_reconcile_javac.py \
             rgb-blocks-compat/test_cnb_missing_source_discovery_javac.py \
             rgb-blocks-compat/test_cnb_blockinformation_accessors_javac.py \
@@ -107,6 +109,8 @@ jobs:
         run: python3 rgb-blocks-compat/test_cnb_mesh_oracle_javac.py
       - name: Verify real C&B cross-package hidden API reflection with Java 17 and 21
         run: python3 rgb-blocks-compat/test_cnb_nonpublic_model_reflection_javac.py
+      - name: Reproduce real C&B same-position ABA cooldown poisoning and reloads on Java 17 and 21
+        run: python3 rgb-blocks-compat/test_cnb_mesh_tile_aba_javac.py
       - name: Reproduce REAL Forge BLUE->GREEN C&B stale source and ensure AUTO repair on Java17/21
         run: python3 rgb-blocks-compat/test_cnb_live_source_reconcile_javac.py
       - name: Offline mock GitHub unpublished author source release 404 / SHA-256 / public safety
