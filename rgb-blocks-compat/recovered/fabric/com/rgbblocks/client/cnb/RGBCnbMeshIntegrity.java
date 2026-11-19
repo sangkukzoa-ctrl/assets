@@ -174,7 +174,15 @@ public final class RGBCnbMeshIntegrity {
       return false;
    }
    private static Method findZeroArg(Class<?> type,String name)throws NoSuchMethodException{
-      try{return type.getMethod(name);}
+      try{
+         // Even a PUBLIC method on a package-private C&B/Scena implementation
+         // is not reflectively invocable from this RGB package without
+         // accessibility override. getMethod() finds it but invoke() fails.
+         // The fallback below already handles protected inherited callbacks.
+         Method method=type.getMethod(name);
+         method.setAccessible(true);
+         return method;
+      }
       catch(NoSuchMethodException missing){
          // Some C&B native loaders expose a method on a non-public
          // implementation class. getMethod alone misses the usable API.
