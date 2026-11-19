@@ -153,8 +153,7 @@ jobs:
             # The signed install has passed; Android instrumented tests use the debug package
             # to verify actual original MediaStore byte streams, ClipData order and MIME.
             adb uninstall com.twobornot.imageorder
-            cd image-order-studio
-            gradle --no-daemon :app:connectedDebugAndroidTest --stacktrace
+            gradle -p image-order-studio --no-daemon :app:connectedDebugAndroidTest --stacktrace
             adb logcat -d -s AndroidRuntime:E | tee /tmp/imageorder-crashes.txt
             ! grep -q 'FATAL EXCEPTION.*com.twobornot.imageorder' /tmp/imageorder-crashes.txt
       - name: Package public sources, hashes, release notes
