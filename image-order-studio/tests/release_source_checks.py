@@ -1,36 +1,49 @@
-"""Fail a release if default upload pipeline mutates original image content."""
+"""Static release gates for zero-copy image selection, system integration and no rewriting."""
 from pathlib import Path
 p=Path(__file__).resolve().parents[1]
-source=(p/'app/src/main/java/com/twobornot/imageorder/MainActivity.java').read_text()
-provider=(p/'app/src/main/java/com/twobornot/imageorder/OriginalImageProvider.java').read_text()
-store=(p/'app/src/main/java/com/twobornot/imageorder/GalleryStore.java').read_text()
+src=p/'app/src/main/java/com/twobornot/imageorder'
+main=(src/'MainActivity.java').read_text()
+native=(src/'NativeGalleryActivity.java').read_text()
+helper=(src/'MediaIntentResult.java').read_text()
+provider=(src/'OriginalImageProvider.java').read_text()
+mime=(src/'ImageMimePolicy.java').read_text()
 manifest=(p/'app/src/main/AndroidManifest.xml').read_text()
 gradle=(p/'app/build.gradle').read_text()
-assert "versionCode 8" in gradle and "versionName '0.5.2'" in gradle
-assert 'applicationId \'com.twobornot.imageorder\'' in gradle
+assert "versionCode 9" in gradle and "versionName '0.5.3'" in gradle
+assert "applicationId 'com.twobornot.imageorder'" in gradle
 assert 'android.permission.INTERNET' not in manifest
-assert 'BIND_ACCESSIBILITY_SERVICE' not in manifest
-assert 'UploadAssistService' not in manifest
-assert 'NativeGalleryActivity' in manifest
-assert 'OriginalImageProvider' in manifest and 'android:grantUriPermissions="true"' in manifest
-assert 'OriginalImageProvider.uriFor(this,store,item)' in source
-assert 'setResult(RESULT_OK,result)' in source
-assert 'Intent.FLAG_GRANT_READ_URI_PERMISSION' in source
-assert 'ClipData.newRawUri(' in source
-assert 'result.setClipData(clip)' in source
-assert 'Intent.EXTRA_STREAM' in source
-assert 'store.sequence.snapshot()' in source
-assert 'sourceHasVerifiedOrder' in source
-assert 'new GalleryStore(this,externalMode)' in source
-assert 'shareOriginals();' in source
-assert 'returnToCaller();' in source
-assert 'EXTRA_MAX_SELECTION,externalMode&&!externalAllowsMultiple?1:100' in source
-assert 'renderNumbered(' not in source and 'renderCombined(' not in source
-assert 'publishGallery(' not in source and 'GalleryMediaExporter.publish(' not in source
-assert 'writePng(' not in source and 'writeJpeg(' not in source
+assert 'BIND_ACCESSIBILITY_SERVICE' not in manifest and 'UploadAssistService' not in manifest
+assert 'NativeGalleryActivity' in manifest and 'OriginalImageProvider' in manifest
+assert 'android:grantUriPermissions="true"' in manifest
+assert 'android.intent.action.GET_CONTENT' in manifest and 'android.intent.action.PICK' in manifest
+assert 'android.intent.category.LAUNCHER' in manifest
+# NativeGallery is now the launcher; no intermediate home/import step for normal use.
+assert '<activity android:name=".NativeGalleryActivity" android:exported="true"' in manifest
+assert 'launchedFromHome=Intent.ACTION_MAIN.equals(getIntent().getAction())' in native
+assert 'MediaIntentResult.forShare(getContentResolver(),uris)' in native
+assert 'MediaIntentResult.forSelection(getContentResolver(),uris)' in native
+assert 'EXTRA_ORDER_VERIFIED,true' in native
+assert 'MediaStore.Images.Media.MIME_TYPE' in native
+assert 'ImageMimePolicy.accepts(' in native
+# External picker requests are returned immediately from the gallery without copying.
+assert 'if(externalMode)deliverDirectToCaller(uris)' in main
+assert 'if(trustOrder && !uris.isEmpty())' in main
+assert 'else importAll(uris,false)' in main
+assert 'setResult(RESULT_OK,result)' in main
+assert 'if(externalMode)cancelExternal();' in main
+assert 'path.contains("images")' in main # MIME-less ACTION_PICK handling
+assert 'OriginalImageProvider.uriFor(this,store,item)' in main # legacy imported shares
+# Both direct and legacy forms provide correct image ClipData, ordered URIs and grants.
+assert 'new ClipData("Image Order Studio",new String[]{mime,"image/*"}' in helper
+assert 'Intent.FLAG_GRANT_READ_URI_PERMISSION' in helper
+assert 'intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM,' in helper
+assert 'new ClipData.Item' in helper
+assert 'OriginalDelivery.commonMime(mimes)' in helper
+assert 'renderNumbered(' not in main and 'renderCombined(' not in main
+assert 'ImageExporter.java' not in {x.name for x in src.iterdir()}
+assert 'GalleryMediaExporter.java' not in {x.name for x in src.iterdir()}
+assert 'Bitmap.compress' not in helper and 'Bitmap.compress' not in native
 assert 'getString("name")' in provider and 'getString("mime")' in provider
 assert 'ParcelFileDescriptor.MODE_READ_ONLY' in provider
-assert 'getString("path")' in provider
-assert 'out.write(buf,0,n)' in store
 assert not list(p.rglob('*.jks')) and not list(p.rglob('*.p12'))
-print('Original-only upload, filename, MIME and permissions: PASS')
+print('v0.5.3 zero-copy original URI, MIME filters, launcher and no accessibility: PASS')
