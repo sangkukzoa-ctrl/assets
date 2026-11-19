@@ -42,7 +42,7 @@ jobs:
           javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/OriginalDelivery.java app/src/main/java/com/twobornot/imageorder/SequenceLedger.java tests/OriginalDeliveryTest.java
           java -cp build/testclasses com.twobornot.imageorder.OriginalDeliveryTest
       - name: Compile unsigned Android release APK
-        run: gradle --no-daemon :app:assembleRelease :app:assembleDebug --stacktrace
+        run: gradle --no-daemon :app:assembleRelease :app:assembleDebug :app:assembleAndroidTest --stacktrace
       - name: Validate APK metadata and debug signature
         run: |
           set -euo pipefail
