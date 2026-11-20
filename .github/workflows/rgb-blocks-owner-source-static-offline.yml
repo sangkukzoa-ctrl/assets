@@ -30,6 +30,7 @@ on:
       - 'rgb-blocks-compat/test_cnb_missing_source_discovery_javac.py'
       - 'rgb-blocks-compat/test_cnb_blockinformation_accessors_javac.py'
       - 'rgb-blocks-compat/test_cnb_trailing_model_reflection_javac.py'
+      - 'rgb-blocks-compat/test_cnb_trailing_bake_scheduler_javac.py'
       - 'rgb-blocks-compat/test_cnb_lan_host_client_bake_javac.py'
       - 'rgb-blocks-compat/test_cnb_integrated_lan_probe_offline.py'
       - 'rgb-blocks-compat/inject_ci_integrated_probe.py'
@@ -95,6 +96,7 @@ jobs:
             rgb-blocks-compat/test_cnb_missing_source_discovery_javac.py \
             rgb-blocks-compat/test_cnb_blockinformation_accessors_javac.py \
             rgb-blocks-compat/test_cnb_trailing_model_reflection_javac.py \
+            rgb-blocks-compat/test_cnb_trailing_bake_scheduler_javac.py \
             rgb-blocks-compat/test_cnb_lan_host_client_bake_javac.py \
             rgb-blocks-compat/test_cnb_integrated_lan_probe_offline.py \
             rgb-blocks-compat/inject_ci_integrated_probe.py \
@@ -127,6 +129,8 @@ jobs:
         run: python3 rgb-blocks-compat/test_cnb_blockinformation_accessors_javac.py
       - name: Compile actual C&B rapid Bake last-model repair with inherited/nonpublic API on both JVM targets
         run: python3 rgb-blocks-compat/test_cnb_trailing_model_reflection_javac.py
+      - name: Burst 850 C&B native trailing-bake submissions, enforce queue coalescing, disconnect and ABA on Java17/21
+        run: python3 rgb-blocks-compat/test_cnb_trailing_bake_scheduler_javac.py
       - name: Execute actual owner-derived 1.21.1 source builder Java compatibility transforms (no public download)
         run: python3 rgb-blocks-compat/test_owner_source_runtime_transforms_offline.py
       - name: RUN real original-order network and SavedData source conversion for Forge 1.20.1
