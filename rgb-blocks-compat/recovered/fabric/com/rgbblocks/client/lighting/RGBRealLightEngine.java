@@ -182,6 +182,11 @@ public final class RGBRealLightEngine {
       RGBRuntime.resetClientState();
       RGBLightPersistence.reset();
       RGBCnbGeometryBakeDebouncer.reset();
+      // The C&B mesh oracle remembers its last Level plus per-position
+      // entity identities and asynchronous-repair quotas. Without this
+      // explicit teardown, disconnecting without rejoining retains the
+      // entire old client world until the next RGB client tick.
+      RGBCnbMeshIntegrity.reset();
       RGBLightEngine.onClientDisconnect();
       RGBRenderInvalidator.onClientDisconnect();
    }
