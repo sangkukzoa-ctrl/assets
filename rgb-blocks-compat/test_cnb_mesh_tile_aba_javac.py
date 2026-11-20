@@ -51,7 +51,7 @@ public final class CnbMeshTileABARegression {
   private static final Map<Long,Long> LAST_ORACLE_ERROR=new HashMap<>();
   private static Level lastLevel;
   private static long ticks;
-  private static int cursor;
+  private static Iterator<Long> candidateCursor;
   private static final long REPAIR_COOLDOWN_TICKS=600L;
 
   static final class BlockPos {
