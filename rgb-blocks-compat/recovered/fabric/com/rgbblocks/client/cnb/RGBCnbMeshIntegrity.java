@@ -3,7 +3,7 @@ package com.rgbblocks.client.cnb;
 import com.rgbblocks.client.lighting.RGBRenderInvalidator;
 import java.lang.reflect.Method;
 import java.lang.ref.WeakReference;
-import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -44,7 +44,11 @@ public final class RGBCnbMeshIntegrity {
    private static final Map<Long,Long> LAST_ORACLE_ERROR = new HashMap<>();
    private static Level lastLevel;
    private static long ticks;
-   private static int cursor;
+   // This is a CHM keySet iterator (the engine passes CNB_CACHE.keySet).
+   // Keep the cursor across checks: rebuilding a giant full-key snapshot
+   // every 40 ticks wastes CPU and a moving snapshot can repeatedly skip
+   // a distant long-lived block during rapid add/remove churn.
+   private static Iterator<Long> candidateCursor;
    private static final long REPAIR_COOLDOWN_TICKS = 600L;
    private RGBCnbMeshIntegrity(){}
 
@@ -56,7 +60,7 @@ public final class RGBCnbMeshIntegrity {
       OBSERVED_TILES.clear();
       LAST_ORACLE_ERROR.clear();
       ticks=0L;
-      cursor=0;
+      candidateCursor=null;
    }
 
    public static void check(Set<Long> candidateSources){
@@ -70,12 +74,22 @@ public final class RGBCnbMeshIntegrity {
       // Every TWO seconds, at most 12 C&B RGB sources out of the currently
       // loaded client light cache. Round-robin rather than always choosing
       // the first source, so far sculptures get checked on re-entry.
-      if(++ticks%40L!=0L || candidateSources==null || candidateSources.isEmpty())return;
-      ArrayList<Long> entries=new ArrayList<>(candidateSources);
-      int size=entries.size();
-      int toInspect=Math.min(12,size);
+      if(++ticks%40L!=0L)return;
+      if(candidateSources==null || candidateSources.isEmpty()){
+         candidateCursor=null;
+         return;
+      }
+      // The source cache is a ConcurrentHashMap. Its weakly-consistent
+      // iterator tolerates add/remove/ABA without a fail-fast exception.
+      // A rolling cursor avoids O(N) allocations per scheduled scan and
+      // reaches distant preexisting keys even when the map churns.
+      int toInspect=Math.min(12,candidateSources.size());
       for(int i=0;i<toInspect;i++){
-         Long id=entries.get(Math.floorMod(cursor+i,size));
+         if(candidateCursor==null || !candidateCursor.hasNext()){
+            candidateCursor=candidateSources.iterator();
+         }
+         if(!candidateCursor.hasNext())break;
+         Long id=candidateCursor.next();
          if(id==null)continue;
          BlockPos pos=BlockPos.of(id.longValue());
          if(!level.isLoaded(pos)){
@@ -168,7 +182,7 @@ public final class RGBCnbMeshIntegrity {
             logOracleFailure(id,pos,failure);
          }
       }
-      cursor=(cursor+toInspect)%size;
+      // Preserve the iterator's exact position for the next client scan.
       if(MISSING.size()>4096)MISSING.clear();
       if(REPAIRED.size()>4096)REPAIRED.clear();
       if(REPAIR_ATTEMPTS.size()>4096)REPAIR_ATTEMPTS.clear();
