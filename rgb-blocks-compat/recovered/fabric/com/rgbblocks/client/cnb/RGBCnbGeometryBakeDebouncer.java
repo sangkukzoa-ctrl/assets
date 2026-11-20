@@ -2,8 +2,8 @@ package com.rgbblocks.client.cnb;
 
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -23,19 +23,42 @@ public final class RGBCnbGeometryBakeDebouncer {
    // replaying their LAST request can leave the old or empty mesh on screen,
    // while the actual C&B voxels and RGB light are still intact.
    private static final AtomicLong WORLD_EPOCH = new AtomicLong();
-   private static final ScheduledExecutorService TRAILING_BAKES = Executors.newSingleThreadScheduledExecutor(task -> {
-      Thread worker = new Thread(task, "RGB Blocks last C&B model bake");
-      worker.setDaemon(true);
-      return worker;
-   });
+   private static final ScheduledThreadPoolExecutor TRAILING_BAKES = createTrailingScheduler();
+
+   private static ScheduledThreadPoolExecutor createTrailingScheduler() {
+      ScheduledThreadPoolExecutor scheduler = new ScheduledThreadPoolExecutor(1, task -> {
+         Thread worker = new Thread(task, "RGB Blocks last C&B model bake");
+         worker.setDaemon(true);
+         return worker;
+      });
+      // Cancelling a superseded bake must actually remove it from the queue:
+      // rapid /rgb bake storms otherwise accumulate thousands of inert tasks.
+      scheduler.setRemoveOnCancelPolicy(true);
+      return scheduler;
+   }
 
    private RGBCnbGeometryBakeDebouncer() {
    }
 
    public static void reset() {
       WORLD_EPOCH.incrementAndGet();
+      // On disconnect/dimension change, delete queued work instead of merely
+      // failing its epoch check after the scheduler eventually wakes it.
+      for (Entry entry : ENTRIES.values()) {
+         cancelTrailingBake(entry);
+      }
       ENTRIES.clear();
       BYPASS.remove();
+   }
+
+   private static void cancelTrailingBake(Entry entry) {
+      synchronized (entry) {
+         ScheduledFuture<?> future = entry.pendingFuture;
+         entry.pendingFuture = null;
+         if (future != null) {
+            future.cancel(false);
+         }
+      }
    }
 
    public static void runUndebounced(Runnable action) {
@@ -83,6 +106,7 @@ public final class RGBCnbGeometryBakeDebouncer {
             long requestSerial = entry.requestSerial.incrementAndGet();
             if (previousRequest == 0L || now - previousRequest > 70L) {
                entry.lastAllowedBakeMillis = now;
+               cancelTrailingBake(entry);
                return false;
             }
 
@@ -92,10 +116,12 @@ public final class RGBCnbGeometryBakeDebouncer {
             }
 
             entry.lastAllowedBakeMillis = now;
+            cancelTrailingBake(entry);
             return false;
          } else {
             entry.lastRequestMillis = now;
             entry.lastAllowedBakeMillis = now;
+            cancelTrailingBake(entry);
             return false;
          }
       } else {
@@ -111,7 +137,14 @@ public final class RGBCnbGeometryBakeDebouncer {
       WeakReference<BlockEntity> captured = new WeakReference<>(blockEntity);
       WeakReference<Level> expectedWorld = new WeakReference<>(mc.level);
       long epoch = WORLD_EPOCH.get();
-      TRAILING_BAKES.schedule(() -> {
+      synchronized (entry) {
+         // Only one trailing future per position. The request serial AND
+         // world epoch remain the final on-main-thread correctness guards.
+         // Cancel before replacing so hostile bursts do not queue O(bakes).
+         if (entry.pendingFuture != null) {
+            entry.pendingFuture.cancel(false);
+         }
+         entry.pendingFuture = TRAILING_BAKES.schedule(() -> {
          Minecraft client = Minecraft.getInstance();
          if (client == null || epoch != WORLD_EPOCH.get()) {
             return;
@@ -144,7 +177,8 @@ public final class RGBCnbGeometryBakeDebouncer {
                }
             });
          });
-      }, 180L, TimeUnit.MILLISECONDS);
+         }, 180L, TimeUnit.MILLISECONDS);
+      }
    }
 
    private static Method findModelUpdateMethod(Class<?> entityType) throws NoSuchMethodException {
@@ -224,5 +258,6 @@ public final class RGBCnbGeometryBakeDebouncer {
       private volatile long lastPayloadMillis;
       private volatile long lastRequestMillis;
       private volatile long lastAllowedBakeMillis;
+      private ScheduledFuture<?> pendingFuture;
    }
 }
