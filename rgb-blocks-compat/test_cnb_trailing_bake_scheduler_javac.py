@@ -30,6 +30,7 @@ names=(
     "public static void reset()",
     "private static void cancelTrailingBake(Entry entry)",
     "private static Entry observeLiveTile(Entry entry, Object tileEntity)",
+    "private static void pruneIdleEntries(long now)",
     "public static void runUndebounced(Runnable action)",
     "public static void markPayloadModelUpdate(Object tileEntity)",
     "public static boolean shouldDelayModelBake(Object tileEntity, boolean force)",
@@ -54,6 +55,8 @@ for required in (
     "isReplacedClientTile(tileEntity, pos)",
     "entry.ownerTile = new WeakReference<>(tileEntity)",
     "entry.lastRequestMillis = 0L",
+    "ENTRIES.remove(candidate.getKey(), entry)",
+    "entry.requestSerial.incrementAndGet()",
     "update.invoke(live)",
 ):
     assert required in real_methods,("Real production scheduler safeguard absent",required)
@@ -71,6 +74,10 @@ public final class RGBCnbGeometryBakeDebouncer {
    private static final long RAPID_WINDOW_MS=70L;
    private static final long MAX_SUPPRESS_MS=90L;
    private static final long PAYLOAD_ACTIVE_WINDOW_MS=350L;
+   private static final int PRUNE_THRESHOLD=4096;
+   private static final long ENTRY_IDLE_MS=300000L;
+   private static final long PRUNE_INTERVAL_MS=5000L;
+   private static final AtomicLong LAST_PRUNE_MS=new AtomicLong();
    private static final Map<Long,Entry> ENTRIES=new ConcurrentHashMap<>();
    private static final ThreadLocal<Boolean> BYPASS=ThreadLocal.withInitial(()->Boolean.FALSE);
    private static final AtomicLong WORLD_EPOCH=new AtomicLong();
@@ -330,7 +337,45 @@ public final class RGBCnbGeometryBakeDebouncer {
       require(old.refreshes.get()==0,
         "Prior world model callback executed in the new live Minecraft level");
 
+      // Thousands of historical chisels in a single long session should
+      // not retain 4k+ idle per-position debouncer records indefinitely.
+      // Force a five-minute virtual aging of EXACT Java Entry timestamps;
+      // current real pending work must not be evicted by a simultaneous
+      // cache sweep, nor can old cancelled callbacks be resurrected.
+      newWorld(new Level());
+      Level cacheWorld=Minecraft.getInstance().level;
+      for(int n=0;n<4230;n++){
+         BlockEntity cached=cacheWorld.tile(new BlockPos(n,78,100));
+         markPayloadModelUpdate(cached);
+      }
+      require(ENTRIES.size()==4230,
+        "Cache pressure fixture did not create independent C&B positions");
+      BlockEntity active=cacheWorld.tile(new BlockPos(6000,78,100));
+      burst(active,390);
+      Entry activeEntry=ENTRIES.get(key(active.getBlockPos()));
+      ScheduledFuture<?> activeFuture=activeEntry.pendingFuture;
+      require(activeFuture!=null && !activeFuture.isCancelled(),
+        "A new active mesh build was not scheduled");
+      for(Entry entry:ENTRIES.values()){
+         if(entry!=activeEntry){
+            entry.lastTouchedMillis=System.currentTimeMillis()-ENTRY_IDLE_MS-30000L;
+         }
+      }
+      LAST_PRUNE_MS.set(0L); // force an otherwise 5-second-rate-limited sweep
+      BlockEntity trigger=cacheWorld.tile(new BlockPos(7000,78,100));
+      markPayloadModelUpdate(trigger);
+      require(ENTRIES.size()<=3,
+        "Idle C&B sources were not pruned after five minutes; count="+ENTRIES.size());
+      require(ENTRIES.get(key(active.getBlockPos()))==activeEntry &&
+              activeEntry.pendingFuture==activeFuture &&
+              !activeFuture.isCancelled(),
+        "Idle C&B cleanup cancelled a freshly scheduled ACTIVE mesh job");
+      settle();
+      require(active.refreshes.get()==1,
+        "Recent C&B geometry update was lost during idle map cleanup");
       reset();
+      require(ENTRIES.isEmpty() && LAST_PRUNE_MS.get()==0L,
+        "Disconnect did not release the entire long-session C&B debounce map");
       verifyNoQueue();
       System.out.println("RGB_PORT_CNB_SCHEDULED_COALESCING_REAL_JAVAC_PASS"+
         " burst_850_queue_one=true independent_two_positions=true"+
@@ -338,6 +383,8 @@ public final class RGBCnbGeometryBakeDebouncer {
         " bypass_refresh_cancels_stale_future=true"+
         " stale_aba_request_cannot_cancel_live=true"+
         " new_tile_first_bake_not_delayed=true"+
+        " idle_4230_records_pruned=true"+
+        " live_future_survives_idle_prune=true"+
         " removed_tile_request_ignored=true"+
         " disconnect_cancels_queue=true aba_no_stale_tile=true"+
         " world_guard=true last_model_update_once=true");
