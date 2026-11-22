@@ -23,6 +23,7 @@ on:
       - '.github/workflows/rgb-blocks-*.yml'
       - 'rgb-blocks-compat/test_source_first_workflow_guard.py'
       - 'rgb-blocks-compat/test_cnb_mesh_oracle_javac.py'
+      - 'rgb-blocks-compat/test_cnb_scena_rendered_quads_javac.py'
       - 'rgb-blocks-compat/test_cnb_nonpublic_model_reflection_javac.py'
       - 'rgb-blocks-compat/test_cnb_mesh_tile_aba_javac.py'
       - 'rgb-blocks-compat/test_cnb_mesh_source_scan_churn_javac.py'
@@ -89,6 +90,7 @@ jobs:
             rgb-blocks-compat/test_clone_owner_resources.py \
             rgb-blocks-compat/test_source_first_workflow_guard.py \
             rgb-blocks-compat/test_cnb_mesh_oracle_javac.py \
+            rgb-blocks-compat/test_cnb_scena_rendered_quads_javac.py \
             rgb-blocks-compat/test_cnb_nonpublic_model_reflection_javac.py \
             rgb-blocks-compat/test_cnb_mesh_tile_aba_javac.py \
             rgb-blocks-compat/test_cnb_mesh_source_scan_churn_javac.py \
@@ -111,6 +113,8 @@ jobs:
         run: python3 rgb-blocks-compat/test_source_first_workflow_guard.py
       - name: Run actual production C&B voxel AIR/nonAIR, Forge and Neo Java reflection
         run: python3 rgb-blocks-compat/test_cnb_mesh_oracle_javac.py
+      - name: Run exact Scena KNOWN_LAYER_MODEL_PROPERTY, getData and 7-quad oracle on Java17/21
+        run: python3 rgb-blocks-compat/test_cnb_scena_rendered_quads_javac.py
       - name: Verify real C&B cross-package hidden API reflection with Java 17 and 21
         run: python3 rgb-blocks-compat/test_cnb_nonpublic_model_reflection_javac.py
       - name: Reproduce real C&B same-position ABA cooldown poisoning and reloads on Java 17 and 21
