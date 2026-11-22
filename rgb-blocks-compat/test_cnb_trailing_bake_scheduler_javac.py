@@ -151,6 +151,40 @@ public final class RGBCnbGeometryBakeDebouncer {
         "Last C&B model payload was not rebuilt EXACTLY once");
       verifyNoQueue();
 
+      // An explicit force=true rebuild supersedes the old trailing future.
+      // The Minecraft/C&B caller performs the actual immediate update
+      // whenever shouldDelayModelBake() returns false.
+      newWorld(new Level());
+      Level forceWorld=Minecraft.getInstance().level;
+      BlockEntity forced=forceWorld.tile(new BlockPos(12,67,12));
+      burst(forced,500);
+      require(TRAILING_BAKES.getQueue().size()<=1,
+        "The forced test setup was not properly coalesced");
+      require(!shouldDelayModelBake(forced,true),
+        "Native force=true model update was unexpectedly blocked");
+      forced.updateModelData(); // the immediate model action in the caller
+      verifyNoQueue();
+      settle();
+      require(forced.refreshes.get()==1 && forceWorld.notifications.get()==0,
+        "Cancelled older trailing task duplicated the forced model refresh");
+
+      // runUndebounced() is used by the RGB integrity repair callback;
+      // it too must supersede any pending 180ms future, even when the
+      // underlying native callback calls shouldDelayModelBake(..., false).
+      newWorld(new Level());
+      Level bypassWorld=Minecraft.getInstance().level;
+      BlockEntity bypassed=bypassWorld.tile(new BlockPos(13,67,13));
+      burst(bypassed,500);
+      runUndebounced(()->{
+        require(!shouldDelayModelBake(bypassed,false),
+          "RGB integrity repair was unexpectedly debounced");
+        bypassed.updateModelData();
+      });
+      verifyNoQueue();
+      settle();
+      require(bypassed.refreshes.get()==1 && bypassWorld.notifications.get()==0,
+        "Older trailing callback fired after integrity forced repair");
+
       // Two independent C&B positions each keep their own single future.
       newWorld(new Level());
       Level twoWorld=Minecraft.getInstance().level;
@@ -207,6 +241,8 @@ public final class RGBCnbGeometryBakeDebouncer {
       verifyNoQueue();
       System.out.println("RGB_PORT_CNB_SCHEDULED_COALESCING_REAL_JAVAC_PASS"+
         " burst_850_queue_one=true independent_two_positions=true"+
+        " forced_refresh_cancels_stale_future=true"+
+        " bypass_refresh_cancels_stale_future=true"+
         " disconnect_cancels_queue=true aba_no_stale_tile=true"+
         " world_guard=true last_model_update_once=true");
       TRAILING_BAKES.shutdownNow();
