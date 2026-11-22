@@ -29,6 +29,7 @@ names=(
     "private static ScheduledThreadPoolExecutor createTrailingScheduler()",
     "public static void reset()",
     "private static void cancelTrailingBake(Entry entry)",
+    "private static Entry observeLiveTile(Entry entry, Object tileEntity)",
     "public static void runUndebounced(Runnable action)",
     "public static void markPayloadModelUpdate(Object tileEntity)",
     "public static boolean shouldDelayModelBake(Object tileEntity, boolean force)",
@@ -51,6 +52,8 @@ for required in (
     "entry.requestSerial.get() != serial",
     "level.getBlockEntity(pos) != live",
     "isReplacedClientTile(tileEntity, pos)",
+    "entry.ownerTile = new WeakReference<>(tileEntity)",
+    "entry.lastRequestMillis = 0L",
     "update.invoke(live)",
 ):
     assert required in real_methods,("Real production scheduler safeguard absent",required)
@@ -187,6 +190,43 @@ public final class RGBCnbGeometryBakeDebouncer {
       require(bypassed.refreshes.get()==1 && bypassWorld.notifications.get()==0,
         "Older trailing callback fired after integrity forced repair");
 
+      // A new C&B tile at the same packed coordinate MUST NOT inherit the
+      // previous physical tile's 70ms/90ms debounce and 350ms payload clock.
+      // The first native model rebuild must execute immediately instead of
+      // being silently postponed while Scena starts an obsolete bake.
+      newWorld(new Level());
+      Level ownerWorld=Minecraft.getInstance().level;
+      BlockPos ownerPos=new BlockPos(17,67,17);
+      BlockEntity firstOwner=ownerWorld.tile(ownerPos);
+      burst(firstOwner,320);
+      Entry sharedEntry=ENTRIES.get(key(ownerPos));
+      require(sharedEntry.pendingFuture!=null,
+        "Old tile must have a pending trailing bake before replacement");
+      sharedEntry.lastRequestMillis=System.currentTimeMillis();
+      sharedEntry.lastAllowedBakeMillis=sharedEntry.lastRequestMillis;
+      BlockEntity freshOwner=ownerWorld.tile(ownerPos);
+      markPayloadModelUpdate(freshOwner);
+      require(sharedEntry.ownerTile.get()==freshOwner,
+        "Tile replacement did not bind the debounce entry to new C&B entity");
+      require(sharedEntry.lastRequestMillis==0L &&
+              sharedEntry.lastAllowedBakeMillis==0L,
+        "New C&B entity inherited the old tile's rapid-bake timestamps");
+      require(sharedEntry.requestSerial.get()>0L &&
+              sharedEntry.pendingFuture==null,
+        "New C&B owner did not invalidate old tile pending mesh work");
+      require(!shouldDelayModelBake(freshOwner,false),
+        "New tile's FIRST authoritative C&B Bake was incorrectly delayed");
+      require(sharedEntry.lastRequestMillis>0L &&
+              sharedEntry.ownerTile.get()==freshOwner,
+        "First new-tile request was not recorded for current owner");
+      // Follow-up requests are once again coalesced for the NEW owner.
+      burst(freshOwner,240);
+      settle();
+      require(firstOwner.refreshes.get()==0 &&
+              freshOwner.refreshes.get()==1,
+        "Old C&B tile's pending Bake survived ownership change");
+      verifyNoQueue();
+
       // ABA before the timer runs: a REMOVED prior C&B entity must not
       // mutate the pending entry for the new installed tile. The old
       // implementation only checked live tile identity at EXECUTION time,
@@ -297,6 +337,7 @@ public final class RGBCnbGeometryBakeDebouncer {
         " forced_refresh_cancels_stale_future=true"+
         " bypass_refresh_cancels_stale_future=true"+
         " stale_aba_request_cannot_cancel_live=true"+
+        " new_tile_first_bake_not_delayed=true"+
         " removed_tile_request_ignored=true"+
         " disconnect_cancels_queue=true aba_no_stale_tile=true"+
         " world_guard=true last_model_update_once=true");
