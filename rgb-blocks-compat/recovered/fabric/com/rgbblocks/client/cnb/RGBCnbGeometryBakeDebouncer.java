@@ -81,7 +81,7 @@ public final class RGBCnbGeometryBakeDebouncer {
    public static void markPayloadModelUpdate(Object tileEntity) {
       if (tileEntity != null && isRemoteClientWorld(tileEntity)) {
          BlockPos pos = getBlockPos(tileEntity);
-         if (pos != null) {
+         if (pos != null && !isReplacedClientTile(tileEntity, pos)) {
             long now = System.currentTimeMillis();
             RGBCnbGeometryBakeDebouncer.Entry entry = ENTRIES.computeIfAbsent(key(pos), ignored -> new RGBCnbGeometryBakeDebouncer.Entry());
             entry.lastPayloadMillis = now;
@@ -97,7 +97,7 @@ public final class RGBCnbGeometryBakeDebouncer {
       if (force || Boolean.TRUE.equals(BYPASS.get())) {
          if (tileEntity != null && isRemoteClientWorld(tileEntity)) {
             BlockPos pos = getBlockPos(tileEntity);
-            if (pos != null) {
+            if (pos != null && !isReplacedClientTile(tileEntity, pos)) {
                Entry pending = ENTRIES.get(key(pos));
                if (pending != null) {
                   pending.requestSerial.incrementAndGet();
@@ -109,7 +109,11 @@ public final class RGBCnbGeometryBakeDebouncer {
       }
       if (tileEntity != null && isRemoteClientWorld(tileEntity)) {
          BlockPos pos = getBlockPos(tileEntity);
-         if (pos == null) {
+         if (pos == null || isReplacedClientTile(tileEntity, pos)) {
+            // An old C&B block entity can still receive a late Scena
+            // callback after AIR -> new C&B at the same packed position.
+            // Reject BEFORE incrementing the live tile's request serial or
+            // cancelling its ONLY pending last-mesh refresh.
             return false;
          }
 
@@ -215,6 +219,22 @@ public final class RGBCnbGeometryBakeDebouncer {
          }
          throw missingPublic;
       }
+   }
+
+   private static boolean isReplacedClientTile(Object tileEntity, BlockPos pos) {
+      if (tileEntity instanceof BlockEntity tile) {
+         if (tile.isRemoved()) {
+            return true;
+         }
+         Level world = tile.getLevel();
+         if (world != null && world.isLoaded(pos)) {
+            // During first attachment this can legitimately be null;
+            // reject only when a DIFFERENT entity owns the live position.
+            BlockEntity current = world.getBlockEntity(pos);
+            return current != null && current != tile;
+         }
+      }
+      return false;
    }
 
    private static boolean isRemoteClientWorld(Object tileEntity) {
