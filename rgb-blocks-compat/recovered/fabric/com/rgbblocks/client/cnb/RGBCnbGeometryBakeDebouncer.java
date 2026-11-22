@@ -61,6 +61,26 @@ public final class RGBCnbGeometryBakeDebouncer {
       }
    }
 
+
+   // Entries are keyed by position, but C&B removes and recreates the tile
+   // at the SAME position during chiseling. A replacement is a NEW payload
+   // stream; carrying over the old tile's rapid-window timestamps would
+   // suppress the new tile's very first (essential) model build.
+   private static Entry observeLiveTile(Entry entry, Object tileEntity) {
+      synchronized (entry) {
+         Object prior = entry.ownerTile == null ? null : entry.ownerTile.get();
+         if (prior != tileEntity) {
+            entry.requestSerial.incrementAndGet();
+            cancelTrailingBake(entry);
+            entry.lastPayloadMillis = 0L;
+            entry.lastRequestMillis = 0L;
+            entry.lastAllowedBakeMillis = 0L;
+            entry.ownerTile = new WeakReference<>(tileEntity);
+         }
+      }
+      return entry;
+   }
+
    public static void runUndebounced(Runnable action) {
       if (action != null) {
          boolean previous = Boolean.TRUE.equals(BYPASS.get());
@@ -83,7 +103,9 @@ public final class RGBCnbGeometryBakeDebouncer {
          BlockPos pos = getBlockPos(tileEntity);
          if (pos != null && !isReplacedClientTile(tileEntity, pos)) {
             long now = System.currentTimeMillis();
-            RGBCnbGeometryBakeDebouncer.Entry entry = ENTRIES.computeIfAbsent(key(pos), ignored -> new RGBCnbGeometryBakeDebouncer.Entry());
+            RGBCnbGeometryBakeDebouncer.Entry entry = observeLiveTile(
+               ENTRIES.computeIfAbsent(key(pos), ignored -> new RGBCnbGeometryBakeDebouncer.Entry()),
+               tileEntity);
             entry.lastPayloadMillis = now;
          }
       }
@@ -100,6 +122,7 @@ public final class RGBCnbGeometryBakeDebouncer {
             if (pos != null && !isReplacedClientTile(tileEntity, pos)) {
                Entry pending = ENTRIES.get(key(pos));
                if (pending != null) {
+                  observeLiveTile(pending, tileEntity);
                   pending.requestSerial.incrementAndGet();
                   cancelTrailingBake(pending);
                }
@@ -118,7 +141,9 @@ public final class RGBCnbGeometryBakeDebouncer {
          }
 
          long now = System.currentTimeMillis();
-         RGBCnbGeometryBakeDebouncer.Entry entry = ENTRIES.computeIfAbsent(key(pos), ignored -> new RGBCnbGeometryBakeDebouncer.Entry());
+         RGBCnbGeometryBakeDebouncer.Entry entry = observeLiveTile(
+            ENTRIES.computeIfAbsent(key(pos), ignored -> new RGBCnbGeometryBakeDebouncer.Entry()),
+            tileEntity);
          long lastPayload = entry.lastPayloadMillis;
          if (lastPayload != 0L && now - lastPayload <= 350L) {
             long previousRequest = entry.lastRequestMillis;
@@ -296,5 +321,9 @@ public final class RGBCnbGeometryBakeDebouncer {
       private volatile long lastRequestMillis;
       private volatile long lastAllowedBakeMillis;
       private ScheduledFuture<?> pendingFuture;
+      // Weak ownership prevents retaining unloaded C&B tiles across a long
+      // session, while identity prevents old per-position debounce state
+      // from poisoning a freshly installed block entity.
+      private WeakReference<Object> ownerTile;
    }
 }
