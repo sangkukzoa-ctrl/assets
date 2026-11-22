@@ -34,6 +34,7 @@ names=(
     "public static boolean shouldDelayModelBake(Object tileEntity, boolean force)",
     "private static void scheduleTrailingBake(Object tileEntity, BlockPos pos, Entry entry, long serial)",
     "private static Method findModelUpdateMethod(Class<?> entityType)",
+    "private static boolean isReplacedClientTile(Object tileEntity, BlockPos pos)",
     "private static boolean isRemoteClientWorld(Object tileEntity)",
     "private static BlockPos getBlockPos(Object tileEntity)",
     "private static long key(BlockPos pos)",
@@ -49,6 +50,7 @@ for required in (
     "epoch != WORLD_EPOCH.get()",
     "entry.requestSerial.get() != serial",
     "level.getBlockEntity(pos) != live",
+    "isReplacedClientTile(tileEntity, pos)",
     "update.invoke(live)",
 ):
     assert required in real_methods,("Real production scheduler safeguard absent",required)
@@ -185,6 +187,57 @@ public final class RGBCnbGeometryBakeDebouncer {
       require(bypassed.refreshes.get()==1 && bypassWorld.notifications.get()==0,
         "Older trailing callback fired after integrity forced repair");
 
+      // ABA before the timer runs: a REMOVED prior C&B entity must not
+      // mutate the pending entry for the new installed tile. The old
+      // implementation only checked live tile identity at EXECUTION time,
+      // so a stale FORCE, bypass or normal event first CANCELLED the newer
+      // tile's only trailing future and the stale task later did nothing.
+      newWorld(new Level());
+      Level staleWorld=Minecraft.getInstance().level;
+      BlockPos shared=new BlockPos(14,67,14);
+      BlockEntity obsolete=staleWorld.tile(shared);
+      BlockEntity current=staleWorld.tile(shared);
+      burst(current,490);
+      Entry pending=ENTRIES.get(key(shared));
+      ScheduledFuture<?> goodFuture=pending.pendingFuture;
+      long goodSerial=pending.requestSerial.get();
+      pending.lastPayloadMillis=19L; // detect stale payload mutation exactly
+      markPayloadModelUpdate(obsolete);
+      require(pending.lastPayloadMillis==19L,
+        "Obsolete payload overwrote current C&B tile's debounce epoch");
+      require(!shouldDelayModelBake(obsolete,false),
+        "Obsolete normal C&B tile should not be postponed");
+      require(!shouldDelayModelBake(obsolete,true),
+        "Obsolete forced C&B tile should not be postponed");
+      runUndebounced(()->require(!shouldDelayModelBake(obsolete,false),
+        "Obsolete bypass C&B tile should not be postponed"));
+      require(pending.requestSerial.get()==goodSerial,
+        "Obsolete tile unexpectedly invalidated replacement model serial");
+      require(pending.pendingFuture==goodFuture && !goodFuture.isCancelled(),
+        "Obsolete tile cancelled the replacement's only scheduled mesh bake");
+      settle();
+      require(current.refreshes.get()==1 && obsolete.refreshes.get()==0,
+        "Stale C&B ABA callback stole the new tile's final mesh publication");
+      verifyNoQueue();
+
+      // Also reject an entity marked removed before it is detached from
+      // the client level map (short-lived normal teardown ordering).
+      newWorld(new Level());
+      Level removalWorld=Minecraft.getInstance().level;
+      BlockEntity removed=removalWorld.tile(new BlockPos(18,67,18));
+      burst(removed,420);
+      Entry prior=ENTRIES.get(key(removed.getBlockPos()));
+      long beforeRemoved=prior.requestSerial.get();
+      removed.removed=true;
+      markPayloadModelUpdate(removed);
+      require(!shouldDelayModelBake(removed,true),
+        "Removed tile force request should be ignored");
+      require(prior.requestSerial.get()==beforeRemoved &&
+              prior.pendingFuture!=null && !prior.pendingFuture.isCancelled(),
+        "Removed tile invalidated a still-tracked C&B job");
+      reset();
+      verifyNoQueue();
+
       // Two independent C&B positions each keep their own single future.
       newWorld(new Level());
       Level twoWorld=Minecraft.getInstance().level;
@@ -243,6 +296,8 @@ public final class RGBCnbGeometryBakeDebouncer {
         " burst_850_queue_one=true independent_two_positions=true"+
         " forced_refresh_cancels_stale_future=true"+
         " bypass_refresh_cancels_stale_future=true"+
+        " stale_aba_request_cannot_cancel_live=true"+
+        " removed_tile_request_ignored=true"+
         " disconnect_cancels_queue=true aba_no_stale_tile=true"+
         " world_guard=true last_model_update_once=true");
       TRAILING_BAKES.shutdownNow();
