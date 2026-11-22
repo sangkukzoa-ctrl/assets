@@ -90,7 +90,24 @@ public final class RGBCnbGeometryBakeDebouncer {
    }
 
    public static boolean shouldDelayModelBake(Object tileEntity, boolean force) {
-      if (!force && !Boolean.TRUE.equals(BYPASS.get()) && tileEntity != null && isRemoteClientWorld(tileEntity)) {
+      // A forced or deliberate undebounced C&B rebuild supersedes ANY
+      // earlier delayed bake for the same current client tile. Returning
+      // false without cancelling leaves the old 180ms future to issue a
+      // second asynchronous model build after the newer authoritative one.
+      if (force || Boolean.TRUE.equals(BYPASS.get())) {
+         if (tileEntity != null && isRemoteClientWorld(tileEntity)) {
+            BlockPos pos = getBlockPos(tileEntity);
+            if (pos != null) {
+               Entry pending = ENTRIES.get(key(pos));
+               if (pending != null) {
+                  pending.requestSerial.incrementAndGet();
+                  cancelTrailingBake(pending);
+               }
+            }
+         }
+         return false;
+      }
+      if (tileEntity != null && isRemoteClientWorld(tileEntity)) {
          BlockPos pos = getBlockPos(tileEntity);
          if (pos == null) {
             return false;
