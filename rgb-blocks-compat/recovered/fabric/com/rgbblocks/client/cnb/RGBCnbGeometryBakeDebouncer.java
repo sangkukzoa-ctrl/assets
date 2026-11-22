@@ -17,6 +17,13 @@ public final class RGBCnbGeometryBakeDebouncer {
    private static final long RAPID_WINDOW_MS = 70L;
    private static final long MAX_SUPPRESS_MS = 90L;
    private static final long PAYLOAD_ACTIVE_WINDOW_MS = 350L;
+   // An explorer can sculpt thousands of temporary C&B tiles. Keep
+   // debounce records only for recently active tiles; never let one session
+   // retain stale packed positions indefinitely.
+   private static final int PRUNE_THRESHOLD = 4096;
+   private static final long ENTRY_IDLE_MS = 300000L;
+   private static final long PRUNE_INTERVAL_MS = 5000L;
+   private static final AtomicLong LAST_PRUNE_MS = new AtomicLong();
    private static final Map<Long, RGBCnbGeometryBakeDebouncer.Entry> ENTRIES = new ConcurrentHashMap<>();
    private static final ThreadLocal<Boolean> BYPASS = ThreadLocal.withInitial(() -> Boolean.FALSE);
    // C&B model compilation is asynchronous. Suppressing bursts without
@@ -48,6 +55,7 @@ public final class RGBCnbGeometryBakeDebouncer {
          cancelTrailingBake(entry);
       }
       ENTRIES.clear();
+      LAST_PRUNE_MS.set(0L);
       BYPASS.remove();
    }
 
@@ -77,8 +85,35 @@ public final class RGBCnbGeometryBakeDebouncer {
             entry.lastAllowedBakeMillis = 0L;
             entry.ownerTile = new WeakReference<>(tileEntity);
          }
+         entry.lastTouchedMillis = System.currentTimeMillis();
       }
       return entry;
+   }
+
+   private static void pruneIdleEntries(long now) {
+      if (ENTRIES.size() <= PRUNE_THRESHOLD) {
+         return;
+      }
+      long previous = LAST_PRUNE_MS.get();
+      if (now - previous < PRUNE_INTERVAL_MS
+          || !LAST_PRUNE_MS.compareAndSet(previous, now)) {
+         return;
+      }
+      for (Map.Entry<Long, Entry> candidate : ENTRIES.entrySet()) {
+         Entry entry = candidate.getValue();
+         if (now - entry.lastTouchedMillis < ENTRY_IDLE_MS) {
+            continue;
+         }
+         synchronized (entry) {
+            if (now - entry.lastTouchedMillis >= ENTRY_IDLE_MS
+                && ENTRIES.remove(candidate.getKey(), entry)) {
+               // A stale scheduled job must be invalidated, even if its
+               // scheduler phase already handed it to the game executor.
+               entry.requestSerial.incrementAndGet();
+               cancelTrailingBake(entry);
+            }
+         }
+      }
    }
 
    public static void runUndebounced(Runnable action) {
@@ -103,10 +138,12 @@ public final class RGBCnbGeometryBakeDebouncer {
          BlockPos pos = getBlockPos(tileEntity);
          if (pos != null && !isReplacedClientTile(tileEntity, pos)) {
             long now = System.currentTimeMillis();
-            RGBCnbGeometryBakeDebouncer.Entry entry = observeLiveTile(
-               ENTRIES.computeIfAbsent(key(pos), ignored -> new RGBCnbGeometryBakeDebouncer.Entry()),
-               tileEntity);
+            long packed = key(pos);
+            RGBCnbGeometryBakeDebouncer.Entry entry = ENTRIES.compute(
+               packed, (ignored, old) -> observeLiveTile(
+                  old == null ? new RGBCnbGeometryBakeDebouncer.Entry() : old, tileEntity));
             entry.lastPayloadMillis = now;
+            pruneIdleEntries(now);
          }
       }
    }
@@ -141,9 +178,11 @@ public final class RGBCnbGeometryBakeDebouncer {
          }
 
          long now = System.currentTimeMillis();
-         RGBCnbGeometryBakeDebouncer.Entry entry = observeLiveTile(
-            ENTRIES.computeIfAbsent(key(pos), ignored -> new RGBCnbGeometryBakeDebouncer.Entry()),
-            tileEntity);
+         long packed = key(pos);
+         RGBCnbGeometryBakeDebouncer.Entry entry = ENTRIES.compute(
+            packed, (ignored, old) -> observeLiveTile(
+               old == null ? new RGBCnbGeometryBakeDebouncer.Entry() : old, tileEntity));
+         pruneIdleEntries(now);
          long lastPayload = entry.lastPayloadMillis;
          if (lastPayload != 0L && now - lastPayload <= 350L) {
             long previousRequest = entry.lastRequestMillis;
@@ -325,5 +364,6 @@ public final class RGBCnbGeometryBakeDebouncer {
       // session, while identity prevents old per-position debounce state
       // from poisoning a freshly installed block entity.
       private WeakReference<Object> ownerTile;
+      private volatile long lastTouchedMillis;
    }
 }
