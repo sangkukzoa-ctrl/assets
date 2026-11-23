@@ -315,7 +315,10 @@ public final class NativeGalleryActivity extends Activity {
                 i.addCategory(Intent.CATEGORY_OPENABLE);
                 i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,maxSelection>1);
                 i=Intent.createChooser(i,t("사진 선택","Select photos"));
-                i.putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS,new ComponentName[]{new ComponentName(this,MainActivity.class)});
+                i.putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS,new ComponentName[]{
+                    new ComponentName(this,NativeGalleryActivity.class),
+                    new ComponentName(this,MainActivity.class)
+                });
             }
             startActivityForResult(i,FALLBACK);
         }catch(Exception ex){Toast.makeText(this,t("사진 접근 권한이 필요합니다.","Photo access is required."),Toast.LENGTH_LONG).show();finish();}

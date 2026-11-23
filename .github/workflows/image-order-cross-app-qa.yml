@@ -3,9 +3,17 @@ on:
   push:
     branches: ['image-order-studio/dev', 'image-order/dev-v2']
     paths:
-      - 'image-order-studio/**'
+      - 'image-order-studio/app/**'
+      - 'image-order-studio/externalcaller/**'
+      - 'image-order-studio/tests/**'
+      - 'image-order-studio/*.gradle'
+      - 'image-order-studio/gradle.properties'
       - '.github/workflows/image-order-cross-app-qa.yml'
   workflow_dispatch:
+# Only the newest source commit should consume emulator or release-build runners.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:

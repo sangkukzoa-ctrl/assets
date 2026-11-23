@@ -45,6 +45,8 @@ assert 'android:mimeType="*/*"' in native_manifest
 assert 'android.intent.action.GET_CONTENT' not in main_manifest
 assert 'getBooleanExtra(Intent.EXTRA_ALLOW_MULTIPLE,false)' in native
 assert 'MediaStore.EXTRA_PICK_IMAGES_IN_ORDER' in native
+# Legacy denied-permission GET_CONTENT chooser must never recurse into our own gallery.
+assert 'new ComponentName(this,NativeGalleryActivity.class)' in native
 assert 'supportsOrderedSystemPicker()' in native
 assert 'System picker originals return directly' in native
 assert 'MediaIntentResult.forShare(getContentResolver(),uris)' in native
