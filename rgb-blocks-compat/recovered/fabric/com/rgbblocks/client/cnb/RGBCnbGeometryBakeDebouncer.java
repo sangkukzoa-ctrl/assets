@@ -100,19 +100,32 @@ public final class RGBCnbGeometryBakeDebouncer {
          return;
       }
       for (Map.Entry<Long, Entry> candidate : ENTRIES.entrySet()) {
-         Entry entry = candidate.getValue();
-         if (now - entry.lastTouchedMillis < ENTRY_IDLE_MS) {
+         Entry scanned = candidate.getValue();
+         if (now - scanned.lastTouchedMillis < ENTRY_IDLE_MS) {
             continue;
          }
-         synchronized (entry) {
-            if (now - entry.lastTouchedMillis >= ENTRY_IDLE_MS
-                && ENTRIES.remove(candidate.getKey(), entry)) {
-               // A stale scheduled job must be invalidated, even if its
-               // scheduler phase already handed it to the game executor.
-               entry.requestSerial.incrementAndGet();
-               cancelTrailingBake(entry);
+         // Producer ENTRIES.compute() locks the ConcurrentHashMap bin BEFORE
+         // observeLiveTile() locks Entry. A prior prune implementation took
+         // Entry FIRST and then called ENTRIES.remove(), reversing that order.
+         // Concurrent packet/model callbacks could deadlock both threads.
+         // computeIfPresent preserves the SAME bin -> entry lock ordering,
+         // and its identity guard protects a new tile installed meanwhile.
+         ENTRIES.computeIfPresent(candidate.getKey(), (ignored, current) -> {
+            if (current != scanned) {
+               return current;
             }
-         }
+            synchronized (current) {
+               if (now - current.lastTouchedMillis < ENTRY_IDLE_MS) {
+                  return current;
+               }
+               // Invalidate even already-dispatched async callbacks. If
+               // an active owner touched this entry, the updated timestamp
+               // above protects its live pending model refresh instead.
+               current.requestSerial.incrementAndGet();
+               cancelTrailingBake(current);
+               return null;
+            }
+         });
       }
    }
 
