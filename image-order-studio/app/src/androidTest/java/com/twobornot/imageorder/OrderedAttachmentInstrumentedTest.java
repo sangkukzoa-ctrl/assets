@@ -261,6 +261,107 @@ public class OrderedAttachmentInstrumentedTest {
             one.getBooleanExtra(MediaStore.EXTRA_PICK_IMAGES_IN_ORDER,false));
     }
 
+
+    /** Restored selection numbers and ClipData must retain the exact prior tap order. */
+    @Test public void nativeGalleryRecreationKeepsSelectionSequence() throws Exception {
+        Instrumentation inst=InstrumentationRegistry.getInstrumentation();
+        Context ctx=inst.getTargetContext();
+        ContentResolver cr=ctx.getContentResolver();
+        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),Manifest.permission.READ_MEDIA_IMAGES);
+        ArrayList<Uri> sources=new ArrayList<>();
+        ArrayList<String> names=new ArrayList<>();
+        Activity first=null,restored=null;
+        try{
+            for(int i=0;i<3;i++){
+                Bitmap bitmap=Bitmap.createBitmap(9,9,Bitmap.Config.ARGB_8888);
+                bitmap.eraseColor(0xff19384a + i*0x2200);
+                ByteArrayOutputStream bytes=new ByteArrayOutputStream();
+                assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG,100,bytes));bitmap.recycle();
+                String name="imageorder_recreate_"+System.nanoTime()+"_"+i+".png";
+                ContentValues cv=new ContentValues();
+                cv.put(MediaStore.Images.Media.DISPLAY_NAME,name);
+                cv.put(MediaStore.Images.Media.MIME_TYPE,"image/png");
+                cv.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/ImageOrderCI");
+                cv.put(MediaStore.Images.Media.IS_PENDING,1);
+                Uri uri=cr.insert(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),cv);
+                assertNotNull(uri);sources.add(uri);names.add(name);
+                try(OutputStream stream=cr.openOutputStream(uri,"w")){
+                    assertNotNull(stream);stream.write(bytes.toByteArray());
+                }
+                ContentValues ready=new ContentValues();ready.put(MediaStore.Images.Media.IS_PENDING,0);
+                assertEquals(1,cr.update(uri,ready,null,null));
+            }
+            Intent open=new Intent(ctx,NativeGalleryActivity.class);
+            open.setAction(Intent.ACTION_GET_CONTENT);
+            open.setType("image/png");
+            open.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);
+            open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            first=inst.startActivitySync(open);
+            final Activity initial=first;
+            AtomicReference<int[]> positions=new AtomicReference<>();
+            for(int retry=0;retry<80 && positions.get()==null;retry++){
+                inst.runOnMainSync(()->{
+                    try{
+                        ((TextView)getField(initial,"photosTab")).performClick();
+                        ArrayList<?> displayed=(ArrayList<?>)getField(initial,"displayed");
+                        int[] slots={-1,-1,-1};
+                        for(int p=0;p<displayed.size();p++){
+                            String actual=(String)getField(displayed.get(p),"name");
+                            for(int k=0;k<3;k++)if(names.get(k).equals(actual))slots[k]=p;
+                        }
+                        if(slots[0]>=0 && slots[1]>=0 && slots[2]>=0)positions.set(slots);
+                    }catch(Exception ex){throw new RuntimeException(ex);}
+                });
+                if(positions.get()==null)Thread.sleep(120);
+            }
+            assertNotNull("All fixture photos must load",positions.get());
+            final int[] slots=positions.get();
+            inst.runOnMainSync(()->{
+                try{
+                    GridView grid=(GridView)getField(initial,"grid");
+                    grid.performItemClick(null,slots[2],slots[2]);
+                    grid.performItemClick(null,slots[0],slots[0]);
+                    grid.performItemClick(null,slots[1],slots[1]);
+                    assertTrue(((TextView)getField(initial,"confirm")).getText().toString().endsWith("3"));
+                }catch(Exception ex){throw new RuntimeException(ex);}
+            });
+            inst.runOnMainSync(initial::recreate);
+            AtomicReference<Activity> reloaded=new AtomicReference<>();
+            for(int retry=0;retry<100 && reloaded.get()==null;retry++){
+                inst.runOnMainSync(()->{
+                    for(Activity a:androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance()
+                            .getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED)){
+                        if(a instanceof NativeGalleryActivity && a!=initial)reloaded.set(a);
+                    }
+                });
+                if(reloaded.get()==null)Thread.sleep(120);
+            }
+            restored=reloaded.get();
+            assertNotNull("Native gallery must recreate with saved state",restored);
+            final Activity target=restored;
+            inst.runOnMainSync(()->{
+                try{
+                    @SuppressWarnings("unchecked")
+                    java.util.LinkedHashMap<String,Uri> picked=
+                        (java.util.LinkedHashMap<String,Uri>)getField(target,"ordered");
+                    assertEquals("All selected photos survive Activity recreation",3,picked.size());
+                    assertTrue("Selected count remains visible",
+                        ((TextView)getField(target,"confirm")).getText().toString().endsWith("3"));
+                    int i=0;
+                    for(Uri uri:picked.values()){
+                        assertEquals("Recreated selection retains original tap order",
+                            android.content.ContentUris.parseId(sources.get(new int[]{2,0,1}[i++])),
+                            android.content.ContentUris.parseId(uri));
+                    }
+                }catch(Exception ex){throw new RuntimeException(ex);}
+            });
+        }finally{
+            Activity end=restored!=null?restored:first;
+            if(end!=null && !end.isFinishing())inst.runOnMainSync(end::finish);
+            for(Uri uri:sources)cr.delete(uri,null,null);
+        }
+    }
+
     @Test public void singleResultHasReadableImageTypeAndOriginalUri() {
         Uri original=Uri.parse("content://media/external/images/media/12345");
         ArrayList<Uri> originals=new ArrayList<>(Arrays.asList(original));
