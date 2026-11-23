@@ -41,7 +41,16 @@ public final class CrossPackagePickerTest {
         verifyCrossUidRoundTrip("*/*");
     }
 
+    @Test public void genericImageWildcardAlsoPreservesTapOrder() throws Exception {
+        verifyCrossUidRoundTrip("image/*");
+    }
+    @Test public void singleImageRequestReturnsOriginalWithReadGrant() throws Exception {
+        verifyCrossUidRoundTrip("image/png",false);
+    }
     private void verifyCrossUidRoundTrip(String requestedMime) throws Exception {
+        verifyCrossUidRoundTrip(requestedMime,true);
+    }
+    private void verifyCrossUidRoundTrip(String requestedMime,boolean allowMultiple) throws Exception {
         Instrumentation instrumentation=InstrumentationRegistry.getInstrumentation();
         Context context=instrumentation.getTargetContext();
         PackageManager pm=context.getPackageManager();
@@ -55,6 +64,7 @@ public final class CrossPackagePickerTest {
         UiDevice device=UiDevice.getInstance(instrumentation);
         Intent start=new Intent(context,AttachmentCallerActivity.class);
         start.putExtra("requestedMime",requestedMime);
+        start.putExtra("allowMultiple",allowMultiple);
         start.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         context.startActivity(start); // asynchronous cross-app launch: do not block test instrumentation idle
         try {
@@ -68,11 +78,14 @@ public final class CrossPackagePickerTest {
             assertEquals(3,names.length);
             assertFalse("Before user selection caller must NOT be able to open target-owned files",
                 AttachmentCallerActivity.hadAccessBeforeUserSelection);
-            for(int index:TAP_ORDER) {
+            int[] selectedOrder=allowMultiple?TAP_ORDER:new int[]{TAP_ORDER[0]};
+            for(int index:selectedOrder) {
                 UiObject2 photo=device.wait(Until.findObject(By.desc("imageorder.photo:"+names[index])),30000);
                 assertNotNull("Photo must be visible to target gallery: "+names[index],photo);
                 photo.click();
             }
+            boolean returned;
+            if(allowMultiple) {
             UiObject2 done=device.wait(Until.findObject(By.desc("imageorder.confirm")),15000);
             assertNotNull("Gallery Done button",done);
             assertTrue("Three taps must be recognized before returning. Actual label: "+done.getText(),
@@ -83,7 +96,7 @@ public final class CrossPackagePickerTest {
                 +"; text="+done.getText()+"; display="+device.getDisplayWidth()+"x"+device.getDisplayHeight()
                 +"; foreground="+device.getCurrentPackageName());
             done.click();
-            boolean returned=AttachmentCallerActivity.done.await(4,TimeUnit.SECONDS);
+            returned=AttachmentCallerActivity.done.await(4,TimeUnit.SECONDS);
             if(!returned && device.hasObject(By.desc("imageorder.confirm"))){
                 android.util.Log.w("ImageOrderFlow","Accessibility click did not deliver result; inject physical coordinates");
                 assertTrue("Coordinate input must inject",device.click(doneRect.centerX(),doneRect.centerY()));
@@ -109,6 +122,10 @@ public final class CrossPackagePickerTest {
                     "No result after three input methods: currentPackage="+device.getCurrentPackageName()
                     +"; request="+requestedMime+"; bounds="+doneRect+"; error="+AttachmentCallerActivity.error);
             }
+            } else {
+                returned=AttachmentCallerActivity.done.await(15,TimeUnit.SECONDS);
+                if(!returned)captureFailure(instrumentation,requestedMime,"single-auto-return");
+            }
             assertTrue("Independent app must receive Activity RESULT_OK ("+AttachmentCallerActivity.error+")",returned);
             assertNull("Result path must not fail",AttachmentCallerActivity.error);
             assertEquals(Activity.RESULT_OK,AttachmentCallerActivity.resultCode);
@@ -117,10 +134,11 @@ public final class CrossPackagePickerTest {
             assertTrue("Result must include URI grant",(result.getFlags()&Intent.FLAG_GRANT_READ_URI_PERMISSION)!=0);
             assertEquals(0,result.getFlags()&Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
             ClipData clip=result.getClipData();assertNotNull(clip);
-            assertEquals(3,clip.getItemCount());
+            assertEquals(selectedOrder.length,clip.getItemCount());
+            if(!allowMultiple)assertEquals("Single selection data URI",clip.getItemAt(0).getUri(),result.getData());
             ContentResolver cr=context.getContentResolver();
-            for(int i=0;i<3;i++) {
-                int source=TAP_ORDER[i];
+            for(int i=0;i<selectedOrder.length;i++) {
+                int source=selectedOrder[i];
                 Uri uri=clip.getItemAt(i).getUri();
                 assertNotNull(uri);
                 assertEquals("No image substitution or reordering",

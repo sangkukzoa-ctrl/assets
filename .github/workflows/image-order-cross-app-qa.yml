@@ -9,9 +9,14 @@ on:
 permissions:
   contents: read
 jobs:
-  cross-uid-android-35:
+  cross-uid-android:
+    name: Cross-UID Android ${{ matrix.api-level }}
     runs-on: ubuntu-latest
     timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [33, 34, 35]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -32,7 +37,7 @@ jobs:
       - name: Execute target package tests AND independent caller package E2E
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: ${{ matrix.api-level }}
           target: google_apis
           arch: x86_64
           profile: pixel_5
@@ -49,7 +54,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ImageOrder-crossUID-qa-reports
+          name: ImageOrder-crossUID-qa-reports-api${{ matrix.api-level }}
           path: |
             image-order-studio/app/build/outputs/androidTest-results/connected/
             image-order-studio/app/build/reports/androidTests/connected/

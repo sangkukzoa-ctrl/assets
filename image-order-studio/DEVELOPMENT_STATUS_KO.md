@@ -29,10 +29,10 @@
 - 공개 v0.5.4, 진행 중 v0.5.5.
 - Cross-UID E2E run 45141927988: 본 앱 5/5 통과, 외부 패키지 0/2 실패.
 - 이후 비동기 실행 패치 승계, CI 실패 증거 logcat 및 Activity task dump 추가.
-- 외부 패키지 원본 전달이 검증되기 전 v0.5.5 공개 배포 보류.
+- 외부 패키지 원본 전달이 검증되기 전 v0.5.5 공개 배포 보류. 이 조건은 아래 Android 15 교차 UID 테스트로 충족됨; 출시 판단은 아래의 나머지 실사용 호환성 검증을 따른다.
 
 ## 미완료로 유지할 항목
-- **실제 다른 패키지/다른 UID의 첨부 요청자가** URI 읽기 권한을 수령해 바이트/순서를 읽는 외부 APK 기반 E2E 테스트. 현재 테스트 호출자는 앱의 debug 전용 Activity이므로 동일 패키지다. 이 구분을 혼동하지 않는다.
+- **다른 UID의 외부 APK 기반 E2E 기본 계약 검증 완료(Android 15)**: https://github.com/sangkukzoa-ctrl/assets/actions/runs/45148994457 에서 앱 6/6, 외부 요청자 2/2 통과. `image/png` 및 `*/*`에 대해 3→1→2 선택 순서, 외부 UID의 임시 읽기 권한, 파일명/MIME, SHA-256 원본 일치를 확인했다. 후속으로 단일 이미지 요청, `image/*` 및 Android 13/14 호환성 매트릭스를 추가하여 진행한다.
 - Android 13~16의 `ACTION_PICK_IMAGES`, SDK Extension Photo Picker, Embedded Photo Picker의 기본 앱 연결 방식: 공식 API, OEM 시스템 갤러리 Role, Android 시스템 통합의 기술적 접근 경로 조사/실증. `CloudMediaProvider`의 가능성과 제약(외부 미디어 소스 공급 vs Picker UI 자체 제어)을 구별.
 - 앱별 독자 첨부창 및 웹 뷰 통합을 재현하는 다중 요청자 호환성 매트릭스.
 - `*/*` 첨부 결과 표시 및 갤러리 선택 품질을 삼성 실기기로 확인. 일반 Android 15 에뮬레이터의 성공을 갤럭시 실기기 성공으로 호도하지 않는다.
@@ -54,3 +54,12 @@
 - 외부 단일 이미지 요청은 `EXTRA_ALLOW_MULTIPLE=false`를 적용해 1장 제한, 다중 요청은 원래 선택 순서 그대로 반환한다.
 - MIME `image/png`, `image/*`, `*/*` 및 `EXTRA_MIME_TYPES`를 네이티브 갤러리에서 직접 처리한다.
 - 이 구조는 교차 UID 반환 E2E가 실제로 통과해야만 검증 완료로 인정한다.
+
+## Android 15 완료 버튼 무응답 수정 (2026-11-23)
+
+- 실제 결함: `targetSdk 35`에서 Android 15의 강제 Edge-to-Edge 레이아웃 때문에 NativeGallery 완료 버튼이 시스템바 입력 영역과 겹쳤다.
+- 원래 완료 버튼 Rect `(723,39)-(1039,171)`, 가운데 y=105 → 외부 테스트에서 터치 3방식 모두 앱에 도착하지 않음.
+- `NativeGalleryActivity` 루트에 `WindowInsets.Type.systemBars() | displayCutout()` 상하좌우 패딩을 API 35+에 적용한 뒤 Insets top=136, bottom=66.
+- 수정 후 완료 버튼 Rect `(723,175)-(1039,307)`, 가운데 y=241 → `OnTouch`, `OnClick`, `finishSelection`, 외부 `onActivityResult RESULT_OK` 모두 로그에 확인.
+- Android 15 실기기와 동일한 API 35 에뮬레이터에서 `run 45148994457` 앱 내부 6개+별도 APK 2개 모두 성공.
+- v0.5.5는 아직 공개하지 않는다. 추가 MIME, 단일 이미지 및 OS 매트릭스 검수 후 정식 서명/출시 여부 판단.

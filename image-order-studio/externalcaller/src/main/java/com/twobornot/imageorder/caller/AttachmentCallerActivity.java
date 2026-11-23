@@ -20,10 +20,12 @@ public final class AttachmentCallerActivity extends Activity {
     private static final String TARGET="com.twobornot.imageorder";
     private static final String FIXTURE="com.twobornot.imageorder.CrossAppMediaFixtureActivity";
     private String requestedType;
+    private boolean allowMultiple;
 
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
         requestedType=getIntent().getStringExtra("requestedMime");
+        allowMultiple=getIntent().getBooleanExtra("allowMultiple",true);
         if(requestedType==null)requestedType="image/png";
         Intent seed=new Intent();seed.setComponent(new ComponentName(TARGET,FIXTURE));
         try{startActivityForResult(seed,SEED);}
@@ -47,7 +49,7 @@ public final class AttachmentCallerActivity extends Activity {
                 picker.setPackage(TARGET);
                 picker.addCategory(Intent.CATEGORY_OPENABLE);
                 picker.setType(requestedType);
-                picker.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);
+                picker.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,allowMultiple);
                 android.util.Log.i("ImageOrderFlow","ThirdParty launching GET_CONTENT MIME="+requestedType);
                 startActivityForResult(picker,PICK);
             }catch(Exception ex){error="Picker launch: "+ex;done.countDown();}
