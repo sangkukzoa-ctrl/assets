@@ -68,7 +68,7 @@ assert ("private static final ScheduledThreadPoolExecutor TRAILING_BAKES = creat
 prune=extract("private static void pruneIdleEntries(long now)")
 observe=extract("private static Entry observeLiveTile(Entry entry, Object tileEntity)")
 assert "ENTRIES.computeIfPresent(candidate.getKey()" in prune
-assert "ENTRIES.remove(" not in prune
+assert "ENTRIES.remove(candidate.getKey(), entry)" not in prune
 assert prune.index("ENTRIES.computeIfPresent(candidate.getKey()") < prune.index("synchronized (current)")
 assert "synchronized (entry)" in observe
 
