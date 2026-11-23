@@ -44,20 +44,22 @@ jobs:
           javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/SafDocumentIds.java tests/SafDocumentIdsTest.java
           java -cp build/testclasses com.twobornot.imageorder.SafDocumentIdsTest
       - name: Compile unsigned Android release APK
-        run: gradle --no-daemon :app:assembleRelease :app:assembleDebug :app:assembleAndroidTest --stacktrace
+        run: gradle --no-daemon :app:assembleRelease :app:assembleDebug :app:assembleAndroidTest :externalcaller:assembleDebug :externalcaller:assembleAndroidTest --stacktrace
       - name: Validate APK metadata and debug signature
         run: |
           set -euo pipefail
           test -s app/build/outputs/apk/release/app-release-unsigned.apk
           test -s app/build/outputs/apk/debug/app-debug.apk
+          test -s externalcaller/build/outputs/apk/debug/externalcaller-debug.apk
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs --min-sdk-version 26 app/build/outputs/apk/debug/app-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep -E "package: name='com.twobornot.imageorder' versionCode='10' versionName='0.5.4'"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep -E "package: name='com.twobornot.imageorder' versionCode='11' versionName='0.5.5'"
           sha256sum app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: ImageOrderStudio-v0.5.4-ci-only
+          name: ImageOrderStudio-v0.5.5-ci-only
           path: |
             image-order-studio/app/build/outputs/apk/debug/app-debug.apk
+            image-order-studio/externalcaller/build/outputs/apk/debug/externalcaller-debug.apk
             image-order-studio/app/build/outputs/apk/release/app-release-unsigned.apk
           retention-days: 14
           if-no-files-found: error
