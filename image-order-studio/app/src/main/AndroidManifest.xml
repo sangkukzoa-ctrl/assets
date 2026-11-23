@@ -25,6 +25,13 @@
                 <category android:name="android.intent.category.OPENABLE" />
                 <data android:mimeType="image/*" />
             </intent-filter>
+            <!-- Generic file upload intents used by browsers and apps with image-capable */* selection. -->
+            <intent-filter>
+                <action android:name="android.intent.action.GET_CONTENT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.OPENABLE" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.PICK" />
                 <category android:name="android.intent.category.DEFAULT" />

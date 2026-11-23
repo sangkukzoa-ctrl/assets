@@ -1,24 +1,23 @@
-# Image Order Studio v0.5.3 — 진짜 단일 갤러리 · 원본 URI 즉시 첨부
+# Image Order Studio v0.5.4 — Android 파일 선택기에서도 원본 사진 직접 제공
 
 개발자: 2bornot · Android 8 이상 · 광고 없음 · 인터넷 권한 없음
 
-## 이번 구현
+## 주요 변경
 
-- **중간 이미지 복사 삭제:** 외부 이미지 첨부 요청에서 NativeGallery가 반환한 원본 MediaStore/사진 선택 URI를 바로 원래 앱으로 전달합니다. 기존 앱 내부 보관함을 경유하지 않습니다.
-- **앱 바로 실행:** 런처와 빠른 설정 타일에서도 하나의 갤러리 화면을 바로 열고, 확인하면 원본 URI들의 공유 선택기를 표시합니다.
-- **선택 순서:** 사용자 탭 순서로 ClipData 항목을 생성합니다. 원본 JPEG/PNG/HEIC/WebP 바이트를 변경하지 않습니다.
-- **ClipData MIME:** 기존 `text/uri-list` 형식 대신 실제 이미지 MIME과 `image/*`를 선언합니다. 이미지별 MediaStore/ContentResolver 유형도 확인합니다.
-- **외부 앱 호환:** MIME 없이 MediaStore 이미지 컬렉션 URI만 전달하는 `ACTION_PICK` 요청도 인식합니다. JPEG·PNG 등 MIME 제한을 존중합니다.
-- **단일 첨부:** 최대 선택 1장인 경우 갤러리 탭 한 번으로 즉시 결과를 반환합니다.
-- **취소:** 외부 첨부를 취소하면 빈 내부 화면에 남지 않고 원래 앱으로 복귀합니다.
-- 사용하지 않는 이미지 번호 삽입·병합·재인코딩 구현을 소스에서 제거했습니다. 미리보기 디코딩은 화면 출력에만 사용합니다.
+- **업로드 경로 확대:** MIME이 `*/*`인 범용 파일 첨부창에도 이미지 선택 후보로 등록하며, 실제 반환 파일은 이미지로 제한합니다.
 
-## 검증과 제한
+- **파일 선택기(SAF) 개선:** 기존 번호를 붙여 저장한 'Upload-ready batches' 공급원을 폐지하고, 휴대전화 MediaStore의 **원본 사진과 앨범**을 Image Order Studio의 문서 공급자로 직접 제공합니다.
+- **원본 무변경:** 파일을 선택했을 때 원본의 사진 바이트, 형식, 파일명, EXIF를 그대로 반환합니다. 이미지 사본 생성·번호 인쇄·재압축·병합이 없습니다.
+- **파일 선택기 구성:** 전체 사진, 앨범, 최근 사진, 파일명 검색, 이미지 미리보기를 지원하고 읽기 전용으로 동작합니다.
+- **보안:** 사진 문서 ID를 검증하며 앱의 임의 파일 경로를 노출하지 않습니다. 사진 접근 권한을 허용한 범위에서만 표시합니다.
+- 기존 v0.5.3의 **단일 갤러리, 원본 URI 즉시 전달, 사용자 선택 순서의 ClipData** 동작을 유지합니다.
 
-- 166장 순서 회귀 테스트, 10가지 MIME 경계 테스트, 원본 URI 반환 경로의 정적 회귀 검사, Android 컴파일·설치·서명을 검증합니다.
-- `ACTION_GET_CONTENT`/`ACTION_PICK`는 우리 갤러리를 사용할 수 있지만, 시스템 `ACTION_PICK_IMAGES` 및 서드파티 자체 업로드 UI는 일반 앱에서 전역 강제 교체할 수 없습니다.
-- 수신 측이 자체적으로 이미지를 다시 정렬하면 전달한 배열 순서가 바뀔 수 있습니다. 해당 문제와 완전한 범용 호출은 장기 개발 목표로 계속 유지합니다.
+## 검증 및 다음 과제
+
+- 원본 파일과 SAF로 연 파일의 바이트 동일성, 파일명/MIME, 실제 Android 파일 선택 동작을 에뮬레이터에서 검사하도록 계측 테스트를 확장했습니다.
+- SAF 내부 다중 선택의 표시 순서는 Android 파일 선택기에서 관리합니다. 사용자가 지정한 탭 순서를 반영하는 전용 갤러리는 GET_CONTENT/PICK 호환 경로에서 사용합니다.
+- 운영체제 Photo Picker 및 각 앱 자체 업로드 창을 **전역 자동 대체하는 목표는 여전히 미완료**이며 지속 개발합니다.
 
 ## English
 
-Zero-copy, single-gallery path: original content URIs go directly from the in-app gallery to the requesting activity with ordered image ClipData and read grants. The launcher and Quick Settings tile open the same gallery. MIME-less MediaStore ACTION_PICK, image type filtering, single-select, and cancel behavior are addressed. The system-owned Photo Picker cannot be globally replaced by a regular APK.
+SAF now exposes live, read-only MediaStore originals (all photos, native albums, recents, search and thumbnails) instead of old numbered export batches. Source bytes, file names, MIME and EXIF are unchanged. Direct ordered MediaStore URI results remain available through the existing in-app gallery on compatible picker intents. Universal photo-picker replacement and caller-side reordering remain future work.

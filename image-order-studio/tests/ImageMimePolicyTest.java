@@ -5,6 +5,8 @@ public final class ImageMimePolicyTest {
     private static void check(boolean v,String name){cases++;if(!v)throw new AssertionError(name);}
     public static void main(String[] args){
         check(ImageMimePolicy.accepts("image/*",null,"image/jpeg"),"wildcard JPEG");
+        check(ImageMimePolicy.accepts("*/*",null,"image/heic"),"generic file uploader permits photos");
+        check(!ImageMimePolicy.accepts("*/*",null,"video/mp4"),"generic upload still supplies only images");
         check(ImageMimePolicy.accepts("image/*",null,"image/heic"),"HEIC");
         check(ImageMimePolicy.accepts("image/png",null,"image/png"),"PNG");
         check(!ImageMimePolicy.accepts("image/png",null,"image/jpeg"),"PNG only");
