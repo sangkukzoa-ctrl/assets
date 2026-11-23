@@ -31,6 +31,7 @@ public final class AttachmentCallerActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int code,Intent returned){
         super.onActivityResult(request,code,returned);
+        android.util.Log.i("ImageOrderStudioQA","ForeignCaller result request="+request+" code="+code+" data="+(returned!=null));
         if(request==SEED){
             if(code!=RESULT_OK||returned==null){error="Fixture failed: "+(returned==null?"missing result":returned.getStringExtra("error"));done.countDown();return;}
             names=returned.getStringArrayExtra("test_names");

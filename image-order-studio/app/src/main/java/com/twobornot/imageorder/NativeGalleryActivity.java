@@ -280,6 +280,7 @@ public final class NativeGalleryActivity extends Activity {
         hint.setText(t("사진을 원하는 순서대로 다시 눌러주세요", "Tap imported photos in the intended order"));
     }
     private void finishSelection(){
+        android.util.Log.i("ImageOrderStudioQA","NativeFinish count="+ordered.size()+" home="+launchedFromHome);
         if(ordered.isEmpty()){
             Toast.makeText(this,t("사진을 순서대로 선택하세요","Select photos in order"),Toast.LENGTH_SHORT).show();return;
         }
@@ -291,10 +292,13 @@ public final class NativeGalleryActivity extends Activity {
             } else {
                 Intent data=MediaIntentResult.forSelection(getContentResolver(),uris);
                 data.putExtra(EXTRA_ORDER_VERIFIED,true);
+                android.util.Log.i("ImageOrderStudioQA","NativeFinish RESULT_OK count="+uris.size());
                 setResult(RESULT_OK,data);
             }
             finish();
+            android.util.Log.i("ImageOrderStudioQA","NativeFinish finish() invoked");
         }catch(Exception ex){
+            android.util.Log.e("ImageOrderStudioQA","NativeFinish failed",ex);
             Toast.makeText(this,t("원본 전달 실패: ","Cannot share original: ")+ex.toString(),Toast.LENGTH_LONG).show();
         }
     }

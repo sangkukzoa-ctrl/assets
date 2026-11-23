@@ -326,6 +326,7 @@ public class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int result,Intent data) {
         super.onActivityResult(request,result,data);
+        android.util.Log.i("ImageOrderStudioQA","MainActivity.onActivityResult request="+request+" result="+result+" external="+externalMode+" data="+(data!=null));
         if(result!=RESULT_OK||data==null){
             if(request==IMPORT_IMAGES) {
                 nativePickerOrdered=false;
@@ -353,6 +354,7 @@ public class MainActivity extends Activity {
     }
     private void deliverDirectToCaller(ArrayList<Uri> uris) {
         if(!externalMode || uris.isEmpty())return;
+        android.util.Log.i("ImageOrderStudioQA","DirectDelivery count="+uris.size());
         if(!externalAllowsMultiple && uris.size()!=1) {
             toastDialog(t("이미지 한 장을 선택하세요.","Select exactly one image."));
             return;
@@ -360,8 +362,9 @@ public class MainActivity extends Activity {
         try {
             Intent result=MediaIntentResult.forSelection(getContentResolver(),uris);
             setResult(RESULT_OK,result);
+            android.util.Log.i("ImageOrderStudioQA","DirectDelivery setResult sent");
             finish();
-        }catch(Exception ex){toastDialog(t("원본 전달 실패: ","Cannot return originals: ")+ex);}
+        }catch(Exception ex){android.util.Log.e("ImageOrderStudioQA","DirectDelivery failed",ex);toastDialog(t("원본 전달 실패: ","Cannot return originals: ")+ex);}
     }
     private void shareDirectOriginals(ArrayList<Uri> uris) {
         if(uris.isEmpty())return;
