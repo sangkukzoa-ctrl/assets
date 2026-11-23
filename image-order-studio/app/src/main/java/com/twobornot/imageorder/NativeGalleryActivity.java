@@ -81,8 +81,81 @@ public final class NativeGalleryActivity extends Activity {
         launchedFromHome=Intent.ACTION_MAIN.equals(action);
         getWindow().setStatusBarColor(NAVY);getWindow().setNavigationBarColor(NAVY);
         makeUi();
-        if(hasPermission())reload();else askPermission();
+        // In imported-photo fallback mode do not reopen the platform picker on rotation.
+        // In normal mode reload MediaStore without losing the restored LinkedHashMap order.
+        if(!restorePickerState(b)){
+            if(hasPermission())reload();else askPermission();
+        }
     }
+
+    // Keep original URI order across rotation, multi-window resize and Activity recreation.
+    // Only compact selection data is saved; the complete MediaStore gallery is re-queried.
+    private static final String STATE_KEYS="imageorder.state.keys";
+    private static final String STATE_URIS="imageorder.state.uris";
+    private static final String STATE_ALBUM_TAB="imageorder.state.albumTab";
+    private static final String STATE_ALBUM="imageorder.state.album";
+    private static final String STATE_FALLBACK_ORDERED="imageorder.state.fallbackOrdered";
+    private static final String STATE_IMPORTED="imageorder.state.imported";
+
+    @Override protected void onSaveInstanceState(Bundle state){
+        ArrayList<String> keys=new ArrayList<>(ordered.keySet());
+        ArrayList<String> uriTexts=new ArrayList<>(keys.size());
+        for(String key:keys)uriTexts.add(ordered.get(key).toString());
+        state.putStringArrayList(STATE_KEYS,keys);
+        state.putStringArrayList(STATE_URIS,uriTexts);
+        state.putBoolean(STATE_ALBUM_TAB,albumsTab);
+        state.putString(STATE_ALBUM,activeAlbum);
+        state.putBoolean(STATE_FALLBACK_ORDERED,fallbackOrderedSelectionRequested);
+        ArrayList<String> imports=new ArrayList<>();
+        for(Photo photo:photos){
+            if(!photo.key.startsWith("fallback:"))continue;
+            imports.add(photo.key);
+            imports.add(photo.album);
+            imports.add(photo.name);
+            imports.add(photo.mime);
+            imports.add(photo.uri.toString());
+        }
+        state.putStringArrayList(STATE_IMPORTED,imports);
+        super.onSaveInstanceState(state);
+    }
+
+    /**
+     * Restore only verified tap order and small imported-picker metadata.
+     * Normal gallery contents are fetched afresh from MediaStore.
+     */
+    private boolean restorePickerState(Bundle state){
+        if(state==null)return false;
+        ArrayList<String> keys=state.getStringArrayList(STATE_KEYS);
+        ArrayList<String> uriTexts=state.getStringArrayList(STATE_URIS);
+        if(keys!=null && uriTexts!=null && keys.size()==uriTexts.size()){
+            for(int i=0;i<keys.size() && ordered.size()<maxSelection;i++){
+                String key=keys.get(i),value=uriTexts.get(i);
+                if(key!=null && !key.isEmpty() && value!=null && !value.isEmpty()
+                        && !ordered.containsKey(key))
+                    ordered.put(key,Uri.parse(value));
+            }
+        }
+        albumsTab=state.getBoolean(STATE_ALBUM_TAB,true);
+        activeAlbum=state.getString(STATE_ALBUM);
+        fallbackOrderedSelectionRequested=state.getBoolean(STATE_FALLBACK_ORDERED,false);
+        ArrayList<String> imports=state.getStringArrayList(STATE_IMPORTED);
+        if(imports==null || imports.isEmpty() || imports.size()%5!=0){
+            updateSelection();
+            return false;
+        }
+        for(int i=0;i<imports.size();i+=5){
+            if(imports.get(i)==null || imports.get(i+4)==null)continue;
+            Photo p=new Photo(imports.get(i),imports.get(i+1),imports.get(i+2),
+                imports.get(i+3),Uri.parse(imports.get(i+4)));
+            photos.add(p);
+            albums.computeIfAbsent(p.album,k->new ArrayList<>()).add(p);
+        }
+        if(photos.isEmpty())return false;
+        renderList();
+        hint.setText(t("선택 순서를 유지했습니다","Selection order restored"));
+        return true;
+    }
+
     private void makeUi(){
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(NAVY);
