@@ -93,7 +93,16 @@ public final class NativeGalleryActivity extends Activity {
         confirm=text(t("확인","Done"),16,BLUE,true);confirm.setGravity(Gravity.CENTER);
         top.addView(confirm,new LinearLayout.LayoutParams(dp(115),dp(48)));
         confirm.setContentDescription("imageorder.confirm");
-        confirm.setOnClickListener(v->finishSelection());
+        confirm.setOnTouchListener((v,event)->{
+            if(event.getActionMasked()==MotionEvent.ACTION_DOWN || event.getActionMasked()==MotionEvent.ACTION_UP)
+                android.util.Log.i("ImageOrderFlow","Confirm onTouch action="+event.getActionMasked()
+                    +" raw="+event.getRawX()+","+event.getRawY());
+            return false;
+        });
+        confirm.setOnClickListener(v->{
+            android.util.Log.i("ImageOrderFlow","Confirm OnClick delivered to NativeGallery");
+            finishSelection();
+        });
         hint=text(t("사진을 누른 순서대로 1, 2, 3… 번호가 매겨집니다", "Tap photos in order: 1, 2, 3…"),12,0xffbfc6cf,false);
         hint.setPadding(dp(19),0,dp(10),dp(9));root.addView(hint);
         grid=new GridView(this);grid.setNumColumns(3);grid.setVerticalSpacing(dp(7));grid.setHorizontalSpacing(dp(7));
@@ -130,6 +139,18 @@ public final class NativeGalleryActivity extends Activity {
         albumsTabView.setContentDescription("imageorder.albums");
         albumsTabView.setOnClickListener(v->{albumsTab=true;activeAlbum=null;renderList();});
         updateSelection();
+    }
+    @Override public boolean dispatchTouchEvent(MotionEvent event){
+        if(confirm!=null && (event.getActionMasked()==MotionEvent.ACTION_DOWN
+                || event.getActionMasked()==MotionEvent.ACTION_UP)){
+            Rect bounds=new Rect();
+            if(confirm.getGlobalVisibleRect(bounds) &&
+                bounds.contains((int)event.getRawX(),(int)event.getRawY()))
+                android.util.Log.i("ImageOrderFlow","Gallery received touch in confirm bounds action="
+                    +event.getActionMasked()+" x="+event.getRawX()+" y="+event.getRawY()
+                    +" bounds="+bounds);
+        }
+        return super.dispatchTouchEvent(event);
     }
     private View tile(int index){
         FrameLayout frame=new FrameLayout(this);frame.setBackgroundColor(CARD);
