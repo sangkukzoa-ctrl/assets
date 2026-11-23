@@ -84,6 +84,7 @@ public final class NativeGalleryActivity extends Activity {
         heading=text(t("앨범","Albums"),23,0xffffffff,true);top.addView(heading,new LinearLayout.LayoutParams(0,dp(48),1));
         confirm=text(t("확인","Done"),16,BLUE,true);confirm.setGravity(Gravity.CENTER);
         top.addView(confirm,new LinearLayout.LayoutParams(dp(115),dp(48)));
+        confirm.setContentDescription("imageorder.confirm");
         confirm.setOnClickListener(v->finishSelection());
         hint=text(t("사진을 누른 순서대로 1, 2, 3… 번호가 매겨집니다", "Tap photos in order: 1, 2, 3…"),12,0xffbfc6cf,false);
         hint.setPadding(dp(19),0,dp(10),dp(9));root.addView(hint);
@@ -116,7 +117,9 @@ public final class NativeGalleryActivity extends Activity {
         for(TextView v:new TextView[]{photosTab,albumsTabView}){
             v.setGravity(Gravity.CENTER);bottom.addView(v,new LinearLayout.LayoutParams(0,dp(54),1));
         }
+        photosTab.setContentDescription("imageorder.photos");
         photosTab.setOnClickListener(v->{albumsTab=false;activeAlbum=null;renderList();});
+        albumsTabView.setContentDescription("imageorder.albums");
         albumsTabView.setOnClickListener(v->{albumsTab=true;activeAlbum=null;renderList();});
         updateSelection();
     }
@@ -129,6 +132,7 @@ public final class NativeGalleryActivity extends Activity {
             folder=new ArrayList<>(albums.keySet()).get(index);
             ArrayList<Photo> group=albums.get(folder);p=group.get(0);count=group.size();
         }else p=displayed.get(index);
+        frame.setContentDescription(albumsTab ? "imageorder.album:"+folder : "imageorder.photo:"+p.name);
         ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.CENTER_CROP);
         image.setBackgroundColor(0xff2b333c);frame.addView(image,new FrameLayout.LayoutParams(-1,-1));
         Bitmap b=cache.get(p.key);

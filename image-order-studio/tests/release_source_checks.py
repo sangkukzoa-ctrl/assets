@@ -9,7 +9,7 @@ provider=(src/'OriginalImageProvider.java').read_text()
 mime=(src/'ImageMimePolicy.java').read_text()
 manifest=(p/'app/src/main/AndroidManifest.xml').read_text()
 gradle=(p/'app/build.gradle').read_text()
-assert "versionCode 10" in gradle and "versionName '0.5.4'" in gradle
+assert "versionCode 11" in gradle and "versionName '0.5.5'" in gradle
 assert "applicationId 'com.twobornot.imageorder'" in gradle
 assert 'android.permission.INTERNET' not in manifest
 assert 'BIND_ACCESSIBILITY_SERVICE' not in manifest and 'UploadAssistService' not in manifest
@@ -18,6 +18,18 @@ assert 'android:grantUriPermissions="true"' in manifest
 assert 'android.intent.action.GET_CONTENT' in manifest and 'android.intent.action.PICK' in manifest
 assert 'android.intent.category.LAUNCHER' in manifest
 assert 'android:mimeType="*/*"' in manifest
+# Cross-package permission tests MUST be a different applicationId, with no storage permission.
+external=p/'externalcaller'
+foreign_manifest=(external/'src/main/AndroidManifest.xml').read_text()
+assert "applicationId 'com.twobornot.imageorder.caller'" in (external/'build.gradle').read_text()
+assert "android.permission.READ_MEDIA_IMAGES" not in foreign_manifest and "android.permission.READ_EXTERNAL_STORAGE" not in foreign_manifest
+assert 'CrossAppMediaFixtureActivity' in (p/'app/src/debug/AndroidManifest.xml').read_text()
+assert 'CrossAppMediaFixtureActivity' not in manifest
+assert 'By.desc("imageorder.photo:"+names[index])' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()
+assert 'hadAccessBeforeUserSelection' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()
+assert 'imageorder.photo:' in native
+assert 'imageorder.confirm' in native
+
 assert '"*/*".equals(type)' in main
 # NativeGallery is now the launcher; no intermediate home/import step for normal use.
 assert '<activity android:name=".NativeGalleryActivity" android:exported="true"' in manifest
@@ -57,4 +69,4 @@ assert not (src/'OrderedOutbox.java').exists()
 assert 'OrderedOutbox' not in (src/'OrderedDocumentsProvider.java').read_text()
 assert 'queryRecentDocuments(' in (src/'OrderedDocumentsProvider.java').read_text()
 assert 'querySearchDocuments(' in (src/'OrderedDocumentsProvider.java').read_text()
-print('v0.5.4 original-byte MediaStore SAF, MIME, launcher and no accessibility: PASS')
+print('v0.5.5 original-byte SAF and independent cross-UID grant coverage: PASS')

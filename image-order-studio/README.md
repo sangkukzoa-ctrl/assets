@@ -17,3 +17,14 @@ For `ACTION_OPEN_DOCUMENT` callers, Android Files can now display Image Order St
 ## Build and release
 
 Gradle 8.11.1, Java 17, compileSdk 36, targetSdk 35. GitHub dev/release CI tests order, image types, SAF IDs, Android emulator original bytes, signed installation and public release integrity. Signed v0.5.4 beta is published only after all release gates pass. Signing identity must remain unchanged.
+
+
+### Independent external-app URI permission regression (v0.5.5)
+
+The included `:externalcaller` is a **separate appId/UID** with no READ_MEDIA_IMAGES.
+It tests `GET_CONTENT` for image-only and wildcard upload requests, uses UI Automator
+to tap three actual target-owned gallery images, and verifies only selected URI
+read grants, exact selection ordering, MIME, original names and SHA-256 contents.
+The target's media fixture is in `app/src/debug` only and is absent from signed
+release APK. Run `:app:connectedDebugAndroidTest`, reinstall `:app` debug and
+then `:externalcaller:connectedDebugAndroidTest` on one Android 35 emulator.
