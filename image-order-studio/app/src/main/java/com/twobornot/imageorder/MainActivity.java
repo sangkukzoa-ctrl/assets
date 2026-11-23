@@ -74,7 +74,7 @@ public class MainActivity extends Activity {
     private static boolean isExternalImageRequest(Intent intent) {
         if(intent==null)return false;
         String a=intent.getAction(), type=intent.getType();
-        if(Intent.ACTION_GET_CONTENT.equals(a))return type!=null && type.startsWith("image/");
+        if(Intent.ACTION_GET_CONTENT.equals(a))return type!=null && (type.startsWith("image/") || "*/*".equals(type));
         if(!Intent.ACTION_PICK.equals(a))return false;
         if(type!=null && (type.startsWith("image/") || type.contains("cursor.dir/image")))return true;
         Uri data=intent.getData();

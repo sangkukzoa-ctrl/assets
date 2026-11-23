@@ -17,6 +17,8 @@ assert 'NativeGalleryActivity' in manifest and 'OriginalImageProvider' in manife
 assert 'android:grantUriPermissions="true"' in manifest
 assert 'android.intent.action.GET_CONTENT' in manifest and 'android.intent.action.PICK' in manifest
 assert 'android.intent.category.LAUNCHER' in manifest
+assert 'android:mimeType="*/*"' in manifest
+assert '"*/*".equals(type)' in main
 # NativeGallery is now the launcher; no intermediate home/import step for normal use.
 assert '<activity android:name=".NativeGalleryActivity" android:exported="true"' in manifest
 assert 'launchedFromHome=Intent.ACTION_MAIN.equals(getIntent().getAction())' in native

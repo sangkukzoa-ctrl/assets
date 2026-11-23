@@ -9,7 +9,7 @@ final class ImageMimePolicy {
         String a=accept.trim().toLowerCase(Locale.ROOT);
         String m=actual.trim().toLowerCase(Locale.ROOT);
         if(!m.startsWith("image/"))return false;
-        return ("image/*".equals(a) || a.equals(m));
+        return ("image/*".equals(a) || "*/*".equals(a) || a.equals(m));
     }
     static boolean accepts(String requested,String[] acceptedTypes,String actual) {
         if(actual==null||!actual.toLowerCase(Locale.ROOT).startsWith("image/"))return false;

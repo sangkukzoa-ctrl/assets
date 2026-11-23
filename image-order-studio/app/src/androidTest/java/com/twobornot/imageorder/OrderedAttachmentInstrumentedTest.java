@@ -267,6 +267,15 @@ public class OrderedAttachmentInstrumentedTest {
                 && MainActivity.class.getName().equals(info.activityInfo.name))found=true;
         }
         assertTrue("Image Order Studio must resolve for image/jpeg GET_CONTENT",found);
+        Intent generic=new Intent(Intent.ACTION_GET_CONTENT);
+        generic.setType("*/*");generic.addCategory(Intent.CATEGORY_OPENABLE);
+        generic.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"image/png","image/jpeg"});
+        boolean genericFound=false;
+        for(ResolveInfo info:ctx.getPackageManager().queryIntentActivities(generic,0)){
+            if(info.activityInfo!=null && ctx.getPackageName().equals(info.activityInfo.packageName)
+                && MainActivity.class.getName().equals(info.activityInfo.name))genericFound=true;
+        }
+        assertTrue("Generic */* uploaders must also offer this image gallery",genericFound);
     }
     private static byte[] readAll(ContentResolver cr,Uri uri) throws Exception {
         try(InputStream in=cr.openInputStream(uri);ByteArrayOutputStream out=new ByteArrayOutputStream()) {

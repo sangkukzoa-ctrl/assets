@@ -6,7 +6,7 @@ Android 8+ · `com.twobornot.imageorder` · by 2bornot · no ads · no network p
 
 ## Original photos, zero edits
 
-Compatible `ACTION_GET_CONTENT` and `ACTION_PICK` requests launch the app's gallery, where numbered overlays show **tap order only**. The result is a grantable `ClipData` containing the **original MediaStore URIs, in that order**. No compression, modification, stamping, merge, renaming or copy of photos takes place in the primary upload path.
+Compatible `ACTION_GET_CONTENT` (including generic `*/*` upload requests) and `ACTION_PICK` requests launch the app's gallery, where numbered overlays show **tap order only**. The result is a grantable `ClipData` containing the **original MediaStore URIs, in that order**. No compression, modification, stamping, merge, renaming or copy of photos takes place in the primary upload path.
 
 The launcher opens the same gallery; Done opens the normal Android sharing sheet for original photos.
 
