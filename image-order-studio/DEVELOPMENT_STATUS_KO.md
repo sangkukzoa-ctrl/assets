@@ -99,3 +99,13 @@
 - 별도 UID의 원본 MIME/파일명/SHA-256 및 읽기 권한도 검증한다.
 - WebView는 실제 Chrome 브라우저가 아니므로 양쪽을 구분하고, Chrome과 삼성 인터넷의 실기기 개별 검증은 별도 항목으로 남긴다.
 - Android 16(API 36)을 기존 Android 13/14/15 외부 APK 테스트 매트릭스에 추가했다. `ACTION_PICK` MIME+URI 및 URI-only 입력을 별도 외부 앱 테스트로 추가했다.
+
+## WebView 다중 선택: Chromium 기본 파서 결함 진단 (2026-11-23)
+
+- Android 13/14/15/16에서 앱 내부 8개, 일반 독립 앱의 외부 GET_CONTENT/ACTION_PICK 7개는 모두 성공했으나 신규 WebView HTML 첨부 테스트에서 `RESULT_OK=-1`임에도 `FileChooserParams.parseResult()`가 `null`을 반환.
+- Chromium `AwContentsClient.parseFileChooserResult` 구현이 `intent.getData()`만 읽는 현상을 공식 소스 및 사례에서 확인. `ClipData`에 들어 있는 여러 이미지 URI를 무시하여 한 장도 전달하지 않는 경로가 발생.
+- 이 문제를 숨기기 위해 Image Order 출력 이미지를 병합하거나 이름을 바꾸지 않는다. 정상 다중 파일 선택 결과는 Android 표준 `ClipData`(사용자가 누른 순서)와 읽기 권한으로 그대로 제공.
+- 독립 WebView QA 호스트에는 `OrderedWebFileChooserResult`를 추가해 `ClipData` 우선, 단일 `Intent.data` 보조로 파싱하도록 수정. 실제 HTML `input.files`의 5개 파일 이름·형식·크기 순서가 유지되는지 실증한다.
+- 이 호스트 측 수정이 외부 Chrome, 다른 앱의 낡은 WebChromeClient를 자동 교체하지는 않는다. 수신자가 `ClipData`를 무시하는 경우 단일 URI 제공만으로는 다중 사진 보장을 충족하지 못한다.
+- Chromium 구현: https://chromium.googlesource.com/chromium/src/+/refs/heads/main/android_webview/java/src/org/chromium/android_webview/AwContentsClient.java
+- 실제 WebView 앱 사례: https://github.com/home-assistant/android/issues/7548

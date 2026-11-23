@@ -27,6 +27,8 @@ assert 'WebUploadCallerActivity' not in manifest
 html_host=(external/'src/main/java/com/twobornot/imageorder/caller/WebUploadCallerActivity.java').read_text()
 assert "type='file'" in html_host and 'multiple' in html_host
 assert 'WebChromeClient.FileChooserParams.parseResult' in html_host
+assert 'OrderedWebFileChooserResult.parse(result,data)' in html_host
+assert 'data.getClipData()' in (external/'src/main/java/com/twobornot/imageorder/caller/OrderedWebFileChooserResult.java').read_text()
 assert 'https://imageorder-local.invalid/' in html_host
 assert 'WebUploadCallerTest.java' in {x.name for x in (external/'src/androidTest/java/com/twobornot/imageorder/caller').iterdir()}
 assert 'localHtmlMultiUploadPreservesOriginalFilesAndTapOrder' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/WebUploadCallerTest.java').read_text()

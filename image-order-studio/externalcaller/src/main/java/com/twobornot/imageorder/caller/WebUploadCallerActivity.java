@@ -31,7 +31,7 @@ public final class WebUploadCallerActivity extends Activity {
     private static final String FIXTURE=TARGET+".CrossAppMediaFixtureActivity";
     private static final int SEED=601, PICK=602;
     public static volatile String[] names,uriStrings,hashes,mimes;
-    public static volatile Uri[] parsedUris;
+    public static volatile Uri[] parsedUris,frameworkParsedUris;
     public static volatile Intent rawResult;
     public static volatile int rawCode;
     public static volatile String domFilesJson,error;
@@ -43,7 +43,7 @@ public final class WebUploadCallerActivity extends Activity {
 
     public static void reset(){
         names=null;uriStrings=null;hashes=null;mimes=null;
-        parsedUris=null;rawResult=null;rawCode=RESULT_CANCELED;
+        parsedUris=null;frameworkParsedUris=null;rawResult=null;rawCode=RESULT_CANCELED;
         domFilesJson=null;error=null;tapX=0;tapY=0;
         ready=new CountDownLatch(1);
         finished=new CountDownLatch(1);
@@ -70,7 +70,15 @@ public final class WebUploadCallerActivity extends Activity {
             openLocalWebView();
         }else if(request==PICK){
             rawResult=data;rawCode=result;
-            parsedUris=WebChromeClient.FileChooserParams.parseResult(result,data);
+            // Chromium's framework parser can ignore ClipData (multiple selection).
+            // Preserve the exact ordered ClipData for our independent HTML host.
+            frameworkParsedUris=WebChromeClient.FileChooserParams.parseResult(result,data);
+            parsedUris=OrderedWebFileChooserResult.parse(result,data);
+            Log.i("ImageOrderWeb","WebView framework parser count="
+                +(frameworkParsedUris==null?0:frameworkParsedUris.length)
+                +"; ordered result count="+(parsedUris==null?0:parsedUris.length)
+                +"; clip="+(data!=null && data.getClipData()!=null
+                    ?data.getClipData().getItemCount():0));
             if(chooser!=null){
                 chooser.onReceiveValue(parsedUris);
                 chooser=null;

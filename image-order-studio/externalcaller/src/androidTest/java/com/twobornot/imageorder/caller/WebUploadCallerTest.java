@@ -78,8 +78,13 @@ public final class WebUploadCallerTest {
             assertTrue((WebUploadCallerActivity.rawResult.getFlags()
                 & Intent.FLAG_GRANT_READ_URI_PERMISSION)!=0);
             Uri[] actual=WebUploadCallerActivity.parsedUris;
-            assertNotNull("FileChooserParams.parseResult",actual);
+            assertNotNull("Ordered ClipData compatibility parser must return all files",actual);
             assertEquals(5,actual.length);
+            Uri[] framework=WebUploadCallerActivity.frameworkParsedUris;
+            if(framework!=null){
+                assertTrue("Framework may parse only one file; fallback must preserve all",
+                    framework.length<=actual.length);
+            }
             JSONArray html=new JSONArray(WebUploadCallerActivity.domFilesJson);
             assertEquals("Real DOM input.files length",5,html.length());
             ContentResolver cr=ctx.getContentResolver();
