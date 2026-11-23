@@ -10,7 +10,7 @@ import java.util.concurrent.CountDownLatch;
 
 /** Truly separate UID and APK: asks Image Order to pick original photos. */
 public final class AttachmentCallerActivity extends Activity {
-    public static volatile String[] names,uriStrings,hashes;
+    public static volatile String[] names,uriStrings,hashes,mimes;
     public static volatile boolean hadAccessBeforeUserSelection;
     public static volatile int resultCode;
     public static volatile Intent resultData;
@@ -28,6 +28,8 @@ public final class AttachmentCallerActivity extends Activity {
         allowMultiple=getIntent().getBooleanExtra("allowMultiple",true);
         if(requestedType==null)requestedType="image/png";
         Intent seed=new Intent();seed.setComponent(new ComponentName(TARGET,FIXTURE));
+        seed.putExtra("test_count",getIntent().getIntExtra("testCount",3));
+        seed.putExtra("test_mixed",getIntent().getBooleanExtra("testMixed",false));
         try{startActivityForResult(seed,SEED);}
         catch(Exception ex){error="Fixture start: "+ex;done.countDown();}
     }
@@ -39,6 +41,7 @@ public final class AttachmentCallerActivity extends Activity {
             names=returned.getStringArrayExtra("test_names");
             uriStrings=returned.getStringArrayExtra("test_uri_strings");
             hashes=returned.getStringArrayExtra("test_sha256");
+            mimes=returned.getStringArrayExtra("test_mimes");
             try {
                 // The first access MUST fail: this APK has no media permission and the
                 // seeder only returned strings, without any content URI read grant.
@@ -58,7 +61,7 @@ public final class AttachmentCallerActivity extends Activity {
         }
     }
     public static void reset(){
-        names=null;uriStrings=null;hashes=null;error=null;resultData=null;
+        names=null;uriStrings=null;hashes=null;mimes=null;error=null;resultData=null;
         resultCode=RESULT_CANCELED;hadAccessBeforeUserSelection=false;
         done=new CountDownLatch(1);
     }

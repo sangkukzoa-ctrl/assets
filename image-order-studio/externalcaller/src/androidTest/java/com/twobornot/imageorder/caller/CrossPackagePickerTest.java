@@ -33,6 +33,7 @@ public final class CrossPackagePickerTest {
     private static final String TARGET="com.twobornot.imageorder";
     private static final String FIXTURE=TARGET+".CrossAppMediaFixtureActivity";
     private static final int[] TAP_ORDER={2,0,1};
+    private static final int[] FIVE_ORDER={4,1,3,0,2};
 
     @Test public void actualExternalAppGetsReadableOriginalsInTapOrder() throws Exception {
         verifyCrossUidRoundTrip("image/png");
@@ -47,10 +48,16 @@ public final class CrossPackagePickerTest {
     @Test public void singleImageRequestReturnsOriginalWithReadGrant() throws Exception {
         verifyCrossUidRoundTrip("image/png",false);
     }
+    @Test public void fiveMixedMimeOriginalsKeepExplicitTapOrderAcrossApps() throws Exception {
+        verifyCrossUidRoundTrip("image/*",true,5,true);
+    }
     private void verifyCrossUidRoundTrip(String requestedMime) throws Exception {
         verifyCrossUidRoundTrip(requestedMime,true);
     }
     private void verifyCrossUidRoundTrip(String requestedMime,boolean allowMultiple) throws Exception {
+        verifyCrossUidRoundTrip(requestedMime,allowMultiple,3,false);
+    }
+    private void verifyCrossUidRoundTrip(String requestedMime,boolean allowMultiple,int fixtureCount,boolean mixed) throws Exception {
         Instrumentation instrumentation=InstrumentationRegistry.getInstrumentation();
         Context context=instrumentation.getTargetContext();
         PackageManager pm=context.getPackageManager();
@@ -65,6 +72,8 @@ public final class CrossPackagePickerTest {
         Intent start=new Intent(context,AttachmentCallerActivity.class);
         start.putExtra("requestedMime",requestedMime);
         start.putExtra("allowMultiple",allowMultiple);
+        start.putExtra("testCount",fixtureCount);
+        start.putExtra("testMixed",mixed);
         // Every case must start a clean caller task. In API 34 a prior failed case can
         // leave its old Activity on the task stack, bypassing fixture onCreate.
         start.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
@@ -95,10 +104,12 @@ public final class CrossPackagePickerTest {
             }
             if(names==null)captureFailure(instrumentation,requestedMime,"fixture-metadata-missing");
             assertNotNull("Target-owned photo fixtures must be returned as metadata",names);
-            assertEquals(3,names.length);
+            assertEquals(fixtureCount,names.length);
+            assertNotNull("Fixture must also supply real MIME types",AttachmentCallerActivity.mimes);
+            assertEquals(fixtureCount,AttachmentCallerActivity.mimes.length);
             assertFalse("Before user selection caller must NOT be able to open target-owned files",
                 AttachmentCallerActivity.hadAccessBeforeUserSelection);
-            int[] selectedOrder=allowMultiple?TAP_ORDER:new int[]{TAP_ORDER[0]};
+            int[] selectedOrder=!allowMultiple?new int[]{TAP_ORDER[0]}:fixtureCount==5?FIVE_ORDER:TAP_ORDER;
             for(int index:selectedOrder) {
                 clickFresh(device,"imageorder.photo:"+names[index],30000);
             }
@@ -106,8 +117,8 @@ public final class CrossPackagePickerTest {
             if(allowMultiple) {
             UiObject2 done=device.wait(Until.findObject(By.desc("imageorder.confirm")),15000);
             assertNotNull("Gallery Done button",done);
-            assertTrue("Three taps must be recognized before returning. Actual label: "+done.getText(),
-                done.getText()!=null && done.getText().trim().endsWith("3"));
+            assertTrue("All taps must be recognized before returning. Actual label: "+done.getText(),
+                done.getText()!=null && done.getText().trim().endsWith(String.valueOf(selectedOrder.length)));
             // Distinguish input routing problems from cross-UID result/grant failures.
             android.graphics.Rect doneRect=done.getVisibleBounds();
             android.util.Log.i("ImageOrderFlow","Confirm probe: bounds="+doneRect
@@ -149,6 +160,7 @@ public final class CrossPackagePickerTest {
             assertEquals(Activity.RESULT_OK,AttachmentCallerActivity.resultCode);
             Intent result=AttachmentCallerActivity.resultData;
             assertNotNull(result);
+            assertEquals("Intent MIME must describe the original collection",mixed?"image/*":"image/png",result.getType());
             assertTrue("Result must include URI grant",(result.getFlags()&Intent.FLAG_GRANT_READ_URI_PERMISSION)!=0);
             assertEquals(0,result.getFlags()&Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
             ClipData clip=result.getClipData();assertNotNull(clip);
@@ -162,7 +174,7 @@ public final class CrossPackagePickerTest {
                 assertEquals("No image substitution or reordering",
                     android.content.ContentUris.parseId(Uri.parse(AttachmentCallerActivity.uriStrings[source])),
                     android.content.ContentUris.parseId(uri));
-                assertEquals("image/png",cr.getType(uri));
+                assertEquals("Original MIME must not be substituted",AttachmentCallerActivity.mimes[source],cr.getType(uri));
                 assertEquals("Temporary read grant must be received in foreign UID",
                     PackageManager.PERMISSION_GRANTED,
                     context.checkUriPermission(uri,android.os.Process.myPid(),android.os.Process.myUid(),Intent.FLAG_GRANT_READ_URI_PERMISSION));

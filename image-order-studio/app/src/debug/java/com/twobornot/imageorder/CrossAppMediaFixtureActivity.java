@@ -21,6 +21,7 @@ public final class CrossAppMediaFixtureActivity extends Activity {
     public static final String EXTRA_NAMES="test_names";
     public static final String EXTRA_URIS="test_uri_strings";
     public static final String EXTRA_HASHES="test_sha256";
+    public static final String EXTRA_MIMES="test_mimes";
     public static final String EXTRA_CLEAN="test_cleanup_uri_strings";
     private static final String PATH=Environment.DIRECTORY_PICTURES+"/ImageOrderCrossAppCI";
 
@@ -37,24 +38,30 @@ public final class CrossAppMediaFixtureActivity extends Activity {
                 setResult(RESULT_OK);
                 finish();return;
             }
-            ArrayList<String> names=new ArrayList<>(),uris=new ArrayList<>(),hashes=new ArrayList<>();
+            ArrayList<String> names=new ArrayList<>(),uris=new ArrayList<>(),hashes=new ArrayList<>(),mimes=new ArrayList<>();
+            int count=Math.max(1,Math.min(8,getIntent().getIntExtra("test_count",3)));
+            boolean mixed=getIntent().getBooleanExtra("test_mixed",false);
             Uri collection=MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
             long runId=System.nanoTime();
-            for(int i=0;i<3;i++){
+            for(int i=0;i<count;i++){
+                Bitmap.CompressFormat format=Bitmap.CompressFormat.PNG;
+                String mime="image/png",extension="png";
+                if(mixed && i%3==1){format=Bitmap.CompressFormat.JPEG;mime="image/jpeg";extension="jpg";}
+                if(mixed && i%3==2){format=Bitmap.CompressFormat.WEBP_LOSSLESS;mime="image/webp";extension="webp";}
                 Bitmap image=Bitmap.createBitmap(19,17,Bitmap.Config.ARGB_8888);
                 image.eraseColor(0xff224466+(i*0x00070b0d));
                 ByteArrayOutputStream data=new ByteArrayOutputStream();
-                if(!image.compress(Bitmap.CompressFormat.PNG,100,data))throw new IllegalStateException("PNG fixture");
+                if(!image.compress(format,100,data))throw new IllegalStateException("Image fixture "+mime);
                 image.recycle();byte[] bytes=data.toByteArray();
-                String name="imageorder_crossuid_"+runId+"_"+i+".png";
+                String name="imageorder_crossuid_"+runId+"_"+i+"."+extension;
                 ContentValues meta=new ContentValues();
                 meta.put(MediaStore.Images.Media.DISPLAY_NAME,name);
-                meta.put(MediaStore.Images.Media.MIME_TYPE,"image/png");
+                meta.put(MediaStore.Images.Media.MIME_TYPE,mime);
                 meta.put(MediaStore.Images.Media.RELATIVE_PATH,PATH);
                 meta.put(MediaStore.Images.Media.IS_PENDING,1);
                 Uri uri=getContentResolver().insert(collection,meta);
                 if(uri==null)throw new IllegalStateException("MediaStore insert failed");
-                uris.add(uri.toString()); names.add(name); hashes.add(hex(MessageDigest.getInstance("SHA-256").digest(bytes)));
+                uris.add(uri.toString()); names.add(name);mimes.add(mime); hashes.add(hex(MessageDigest.getInstance("SHA-256").digest(bytes)));
                 try(OutputStream os=getContentResolver().openOutputStream(uri,"w")){
                     if(os==null)throw new IllegalStateException("MediaStore stream missing");
                     os.write(bytes);
@@ -66,6 +73,7 @@ public final class CrossAppMediaFixtureActivity extends Activity {
             result.putExtra(EXTRA_NAMES,names.toArray(new String[0]));
             result.putExtra(EXTRA_URIS,uris.toArray(new String[0]));
             result.putExtra(EXTRA_HASHES,hashes.toArray(new String[0]));
+            result.putExtra(EXTRA_MIMES,mimes.toArray(new String[0]));
             // No data URI, ClipData, or FLAG_GRANT_READ_URI_PERMISSION here!
             setResult(RESULT_OK,result);
         }catch(Exception e){

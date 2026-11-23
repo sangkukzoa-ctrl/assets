@@ -25,8 +25,9 @@ assert "applicationId 'com.twobornot.imageorder.caller'" in (external/'build.gra
 assert "android.permission.READ_MEDIA_IMAGES" not in foreign_manifest and "android.permission.READ_EXTERNAL_STORAGE" not in foreign_manifest
 assert 'CrossAppMediaFixtureActivity' in (p/'app/src/debug/AndroidManifest.xml').read_text()
 assert 'CrossAppMediaFixtureActivity' not in manifest
-assert 'By.desc("imageorder.photo:"+names[index])' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()
+assert 'clickFresh(device,"imageorder.photo:"+names[index]' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()
 assert 'hadAccessBeforeUserSelection' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()
+assert 'fiveMixedMimeOriginalsKeepExplicitTapOrderAcrossApps' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()
 assert 'imageorder.photo:' in native
 assert 'imageorder.confirm' in native
 
