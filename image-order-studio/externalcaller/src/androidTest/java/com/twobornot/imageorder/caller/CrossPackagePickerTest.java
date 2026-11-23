@@ -121,7 +121,7 @@ public final class CrossPackagePickerTest {
     }
     private static String hex(byte[] bytes){
         char[] h="0123456789abcdef".toCharArray();StringBuilder o=new StringBuilder(bytes.length*2);
-        for(byte b:bytes){o.append(h.charAt((b>>>4)&15));o.append(h.charAt(b&15));}
+        for(byte b:bytes){o.append(h[(b>>>4)&15]);o.append(h[b&15]);}
         return o.toString();
     }
 }
