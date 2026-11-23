@@ -1,4 +1,4 @@
-# Image Order Studio — 지속 개발 및 세션 이관 상태 (2026-11-23)
+# Image Order — 지속 개발 및 세션 이관 상태 (2026-11-23)
 
 ## 변하지 않는 최종 목표
 [PROJECT_GOAL_KO.md](PROJECT_GOAL_KO.md)의 목표를 **그대로** 따른다.
@@ -21,6 +21,15 @@
 4. `app/src/debug/.../PickerHostActivity.java`: **디버그 빌드 전용** 첨부 요청자. 정식 APK에는 포함되지 않는다.
 5. `OrderedAttachmentInstrumentedTest.java`: Android 실제 MediaStore 파일의 SAF 원본 바이트/파일명/MIME/읽기 전용 접근 + 앱 내 디버그 호출자가 사진 3→1→2를 탭한 뒤 RESULT_OK로 돌려받는 전체 흐름 테스트. 기존 tests와 합하여 5개 Android 계측 테스트 성공.
 6. `.github/workflows/image-order-beta-release.yml`: GitHub runner `dumpsys package`의 상대 액티비티 이름 처리 복원, `gradle -p image-order-studio` 유지. **원본 소스 ZIP에 들어 있던 과거 CI 설정을 그대로 덮어쓰지 않는다**.
+
+## 2026-11-23 Image Order 2차 승계
+
+- 개발 기준 커밋: 6913cc5db0b4f5afc90979834013fee0a8198fd7
+- 새 개발 브랜치: image-order/dev-v2 (기존 개발 브랜치와 충돌 방지)
+- 공개 v0.5.4, 진행 중 v0.5.5.
+- Cross-UID E2E run 45141927988: 본 앱 5/5 통과, 외부 패키지 0/2 실패.
+- 이후 비동기 실행 패치 승계, CI 실패 증거 logcat 및 Activity task dump 추가.
+- 외부 패키지 원본 전달이 검증되기 전 v0.5.5 공개 배포 보류.
 
 ## 미완료로 유지할 항목
 - **실제 다른 패키지/다른 UID의 첨부 요청자가** URI 읽기 권한을 수령해 바이트/순서를 읽는 외부 APK 기반 E2E 테스트. 현재 테스트 호출자는 앱의 debug 전용 Activity이므로 동일 패키지다. 이 구분을 혼동하지 않는다.

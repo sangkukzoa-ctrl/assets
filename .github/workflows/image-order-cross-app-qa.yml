@@ -1,7 +1,7 @@
-name: Image Order Studio - Independent Android Cross-App E2E
+name: Image Order - Independent Android Cross-App E2E
 on:
   push:
-    branches: ['image-order-studio/dev']
+    branches: ['image-order-studio/dev', 'image-order/dev-v2']
     paths:
       - 'image-order-studio/**'
       - '.github/workflows/image-order-cross-app-qa.yml'
@@ -40,6 +40,11 @@ jobs:
           emulator-options: '-no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect'
           script: |
             set -e
+            capture_e2e_logs() {
+              adb logcat -d -v time > image-order-studio/android-e2e-logcat.txt 2>&1 || true
+              adb shell dumpsys activity activities > image-order-studio/android-e2e-activities.txt 2>&1 || true
+            }
+            trap capture_e2e_logs EXIT
             gradle -p image-order-studio --no-daemon :app:connectedDebugAndroidTest --stacktrace
             adb install -r image-order-studio/app/build/outputs/apk/debug/app-debug.apk
             adb shell pm grant com.twobornot.imageorder android.permission.READ_MEDIA_IMAGES
@@ -49,12 +54,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ImageOrderStudio-crossUID-qa-reports
+          name: ImageOrder-crossUID-qa-reports
           path: |
             image-order-studio/app/build/outputs/androidTest-results/connected/
             image-order-studio/app/build/reports/androidTests/connected/
             image-order-studio/externalcaller/build/outputs/androidTest-results/connected/
             image-order-studio/externalcaller/build/reports/androidTests/connected/
             image-order-studio/android-e2e-crashes.log
+            image-order-studio/android-e2e-logcat.txt
+            image-order-studio/android-e2e-activities.txt
           if-no-files-found: warn
           retention-days: 14

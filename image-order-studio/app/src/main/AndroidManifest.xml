@@ -10,7 +10,7 @@
         <package android:name="com.sec.android.gallery3d" />
         <intent><action android:name="android.intent.action.GET_CONTENT" /><data android:mimeType="image/*" /></intent>
     </queries>
-    <application android:allowBackup="false" android:label="Image Order Studio" android:icon="@drawable/ic_launcher" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:usesCleartextTraffic="false">
+    <application android:allowBackup="false" android:label="Image Order" android:icon="@drawable/ic_launcher" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:usesCleartextTraffic="false">
         <activity android:name=".NativeGalleryActivity" android:exported="true" android:screenOrientation="unspecified">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -64,7 +64,7 @@
             android:permission="android.permission.MANAGE_DOCUMENTS">
             <intent-filter><action android:name="android.content.action.DOCUMENTS_PROVIDER" /></intent-filter>
         </provider>
-        <service android:name=".OrderTileService" android:label="Image Order Studio"
+        <service android:name=".OrderTileService" android:label="Image Order"
             android:icon="@drawable/ic_launcher" android:exported="true"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE" /></intent-filter>

@@ -88,7 +88,7 @@ public class MainActivity extends Activity {
         root.setBackgroundColor(0xfff3f6fa);setContentView(root);
         LinearLayout header=new LinearLayout(this);header.setPadding(dp(18),dp(18),dp(18),dp(13));
         header.setOrientation(LinearLayout.VERTICAL);header.setBackgroundColor(NAVY);root.addView(header);
-        TextView title=text(externalMode?t("사진 첨부 · 순서 지정","Attach images · set order"):"Image Order Studio",23,0xffffffff,true);header.addView(title);
+        TextView title=text(externalMode?t("사진 첨부 · 순서 지정","Attach images · set order"):"Image Order",23,0xffffffff,true);header.addView(title);
         subtitle=text(externalMode?t("원본 사진 선택 → 그대로 첨부", "Select original images → attach unchanged"):
             t("원본 그대로 · 선택 순서대로", "Original files · selected order"),12,0xffcbd8ee,false);
         header.addView(subtitle);
@@ -305,8 +305,8 @@ public class MainActivity extends Activity {
         try {
             Intent gallery=getPackageManager().getLaunchIntentForPackage(SAMSUNG_GALLERY);
             if(gallery==null)throw new android.content.ActivityNotFoundException("Samsung Gallery not installed");
-            toastDialog(t("삼성 갤러리에서 사진을 선택한 뒤 '공유' → Image Order Studio를 선택하세요.",
-                "Select images in Samsung Gallery, then Share → Image Order Studio."));
+            toastDialog(t("삼성 갤러리에서 사진을 선택한 뒤 '공유' → Image Order를 선택하세요.",
+                "Select images in Samsung Gallery, then Share → Image Order."));
             startActivity(gallery);
         }catch(Exception e){toastDialog(t("삼성 갤러리를 찾지 못했습니다. '갤러리에서 선택'을 이용하세요.",
             "Samsung Gallery unavailable. Use Gallery / albums instead."));}
@@ -547,7 +547,7 @@ public class MainActivity extends Activity {
             if(item!=null)text.append(String.format(Locale.ROOT,"%04d / %04d  %s\n",n+1,ids.size(),item.name));
         }
         ((android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE))
-            .setPrimaryClip(ClipData.newPlainText("Image Order Studio",text.toString()));
+            .setPrimaryClip(ClipData.newPlainText("Image Order",text.toString()));
         toastDialog(t("선택한 이미지 순서를 복사했습니다.","Image sequence copied to clipboard."));
     }
     /** Shares the original bitstreams with their original names and MIME types. */

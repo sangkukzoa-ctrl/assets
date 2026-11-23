@@ -21,7 +21,7 @@ final class MediaIntentResult {
         Intent out=new Intent();
         if(uris.size()==1)out.setDataAndType(Objects.requireNonNull(uris.get(0)),mime);
         else out.setType(mime);
-        ClipData clip=new ClipData("Image Order Studio",new String[]{mime,"image/*"},
+        ClipData clip=new ClipData("Image Order",new String[]{mime,"image/*"},
             new ClipData.Item(Objects.requireNonNull(uris.get(0))));
         for(int i=1;i<uris.size();i++)clip.addItem(new ClipData.Item(Objects.requireNonNull(uris.get(i))));
         out.setClipData(clip);

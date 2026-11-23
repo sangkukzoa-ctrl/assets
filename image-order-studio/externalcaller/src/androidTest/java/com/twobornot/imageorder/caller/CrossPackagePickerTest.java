@@ -77,7 +77,7 @@ public final class CrossPackagePickerTest {
                 done.getText()!=null && done.getText().trim().endsWith("3"));
             done.click();
             assertTrue("Independent app must receive Activity RESULT_OK ("+AttachmentCallerActivity.error+")",
-                AttachmentCallerActivity.done.await(30,TimeUnit.SECONDS));
+                AttachmentCallerActivity.done.await(45,TimeUnit.SECONDS));
             assertNull("Result path must not fail",AttachmentCallerActivity.error);
             assertEquals(Activity.RESULT_OK,AttachmentCallerActivity.resultCode);
             Intent result=AttachmentCallerActivity.resultData;

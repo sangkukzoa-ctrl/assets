@@ -48,7 +48,7 @@ assert 'if(externalMode)cancelExternal();' in main
 assert 'path.contains("images")' in main # MIME-less ACTION_PICK handling
 assert 'OriginalImageProvider.uriFor(this,store,item)' in main # legacy imported shares
 # Both direct and legacy forms provide correct image ClipData, ordered URIs and grants.
-assert 'new ClipData("Image Order Studio",new String[]{mime,"image/*"}' in helper
+assert 'new ClipData("Image Order",new String[]{mime,"image/*"}' in helper
 assert 'Intent.FLAG_GRANT_READ_URI_PERMISSION' in helper
 assert 'intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM,' in helper
 assert 'new ClipData.Item' in helper

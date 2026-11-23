@@ -20,7 +20,7 @@ import java.util.Locale;
 /** Read-only SAF source for the REAL MediaStore images, not numbered/exported copies.
  *
  * The Android Files UI controls multi-selection; the full tap-ordered result is available
- * from Image Order Studio's normal native gallery for GET_CONTENT/PICK integrations.
+ * from Image Order's normal native gallery for GET_CONTENT/PICK integrations.
  * This provider supplies original bytes, names, MIME and thumbnails for OPEN_DOCUMENT.
  */
 public final class OrderedDocumentsProvider extends DocumentsProvider {
@@ -50,7 +50,7 @@ public final class OrderedDocumentsProvider extends DocumentsProvider {
     @Override public Cursor queryRoots(String[] projection) {
         MatrixCursor out=new MatrixCursor(projection==null?ROOT_COLUMNS:projection);
         String[] keys=ROOT_COLUMNS;
-        Object[] vals={"images",SafDocumentIds.ROOT,"Image Order Studio",
+        Object[] vals={"images",SafDocumentIds.ROOT,"Image Order",
             "Original photos · use app to grant photo access",
             DocumentsContract.Root.FLAG_LOCAL_ONLY|DocumentsContract.Root.FLAG_SUPPORTS_RECENTS|DocumentsContract.Root.FLAG_SUPPORTS_SEARCH,
             "image/*",R.drawable.ic_launcher};
@@ -59,7 +59,7 @@ public final class OrderedDocumentsProvider extends DocumentsProvider {
     }
     @Override public Cursor queryDocument(String documentId,String[] projection) throws FileNotFoundException {
         MatrixCursor out=new MatrixCursor(projection==null?DOC_COLUMNS:projection);
-        if(SafDocumentIds.ROOT.equals(documentId))folder(out,documentId,"Image Order Studio");
+        if(SafDocumentIds.ROOT.equals(documentId))folder(out,documentId,"Image Order");
         else if(SafDocumentIds.ALL.equals(documentId))folder(out,documentId,"All photos · 전체 사진");
         else if(SafDocumentIds.isAlbum(documentId)){
             final String bucket;
