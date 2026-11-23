@@ -62,6 +62,33 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs --min-sdk-version 26 app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | grep -E "package: name='com.twobornot.imageorder' versionCode='11' versionName='0.5.5'"
           sha256sum app/build/outputs/apk/debug/app-debug.apk
+      - name: Package complete v0.5.5 development source (tracked files only)
+        working-directory: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          git archive --format=zip --output=ImageOrder-v0.5.5-development-source.zip HEAD \
+            image-order-studio \
+            .github/workflows/image-order-ci.yml \
+            .github/workflows/image-order-cross-app-qa.yml \
+            .github/workflows/image-order-beta-release.yml
+          python3 - <<'PY'
+          from zipfile import ZipFile
+          with ZipFile('ImageOrder-v0.5.5-development-source.zip') as z:
+              names=z.namelist()
+              assert z.testzip() is None
+              assert 'image-order-studio/app/src/main/java/com/twobornot/imageorder/NativeGalleryActivity.java' in names
+              assert 'image-order-studio/externalcaller/src/androidTest/java/com/twobornot/imageorder/caller/WebUploadCallerTest.java' in names
+              assert 'image-order-studio/PROJECT_GOAL_KO.md' in names
+              assert not any(name.endswith(('.p12','.jks','.keystore','.key')) for name in names)
+          PY
+          sha256sum ImageOrder-v0.5.5-development-source.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ImageOrder-v0.5.5-complete-source
+          path: ImageOrder-v0.5.5-development-source.zip
+          retention-days: 14
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: ImageOrder-v0.5.5-ci-only
