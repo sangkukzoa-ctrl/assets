@@ -312,6 +312,18 @@ public class OrderedAttachmentInstrumentedTest {
         }
     }
 
+    @Test public void actionPickUriOnlyResolvesNativeGallery() {
+        Context ctx=InstrumentationRegistry.getInstrumentation().getTargetContext();
+        Intent pick=new Intent(Intent.ACTION_PICK,MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        pick.setPackage(ctx.getPackageName());
+        boolean found=false;
+        for(ResolveInfo info:ctx.getPackageManager().queryIntentActivities(pick,0)){
+            if(info.activityInfo!=null && ctx.getPackageName().equals(info.activityInfo.packageName)
+                && NativeGalleryActivity.class.getName().equals(info.activityInfo.name))found=true;
+        }
+        assertTrue("URI-only ACTION_PICK must resolve Image Order",found);
+    }
+
     @Test public void theImagePickerIsAdvertisedToNormalAndroidCallers() {
         Context ctx=InstrumentationRegistry.getInstrumentation().getTargetContext();
         Intent get=new Intent(Intent.ACTION_GET_CONTENT);

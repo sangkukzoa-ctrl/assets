@@ -35,6 +35,15 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="image/*" />
             </intent-filter>
+            <!-- Legacy ACTION_PICK with only content://media/external/images/media:
+                 MediaStore reports the collection's MIME as a directory, not image/*. -->
+            <intent-filter>
+                <action android:name="android.intent.action.PICK" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:host="media"
+                    android:pathPrefix="/external/images/media"
+                    android:mimeType="vnd.android.cursor.dir/image" />
+            </intent-filter>
         </activity>
         <activity android:name=".MainActivity" android:screenOrientation="unspecified" android:exported="true">
             <intent-filter>

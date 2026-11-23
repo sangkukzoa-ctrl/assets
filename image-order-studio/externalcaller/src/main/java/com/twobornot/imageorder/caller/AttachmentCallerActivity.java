@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.net.Uri;
+import android.provider.MediaStore;
 import android.os.Bundle;
 import java.io.InputStream;
 import java.util.concurrent.CountDownLatch;
@@ -21,11 +22,16 @@ public final class AttachmentCallerActivity extends Activity {
     private static final String FIXTURE="com.twobornot.imageorder.CrossAppMediaFixtureActivity";
     private String requestedType;
     private boolean allowMultiple;
+    private String pickerAction;
+    private boolean uriOnlyPick;
 
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
         requestedType=getIntent().getStringExtra("requestedMime");
         allowMultiple=getIntent().getBooleanExtra("allowMultiple",true);
+        pickerAction=getIntent().getStringExtra("pickerAction");
+        if(pickerAction==null)pickerAction=Intent.ACTION_GET_CONTENT;
+        uriOnlyPick=getIntent().getBooleanExtra("uriOnlyPick",false);
         if(requestedType==null)requestedType="image/png";
         Intent seed=new Intent();seed.setComponent(new ComponentName(TARGET,FIXTURE));
         seed.putExtra("test_count",getIntent().getIntExtra("testCount",3));
@@ -48,12 +54,20 @@ public final class AttachmentCallerActivity extends Activity {
                 try(InputStream in=getContentResolver().openInputStream(Uri.parse(uriStrings[0]))){
                     hadAccessBeforeUserSelection=(in!=null);
                 }catch(SecurityException|java.io.FileNotFoundException denied){hadAccessBeforeUserSelection=false;}
-                Intent picker=new Intent(Intent.ACTION_GET_CONTENT);
+                Intent picker=new Intent(pickerAction);
                 picker.setPackage(TARGET);
-                picker.addCategory(Intent.CATEGORY_OPENABLE);
-                picker.setType(requestedType);
-                picker.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,allowMultiple);
-                android.util.Log.i("ImageOrderFlow","ThirdParty launching GET_CONTENT MIME="+requestedType);
+                if(Intent.ACTION_PICK.equals(pickerAction)){
+                    // Real-world ACTION_PICK callers often supply the MediaStore collection URI
+                    // instead of a MIME type, or provide both with setDataAndType().
+                    if(uriOnlyPick)picker.setData(MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+                    else picker.setDataAndType(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,requestedType);
+                }else{
+                    picker.addCategory(Intent.CATEGORY_OPENABLE);
+                    picker.setType(requestedType);
+                    picker.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,allowMultiple);
+                }
+                android.util.Log.i("ImageOrderFlow","ThirdParty launching action="+pickerAction
+                    +" mime="+picker.getType()+" uri="+picker.getData());
                 startActivityForResult(picker,PICK);
             }catch(Exception ex){error="Picker launch: "+ex;done.countDown();}
         }else if(request==PICK){

@@ -51,6 +51,12 @@ public final class CrossPackagePickerTest {
     @Test public void fiveMixedMimeOriginalsKeepExplicitTapOrderAcrossApps() throws Exception {
         verifyCrossUidRoundTrip("image/*",true,5,true);
     }
+    @Test public void actionPickWithMediaStoreUriAndMimeReturnsOneOriginal() throws Exception {
+        verifyCrossUidRoundTrip("image/*",false,3,false,Intent.ACTION_PICK,false);
+    }
+    @Test public void actionPickWithUriOnlyReturnsOneOriginal() throws Exception {
+        verifyCrossUidRoundTrip("image/*",false,3,false,Intent.ACTION_PICK,true);
+    }
     private void verifyCrossUidRoundTrip(String requestedMime) throws Exception {
         verifyCrossUidRoundTrip(requestedMime,true);
     }
@@ -58,6 +64,10 @@ public final class CrossPackagePickerTest {
         verifyCrossUidRoundTrip(requestedMime,allowMultiple,3,false);
     }
     private void verifyCrossUidRoundTrip(String requestedMime,boolean allowMultiple,int fixtureCount,boolean mixed) throws Exception {
+        verifyCrossUidRoundTrip(requestedMime,allowMultiple,fixtureCount,mixed,Intent.ACTION_GET_CONTENT,false);
+    }
+    private void verifyCrossUidRoundTrip(String requestedMime,boolean allowMultiple,int fixtureCount,boolean mixed,
+            String pickerAction,boolean uriOnlyPick) throws Exception {
         Instrumentation instrumentation=InstrumentationRegistry.getInstrumentation();
         Context context=instrumentation.getTargetContext();
         PackageManager pm=context.getPackageManager();
@@ -74,6 +84,8 @@ public final class CrossPackagePickerTest {
         start.putExtra("allowMultiple",allowMultiple);
         start.putExtra("testCount",fixtureCount);
         start.putExtra("testMixed",mixed);
+        start.putExtra("pickerAction",pickerAction);
+        start.putExtra("uriOnlyPick",uriOnlyPick);
         // Every case must start a clean caller task. In API 34 a prior failed case can
         // leave its old Activity on the task stack, bypassing fixture onCreate.
         start.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
@@ -95,7 +107,7 @@ public final class CrossPackagePickerTest {
                 }
             }
             if(tab==null)captureFailure(instrumentation,requestedMime,"gallery-not-found");
-            assertNotNull("Picker gallery must appear in another app's GET_CONTENT",tab);
+            assertNotNull("Picker gallery must appear for external "+pickerAction,tab);
             clickFresh(device,"imageorder.photos",15000);
             String[] names=AttachmentCallerActivity.names;
             for(int attempt=0;names==null && attempt<16;attempt++){
