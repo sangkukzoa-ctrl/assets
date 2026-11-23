@@ -65,11 +65,19 @@ public final class NativeGalleryActivity extends Activity {
     }
     @Override public void onCreate(Bundle b){
         super.onCreate(b);
-        maxSelection=Math.max(1,Math.min(200,getIntent().getIntExtra(EXTRA_MAX_SELECTION,100)));
-        acceptedMime=getIntent().getStringExtra(EXTRA_ACCEPTED_MIME);
+        Intent incoming=getIntent();
+        String action=incoming.getAction();
+        boolean externalGet=Intent.ACTION_GET_CONTENT.equals(action);
+        boolean externalPick=Intent.ACTION_PICK.equals(action);
+        int preferredLimit=incoming.getIntExtra(EXTRA_MAX_SELECTION,100);
+        if(externalPick || (externalGet && !incoming.getBooleanExtra(Intent.EXTRA_ALLOW_MULTIPLE,false)))preferredLimit=1;
+        maxSelection=Math.max(1,Math.min(200,preferredLimit));
+        acceptedMime=incoming.getStringExtra(EXTRA_ACCEPTED_MIME);
+        if(acceptedMime==null && externalGet)acceptedMime=incoming.getType();
         if(acceptedMime==null)acceptedMime="image/*";
-        acceptedMimeTypes=getIntent().getStringArrayExtra(EXTRA_MIME_TYPES);
-        launchedFromHome=Intent.ACTION_MAIN.equals(getIntent().getAction());
+        acceptedMimeTypes=incoming.getStringArrayExtra(EXTRA_MIME_TYPES);
+        if(acceptedMimeTypes==null && externalGet)acceptedMimeTypes=incoming.getStringArrayExtra(Intent.EXTRA_MIME_TYPES);
+        launchedFromHome=Intent.ACTION_MAIN.equals(action);
         getWindow().setStatusBarColor(NAVY);getWindow().setNavigationBarColor(NAVY);
         makeUi();
         if(hasPermission())reload();else askPermission();

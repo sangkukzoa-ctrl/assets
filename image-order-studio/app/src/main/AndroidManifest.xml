@@ -16,8 +16,6 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
-        <activity android:name=".MainActivity" android:screenOrientation="unspecified" android:exported="true">
             <!-- Advertise as an image picker for requesting apps and compatible browsers. -->
             <intent-filter>
                 <action android:name="android.intent.action.GET_CONTENT" />
@@ -37,6 +35,8 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="image/*" />
             </intent-filter>
+        </activity>
+        <activity android:name=".MainActivity" android:screenOrientation="unspecified" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />

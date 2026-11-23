@@ -264,7 +264,7 @@ public class OrderedAttachmentInstrumentedTest {
         boolean found=false;
         for(ResolveInfo info:activities){
             if(info.activityInfo!=null && ctx.getPackageName().equals(info.activityInfo.packageName)
-                && MainActivity.class.getName().equals(info.activityInfo.name))found=true;
+                && NativeGalleryActivity.class.getName().equals(info.activityInfo.name))found=true;
         }
         assertTrue("Image Order must resolve for image/jpeg GET_CONTENT",found);
         Intent generic=new Intent(Intent.ACTION_GET_CONTENT);
@@ -273,7 +273,7 @@ public class OrderedAttachmentInstrumentedTest {
         boolean genericFound=false;
         for(ResolveInfo info:ctx.getPackageManager().queryIntentActivities(generic,0)){
             if(info.activityInfo!=null && ctx.getPackageName().equals(info.activityInfo.packageName)
-                && MainActivity.class.getName().equals(info.activityInfo.name))genericFound=true;
+                && NativeGalleryActivity.class.getName().equals(info.activityInfo.name))genericFound=true;
         }
         assertTrue("Generic */* uploaders must also offer this image gallery",genericFound);
     }

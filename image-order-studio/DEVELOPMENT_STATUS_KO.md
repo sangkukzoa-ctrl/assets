@@ -46,3 +46,11 @@
 - 사용자 파일 무수정, 선택 순서 보존, 광고/인터넷 권한 없음, 인증서 유지.
 - 정식 공개는 빌드·Android 테스트·서명·공개 다운로드 검증 성공 후에만.
 - 서명키는 사용자의 비공개 암호화 백업이며 소스/공개 아티팩트에 포함하지 않는다.
+
+## v0.5.5 후속 구조 단순화 (직접 갤러리 진입)
+
+- 외부 `ACTION_GET_CONTENT`/`ACTION_PICK` intent-filter를 `MainActivity`에서 `NativeGalleryActivity`로 옮겨 앱 간 업로드 선택 시 중간 Activity 한 단계를 삭제했다.
+- 기존 `MainActivity` 직접 호출 경로는 레거시 호환·내부 계측 테스트 대상으로 보존한다.
+- 외부 단일 이미지 요청은 `EXTRA_ALLOW_MULTIPLE=false`를 적용해 1장 제한, 다중 요청은 원래 선택 순서 그대로 반환한다.
+- MIME `image/png`, `image/*`, `*/*` 및 `EXTRA_MIME_TYPES`를 네이티브 갤러리에서 직접 처리한다.
+- 이 구조는 교차 UID 반환 E2E가 실제로 통과해야만 검증 완료로 인정한다.
