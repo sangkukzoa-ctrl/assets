@@ -84,7 +84,19 @@ public final class NativeGalleryActivity extends Activity {
     }
     private void makeUi(){
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(NAVY);setContentView(root);
+        root.setBackgroundColor(NAVY);
+        // API 35+ forces edge-to-edge for targetSdk 35: without explicit insets
+        // the Done button occupies the system status-bar touch interception region.
+        if(Build.VERSION.SDK_INT>=35){
+            root.setOnApplyWindowInsetsListener((view,insets)->{
+                android.graphics.Insets safe=insets.getInsets(
+                    WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());
+                view.setPadding(safe.left,safe.top,safe.right,safe.bottom);
+                android.util.Log.i("ImageOrderFlow","Applied gallery system insets: "+safe);
+                return insets;
+            });
+        }
+        setContentView(root);
         LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);
         top.setPadding(dp(15),dp(14),dp(15),dp(13));root.addView(top);
         TextView back=text("‹",32,0xffffffff,false);back.setGravity(Gravity.CENTER);
