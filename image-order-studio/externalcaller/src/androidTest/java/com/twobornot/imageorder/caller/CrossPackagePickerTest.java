@@ -65,14 +65,34 @@ public final class CrossPackagePickerTest {
         Intent start=new Intent(context,AttachmentCallerActivity.class);
         start.putExtra("requestedMime",requestedMime);
         start.putExtra("allowMultiple",allowMultiple);
-        start.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        // Every case must start a clean caller task. In API 34 a prior failed case can
+        // leave its old Activity on the task stack, bypassing fixture onCreate.
+        start.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         context.startActivity(start); // asynchronous cross-app launch: do not block test instrumentation idle
         try {
-            UiObject2 tab=device.wait(Until.findObject(By.desc("imageorder.photos")),35000);
+            UiObject2 tab=null;
+            for(int attempt=0;attempt<20 && tab==null;attempt++){
+                tab=device.wait(Until.findObject(By.desc("imageorder.photos")),2000);
+                if(tab==null){
+                    // API 34 emulator sometimes displays a crashed Pixel Launcher dialog
+                    // *over* the already-open gallery. Do not misreport an OS ANR as
+                    // a gallery defect. Dismiss only this known launcher dialog.
+                    UiObject2 launcherAnr=device.findObject(By.textContains("Pixel Launcher"));
+                    UiObject2 dismiss=device.findObject(By.text("Close app"));
+                    if(launcherAnr!=null && dismiss!=null){
+                        android.util.Log.w("ImageOrderFlow","Dismissing emulator Pixel Launcher ANR obstructing picker");
+                        dismiss.click();
+                    }
+                }
+            }
             if(tab==null)captureFailure(instrumentation,requestedMime,"gallery-not-found");
             assertNotNull("Picker gallery must appear in another app's GET_CONTENT",tab);
             tab.click();
             String[] names=AttachmentCallerActivity.names;
+            for(int attempt=0;names==null && attempt<16;attempt++){
+                Thread.sleep(250);
+                names=AttachmentCallerActivity.names;
+            }
             if(names==null)captureFailure(instrumentation,requestedMime,"fixture-metadata-missing");
             assertNotNull("Target-owned photo fixtures must be returned as metadata",names);
             assertEquals(3,names.length);
