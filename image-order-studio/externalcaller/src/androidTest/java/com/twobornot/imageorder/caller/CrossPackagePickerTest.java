@@ -59,9 +59,11 @@ public final class CrossPackagePickerTest {
         context.startActivity(start); // asynchronous cross-app launch: do not block test instrumentation idle
         try {
             UiObject2 tab=device.wait(Until.findObject(By.desc("imageorder.photos")),35000);
+            if(tab==null)captureFailure(instrumentation,requestedMime,"gallery-not-found");
             assertNotNull("Picker gallery must appear in another app's GET_CONTENT",tab);
             tab.click();
             String[] names=AttachmentCallerActivity.names;
+            if(names==null)captureFailure(instrumentation,requestedMime,"fixture-metadata-missing");
             assertNotNull("Target-owned photo fixtures must be returned as metadata",names);
             assertEquals(3,names.length);
             assertFalse("Before user selection caller must NOT be able to open target-owned files",
@@ -102,6 +104,7 @@ public final class CrossPackagePickerTest {
                     try{device.dumpWindowHierarchy(new java.io.File(diagnostics,"imageorder-"+label+"-hierarchy.xml"));}
                     catch(Exception ex){android.util.Log.e("ImageOrderFlow","Hierarchy capture failed",ex);}
                 }
+                captureFailure(instrumentation,requestedMime,"done-not-returned");
                 android.util.Log.e("ImageOrderFlow",
                     "No result after three input methods: currentPackage="+device.getCurrentPackageName()
                     +"; request="+requestedMime+"; bounds="+doneRect+"; error="+AttachmentCallerActivity.error);
@@ -152,6 +155,18 @@ public final class CrossPackagePickerTest {
             device.pressHome();
         }
     }
+    /** Keep emulator evidence outside the instrumented APK's auto-removed app data. */
+    private static void captureFailure(Instrumentation inst,String mime,String reason){
+        String label=mime.equals("*/*")?"wildcard":"png";
+        String path="/sdcard/Download/imageorder-"+label+"-"+reason+".png";
+        try(android.os.ParcelFileDescriptor shell=inst.getUiAutomation().executeShellCommand(
+                "screencap -p "+path);
+            java.io.InputStream out=new android.os.ParcelFileDescriptor.AutoCloseInputStream(shell)){
+            byte[] buffer=new byte[128];while(out.read(buffer)!=-1){}
+            android.util.Log.i("ImageOrderFlow","Saved emulator screenshot: "+path);
+        }catch(Exception ex){android.util.Log.e("ImageOrderFlow","Cannot save screenshot "+path,ex);}
+    }
+
     private static String hex(byte[] bytes){
         char[] h="0123456789abcdef".toCharArray();StringBuilder o=new StringBuilder(bytes.length*2);
         for(byte b:bytes){o.append(h[(b>>>4)&15]);o.append(h[b&15]);}
