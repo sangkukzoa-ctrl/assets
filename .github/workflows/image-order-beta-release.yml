@@ -117,6 +117,10 @@ jobs:
           "$BUILD_TOOLS/zipalign" -c -p 4 ImageOrderStudio.apk
           "$BUILD_TOOLS/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='11' versionName='0.5.5'"
           test "$(stat -c %s ImageOrderStudio.apk)" -gt 200000
+          # Canonical public product name; keep the legacy APK URL for existing users.
+          cp ImageOrderStudio.apk ImageOrder.apk
+          cmp ImageOrderStudio.apk ImageOrder.apk
+          "$BUILD_TOOLS/apksigner" verify --min-sdk-version 26 ImageOrder.apk
           if "$BUILD_TOOLS/aapt" dump xmltree ImageOrderStudio.apk AndroidManifest.xml | grep -E 'BIND_ACCESSIBILITY_SERVICE|android.accessibilityservice|UploadAssistService'; then
             echo '::error::Sensitive Accessibility component present in a sideloaded APK'
             exit 1
@@ -168,24 +172,27 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          zip -q -r ImageOrderStudio-Source.zip image-order-studio \
+          zip -q -r ImageOrder-Source.zip image-order-studio \
             .github/workflows/image-order-ci.yml \
             .github/workflows/image-order-beta-release.yml \
+            .github/workflows/image-order-cross-app-qa.yml \
             -x '*/build/*' '*/.gradle/*' '*/.git/*' '*~' '*.p12' '*.jks' '*.keystore' '*.key' '*password*'
           python3 - <<'PY'
           from zipfile import ZipFile
-          p='ImageOrderStudio-Source.zip'
+          p='ImageOrder-Source.zip'
           with ZipFile(p) as z:
               assert z.testzip() is None
               assert 'image-order-studio/app/src/main/java/com/twobornot/imageorder/MainActivity.java' in z.namelist()
               assert not any(s.lower().endswith(('.p12','.jks','.keystore')) for s in z.namelist())
           PY
+          cp ImageOrder-Source.zip ImageOrderStudio-Source.zip
+          cmp ImageOrder-Source.zip ImageOrderStudio-Source.zip
           cp image-order-studio/RELEASE_NOTES_KO_EN.md BETA_RELEASE_NOTES.md
-          sha256sum ImageOrderStudio.apk ImageOrderStudio-Source.zip BETA_RELEASE_NOTES.md > SHA256SUMS-LATEST.txt
+          sha256sum ImageOrder.apk ImageOrderStudio.apk ImageOrder-Source.zip ImageOrderStudio-Source.zip BETA_RELEASE_NOTES.md > SHA256SUMS-LATEST.txt
           grep -F 'Verified using v3 scheme' signature-report.txt >> BETA_RELEASE_NOTES.md
           sha256sum BETA_RELEASE_NOTES.md > /tmp/image-order-release-notes-hash.txt
           # Keep the SHA256SUMS file authoritative after adding verification line.
-          sha256sum ImageOrderStudio.apk ImageOrderStudio-Source.zip BETA_RELEASE_NOTES.md > SHA256SUMS-LATEST.txt
+          sha256sum ImageOrder.apk ImageOrderStudio.apk ImageOrder-Source.zip ImageOrderStudio-Source.zip BETA_RELEASE_NOTES.md > SHA256SUMS-LATEST.txt
       - name: Publish only after successful compilation and signature verification
         env:
           GH_TOKEN: ${{ github.token }}
@@ -193,10 +200,10 @@ jobs:
         run: |
           set -euo pipefail
           if gh release view "$BETA_TAG" >/dev/null 2>&1; then
-            gh release upload "$BETA_TAG" ImageOrderStudio.apk ImageOrderStudio-Source.zip SHA256SUMS-LATEST.txt BETA_RELEASE_NOTES.md --clobber
+            gh release upload "$BETA_TAG" ImageOrder.apk ImageOrderStudio.apk ImageOrder-Source.zip ImageOrderStudio-Source.zip SHA256SUMS-LATEST.txt BETA_RELEASE_NOTES.md --clobber
             gh release edit "$BETA_TAG" --title 'Image Order — 무료 공개 베타 (2bornot)' --prerelease --notes-file BETA_RELEASE_NOTES.md
           else
-            gh release create "$BETA_TAG" ImageOrderStudio.apk ImageOrderStudio-Source.zip SHA256SUMS-LATEST.txt BETA_RELEASE_NOTES.md \
+            gh release create "$BETA_TAG" ImageOrder.apk ImageOrderStudio.apk ImageOrder-Source.zip ImageOrderStudio-Source.zip SHA256SUMS-LATEST.txt BETA_RELEASE_NOTES.md \
               --target "$GITHUB_SHA" --title 'Image Order — 무료 공개 베타 (2bornot)' \
               --prerelease --notes-file BETA_RELEASE_NOTES.md
           fi
