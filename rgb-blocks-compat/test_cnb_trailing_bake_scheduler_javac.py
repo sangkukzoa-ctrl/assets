@@ -412,7 +412,7 @@ public final class RGBCnbGeometryBakeDebouncer {
       CountDownLatch releaseBin=new CountDownLatch(1);
       ExecutorService contending=Executors.newFixedThreadPool(2);
       Future<?> producer=contending.submit(()->{
-        ENTRIES.compute(contestedKey,(key,current)->{
+        ENTRIES.compute(contestedKey,(key,lockedEntry)->{
           hasBin.countDown();
           try{
             if(!releaseBin.await(5,TimeUnit.SECONDS))
@@ -421,7 +421,7 @@ public final class RGBCnbGeometryBakeDebouncer {
             Thread.currentThread().interrupt();
             throw new RuntimeException(failure);
           }
-          return observeLiveTile(current,contested);
+          return observeLiveTile(lockedEntry,contested);
         });
       });
       require(hasBin.await(3,TimeUnit.SECONDS),
