@@ -243,6 +243,22 @@ public class OrderedAttachmentInstrumentedTest {
         field.setAccessible(true);return field.get(target);
     }
 
+    /** The fallback must opt into Android's ordered Photo Picker without re-encoding. */
+    @Test public void systemPickerFallbackRequestsOrderedSelectionWhenSupported() {
+        if(android.os.Build.VERSION.SDK_INT<33)return;
+        Intent many=NativeGalleryActivity.newSystemPickerIntent(5);
+        assertEquals(MediaStore.ACTION_PICK_IMAGES,many.getAction());
+        assertEquals("image/*",many.getType());
+        assertTrue("Maximum count must not drop below 1",
+            many.getIntExtra(MediaStore.EXTRA_PICK_IMAGES_MAX,1)>=1);
+        assertEquals("Ordered picker capability must match installed SDK/extensions",
+            NativeGalleryActivity.supportsOrderedSystemPicker(),
+            many.getBooleanExtra(MediaStore.EXTRA_PICK_IMAGES_IN_ORDER,false));
+        Intent one=NativeGalleryActivity.newSystemPickerIntent(1);
+        assertFalse("Single-image picker should not require ordering extra",
+            one.getBooleanExtra(MediaStore.EXTRA_PICK_IMAGES_IN_ORDER,false));
+    }
+
     @Test public void singleResultHasReadableImageTypeAndOriginalUri() {
         Uri original=Uri.parse("content://media/external/images/media/12345");
         ArrayList<Uri> originals=new ArrayList<>(Arrays.asList(original));

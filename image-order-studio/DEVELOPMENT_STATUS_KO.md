@@ -63,3 +63,13 @@
 - 수정 후 완료 버튼 Rect `(723,175)-(1039,307)`, 가운데 y=241 → `OnTouch`, `OnClick`, `finishSelection`, 외부 `onActivityResult RESULT_OK` 모두 로그에 확인.
 - Android 15 실기기와 동일한 API 35 에뮬레이터에서 `run 45148994457` 앱 내부 6개+별도 APK 2개 모두 성공.
 - v0.5.5는 아직 공개하지 않는다. 추가 MIME, 단일 이미지 및 OS 매트릭스 검수 후 정식 서명/출시 여부 판단.
+
+## 시스템 Photo Picker 순서 선택 연동 — API 35 / R Extensions 12
+
+- Android 공식 `MediaStore.EXTRA_PICK_IMAGES_IN_ORDER`(API 35 또는 R Extensions 12 이상)은 `ACTION_PICK_IMAGES`에서 선택 순서대로 URI를 반환한다.
+- Image Order가 갤러리 권한 거부로 플랫폼 Photo Picker를 대체 호출할 때, 지원 기기에 이 옵션을 설정하고 **이미 순서가 검증된 URI는 재선택 없이 바로 외부 요청 앱에 전달**하도록 구현.
+- 외부에서 결과가 단 1장일 때는 정렬 모호성이 없으므로 구형 OS의 fallback도 즉시 전달.
+- 순서가 보장되지 않는 구형 플랫폼의 다중 선택은 기존의 수동 순서 지정 단계 유지.
+- URI/원본 바이트는 여전히 재인코딩·복사·파일명 변경을 거치지 않음.
+- 참고: https://developer.android.com/reference/android/provider/MediaStore#EXTRA_PICK_IMAGES_IN_ORDER
+- 직접 플랫폼 picker 호출은 시스템 Photo Picker를 교체하거나 모든 앱의 자체 첨부 창을 강제 대체하는 기능은 아니다.

@@ -38,6 +38,7 @@ public final class NativeGalleryActivity extends Activity {
     private String acceptedMime="image/*";
     private String[] acceptedMimeTypes=null;
     private boolean launchedFromHome=false;
+    private boolean fallbackOrderedSelectionRequested=false;
     private GridView grid;
     private BaseAdapter adapter;
     private TextView heading, confirm, photosTab, albumsTabView, hint;
@@ -282,14 +283,31 @@ public final class NativeGalleryActivity extends Activity {
             });
         });
     }
+    /** AOSP ordered picker is available starting API 35 or Android R Extension 12. */
+    static boolean supportsOrderedSystemPicker(){
+        if(Build.VERSION.SDK_INT>=35)return true;
+        return Build.VERSION.SDK_INT>=30
+            && android.os.ext.SdkExtensions.getExtensionVersion(Build.VERSION_CODES.R)>=12;
+    }
+    /** System picker contract without any Image Order output-file transformation. */
+    static Intent newSystemPickerIntent(int maxSelection){
+        Intent picker=new Intent(MediaStore.ACTION_PICK_IMAGES);
+        picker.setType("image/*");
+        int maximum=MediaStore.getPickImagesMaxLimit();
+        if(maximum>1)picker.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX,
+            Math.max(1,Math.min(maximum,maxSelection)));
+        if(maxSelection>1 && supportsOrderedSystemPicker())
+            picker.putExtra(MediaStore.EXTRA_PICK_IMAGES_IN_ORDER,true);
+        return picker;
+    }
     /** Denied gallery permission still permits intentional system-photo selection. */
     private void fallbackPicker(){
         try{
             Intent i;
+            fallbackOrderedSelectionRequested=false;
             if(Build.VERSION.SDK_INT>=33) {
-                i=new Intent(MediaStore.ACTION_PICK_IMAGES);i.setType("image/*");
-                int max=MediaStore.getPickImagesMaxLimit();
-                if(max>1)i.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX,Math.min(max,maxSelection));
+                i=newSystemPickerIntent(maxSelection);
+                fallbackOrderedSelectionRequested=i.getBooleanExtra(MediaStore.EXTRA_PICK_IMAGES_IN_ORDER,false);
             }else{
                 i=new Intent(Intent.ACTION_GET_CONTENT);i.setType("image/*");
                 i.addCategory(Intent.CATEGORY_OPENABLE);
@@ -308,7 +326,9 @@ public final class NativeGalleryActivity extends Activity {
         if(data.getClipData()!=null){
             for(int i=0;i<data.getClipData().getItemCount();i++)uris.add(data.getClipData().getItemAt(i).getUri());
         }else if(data.getData()!=null)uris.add(data.getData());
-        // Imported order from an external picker is not verified. Require explicit taps.
+        // Android's ordered Photo Picker guarantees ClipData in the user's tap order.
+        // If only one image was returned, there is no ordering ambiguity either.
+        // Otherwise (legacy picker), keep requiring explicit taps as before.
         ordered.clear();photos.clear();albums.clear();
         for(int i=0;i<uris.size();i++){
             Uri uri=uris.get(i);
@@ -316,6 +336,13 @@ public final class NativeGalleryActivity extends Activity {
             if(!ImageMimePolicy.accepts(acceptedMime,acceptedMimeTypes,mime))continue;
             Photo p=new Photo("fallback:"+i,t("선택한 사진","Imported Photos"),"Photo "+(i+1),mime,uri);
             photos.add(p);albums.computeIfAbsent(p.album,k->new ArrayList<>()).add(p);
+        }
+        if(!photos.isEmpty() && (fallbackOrderedSelectionRequested || photos.size()==1)){
+            for(Photo photo:photos)ordered.put(photo.key,photo.uri);
+            android.util.Log.i("ImageOrderFlow","System picker originals return directly: "
+                +photos.size()+" ordered="+fallbackOrderedSelectionRequested);
+            finishSelection();
+            return;
         }
         albumsTab=false;activeAlbum=null;renderList();
         hint.setText(t("사진을 원하는 순서대로 다시 눌러주세요", "Tap imported photos in the intended order"));
