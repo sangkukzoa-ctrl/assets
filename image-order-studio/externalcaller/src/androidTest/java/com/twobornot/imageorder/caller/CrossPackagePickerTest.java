@@ -51,6 +51,10 @@ public final class CrossPackagePickerTest {
     @Test public void fiveMixedMimeOriginalsKeepExplicitTapOrderAcrossApps() throws Exception {
         verifyCrossUidRoundTrip("image/*",true,5,true);
     }
+    @Test public void externalCallerKeepsVerifiedOrderThroughScreenRotation() throws Exception {
+        // This invokes an independent application UID, not a same-process picker test.
+        verifyCrossUidRoundTrip("image/png",true,3,false,Intent.ACTION_GET_CONTENT,false,true);
+    }
     @Test public void actionPickWithMediaStoreUriAndMimeReturnsOneOriginal() throws Exception {
         verifyCrossUidRoundTrip("image/*",false,3,false,Intent.ACTION_PICK,false);
     }
@@ -68,6 +72,10 @@ public final class CrossPackagePickerTest {
     }
     private void verifyCrossUidRoundTrip(String requestedMime,boolean allowMultiple,int fixtureCount,boolean mixed,
             String pickerAction,boolean uriOnlyPick) throws Exception {
+        verifyCrossUidRoundTrip(requestedMime,allowMultiple,fixtureCount,mixed,pickerAction,uriOnlyPick,false);
+    }
+    private void verifyCrossUidRoundTrip(String requestedMime,boolean allowMultiple,int fixtureCount,boolean mixed,
+            String pickerAction,boolean uriOnlyPick,boolean rotateMidSelection) throws Exception {
         Instrumentation instrumentation=InstrumentationRegistry.getInstrumentation();
         Context context=instrumentation.getTargetContext();
         PackageManager pm=context.getPackageManager();
@@ -127,6 +135,20 @@ public final class CrossPackagePickerTest {
                 String desc="imageorder.photo:"+names[index];
                 if(allowMultiple)clickPhotoAndWaitForCount(device,desc,++expectedCount);
                 else clickFresh(device,desc,30000);
+                if(rotateMidSelection && expectedCount==2) {
+                    // The native picker has no configChanges override, so this exercises
+                    // real Android Activity save/restore while the caller remains pending.
+                    device.setOrientationLeft();
+                    device.waitForIdle(10000);
+                    assertTrue("Rotation must place the device in landscape",
+                        device.getDisplayWidth()>device.getDisplayHeight());
+                    assertTrue("Two ordered selections must survive landscape recreation",
+                        waitForSelectionCount(device,2,12000));
+                    device.setOrientationNatural();
+                    device.waitForIdle(10000);
+                    assertTrue("Two selections must survive portrait recreation",
+                        waitForSelectionCount(device,2,12000));
+                }
             }
             boolean returned;
             if(allowMultiple) {
@@ -206,6 +228,10 @@ public final class CrossPackagePickerTest {
                 }
             }
         }finally{
+            // Restore emulator state so that subsequent cross-UID tests are independent.
+            if(rotateMidSelection) {
+                try{device.setOrientationNatural();}catch(Exception ignored){}
+            }
             String[] saved=AttachmentCallerActivity.uriStrings;
             if(saved!=null) {
                 Intent cleanup=new Intent();cleanup.setComponent(new ComponentName(TARGET,FIXTURE));

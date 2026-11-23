@@ -38,6 +38,7 @@ assert 'CrossAppMediaFixtureActivity' not in manifest
 assert 'clickPhotoAndWaitForCount(device,desc,++expectedCount)' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()
 assert 'hadAccessBeforeUserSelection' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()
 assert 'fiveMixedMimeOriginalsKeepExplicitTapOrderAcrossApps' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()
+assert 'externalCallerKeepsVerifiedOrderThroughScreenRotation' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()
 assert 'imageorder.photo:' in native
 assert 'imageorder.confirm' in native
 
