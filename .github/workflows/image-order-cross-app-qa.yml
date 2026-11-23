@@ -1,0 +1,59 @@
+name: Image Order Studio - Independent Android Cross-App E2E
+on:
+  push:
+    branches: ['image-order-studio/dev']
+    paths:
+      - 'image-order-studio/**'
+      - '.github/workflows/image-order-cross-app-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cross-uid-android-35:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Install Android SDK API 36
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-36' 'build-tools;35.0.0'
+      - name: Enable KVM for Android emulator
+        run: |
+          test -r /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Execute target package tests AND independent caller package E2E
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          emulator-boot-timeout: 480
+          emulator-options: '-no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect'
+          script: |
+            set -e
+            gradle -p image-order-studio --no-daemon :app:connectedDebugAndroidTest --stacktrace
+            adb install -r image-order-studio/app/build/outputs/apk/debug/app-debug.apk
+            adb shell pm grant com.twobornot.imageorder android.permission.READ_MEDIA_IMAGES
+            gradle -p image-order-studio --no-daemon :externalcaller:connectedDebugAndroidTest --stacktrace
+            adb logcat -d -s AndroidRuntime:E > image-order-studio/android-e2e-crashes.log
+      - name: Keep full Android test XML/reports on failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ImageOrderStudio-crossUID-qa-reports
+          path: |
+            image-order-studio/app/build/outputs/androidTest-results/connected/
+            image-order-studio/app/build/reports/androidTests/connected/
+            image-order-studio/externalcaller/build/outputs/androidTest-results/connected/
+            image-order-studio/externalcaller/build/reports/androidTests/connected/
+            image-order-studio/android-e2e-crashes.log
+          if-no-files-found: warn
+          retention-days: 14
