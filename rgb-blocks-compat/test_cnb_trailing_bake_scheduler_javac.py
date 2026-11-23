@@ -55,13 +55,23 @@ for required in (
     "isReplacedClientTile(tileEntity, pos)",
     "entry.ownerTile = new WeakReference<>(tileEntity)",
     "entry.lastRequestMillis = 0L",
-    "ENTRIES.remove(candidate.getKey(), entry)",
+    "ENTRIES.computeIfPresent(candidate.getKey(), (ignored, current) -> {",
     "entry.requestSerial.incrementAndGet()",
     "update.invoke(live)",
 ):
     assert required in real_methods,("Real production scheduler safeguard absent",required)
 assert ("private static final ScheduledThreadPoolExecutor TRAILING_BAKES = createTrailingScheduler();"
         in production)
+# Proof obligation: ConcurrentHashMap.compute() calls observeLiveTile while
+# holding its bin lock. Pruning MUST acquire that bin lock before Entry's
+# monitor, never Entry -> ENTRIES.remove (AB/BA deadlock).
+prune=extract("private static void pruneIdleEntries(long now)")
+observe=extract("private static Entry observeLiveTile(Entry entry, Object tileEntity)")
+assert "ENTRIES.computeIfPresent(candidate.getKey()" in prune
+assert "ENTRIES.remove(" not in prune
+assert prune.index("ENTRIES.computeIfPresent(candidate.getKey()") < prune.index("synchronized (current)")
+assert "synchronized (entry)" in observe
+
 
 java=r'''import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
@@ -377,6 +387,59 @@ public final class RGBCnbGeometryBakeDebouncer {
       require(ENTRIES.isEmpty() && LAST_PRUNE_MS.get()==0L,
         "Disconnect did not release the entire long-session C&B debounce map");
       verifyNoQueue();
+
+      // Deterministic lock-order contention: this worker holds the CHM
+      // packed-position bin lock while a second worker prunes that entry.
+      // The old Entry->map.remove path could deadlock the two JVM threads
+      // if the producer then tried to enter observeLiveTile(Entry).
+      newWorld(new Level());
+      Level contentionWorld=Minecraft.getInstance().level;
+      BlockPos contestedPos=new BlockPos(0,0,0);
+      BlockEntity contested=contentionWorld.tile(contestedPos);
+      markPayloadModelUpdate(contested);
+      long contestedKey=key(contestedPos);
+      Entry original=ENTRIES.get(contestedKey);
+      original.lastTouchedMillis=0L;
+      for(int n=0;n<4220;n++){
+        Entry idle=new Entry();
+        idle.lastTouchedMillis=0L;
+        ENTRIES.put(key(new BlockPos(50000+n,90,90)),idle);
+      }
+      require(ENTRIES.size()>PRUNE_THRESHOLD,
+        "Lock-order regression missing C&B source map pressure");
+      LAST_PRUNE_MS.set(0L);
+      CountDownLatch hasBin=new CountDownLatch(1);
+      CountDownLatch releaseBin=new CountDownLatch(1);
+      ExecutorService contending=Executors.newFixedThreadPool(2);
+      Future<?> producer=contending.submit(()->{
+        ENTRIES.compute(contestedKey,(key,current)->{
+          hasBin.countDown();
+          try{
+            if(!releaseBin.await(5,TimeUnit.SECONDS))
+              throw new AssertionError("Bin-lock handshake stuck");
+          }catch(InterruptedException failure){
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(failure);
+          }
+          return observeLiveTile(current,contested);
+        });
+      });
+      require(hasBin.await(3,TimeUnit.SECONDS),
+        "Concurrent C&B producer did not acquire its map bin lock");
+      Future<?> purge=contending.submit(()->pruneIdleEntries(
+        System.currentTimeMillis()));
+      Thread.sleep(80);
+      releaseBin.countDown();
+      producer.get(8,TimeUnit.SECONDS);
+      purge.get(8,TimeUnit.SECONDS);
+      contending.shutdown();
+      require(contending.awaitTermination(4,TimeUnit.SECONDS),
+        "C&B source lock-order stress left a blocked Java thread");
+      require(ENTRIES.get(contestedKey)==original &&
+              original.lastTouchedMillis>0L,
+        "Prune removed the active C&B tile after concurrent producer touched it");
+      reset();
+      verifyNoQueue();
       System.out.println("RGB_PORT_CNB_SCHEDULED_COALESCING_REAL_JAVAC_PASS"+
         " burst_850_queue_one=true independent_two_positions=true"+
         " forced_refresh_cancels_stale_future=true"+
@@ -385,6 +448,7 @@ public final class RGBCnbGeometryBakeDebouncer {
         " new_tile_first_bake_not_delayed=true"+
         " idle_4230_records_pruned=true"+
         " live_future_survives_idle_prune=true"+
+        " concurrent_bin_entry_lock_order=true"+
         " removed_tile_request_ignored=true"+
         " disconnect_cancels_queue=true aba_no_stale_tile=true"+
         " world_guard=true last_model_update_once=true");
