@@ -326,6 +326,7 @@ public class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int result,Intent data) {
         super.onActivityResult(request,result,data);
+        android.util.Log.i("ImageOrderFlow","MainActivity result: request="+request+" result="+result+" data="+(data!=null)+" external="+externalMode+" clip="+(data!=null&&data.getClipData()!=null?data.getClipData().getItemCount():-1));
         if(result!=RESULT_OK||data==null){
             if(request==IMPORT_IMAGES) {
                 nativePickerOrdered=false;
@@ -352,6 +353,7 @@ public class MainActivity extends Activity {
         }
     }
     private void deliverDirectToCaller(ArrayList<Uri> uris) {
+        android.util.Log.i("ImageOrderFlow","Deliver to outside caller: external="+externalMode+" size="+uris.size()+" allowedMultiple="+externalAllowsMultiple);
         if(!externalMode || uris.isEmpty())return;
         if(!externalAllowsMultiple && uris.size()!=1) {
             toastDialog(t("이미지 한 장을 선택하세요.","Select exactly one image."));
@@ -359,9 +361,10 @@ public class MainActivity extends Activity {
         }
         try {
             Intent result=MediaIntentResult.forSelection(getContentResolver(),uris);
+            android.util.Log.i("ImageOrderFlow","Returning originals clipCount="+result.getClipData().getItemCount());
             setResult(RESULT_OK,result);
             finish();
-        }catch(Exception ex){toastDialog(t("원본 전달 실패: ","Cannot return originals: ")+ex);}
+        }catch(Exception ex){android.util.Log.e("ImageOrderFlow","Cannot return originals to caller",ex);toastDialog(t("원본 전달 실패: ","Cannot return originals: ")+ex);}
     }
     private void shareDirectOriginals(ArrayList<Uri> uris) {
         if(uris.isEmpty())return;

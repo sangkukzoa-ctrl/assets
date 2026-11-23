@@ -76,8 +76,11 @@ public final class CrossPackagePickerTest {
             assertTrue("Three taps must be recognized before returning. Actual label: "+done.getText(),
                 done.getText()!=null && done.getText().trim().endsWith("3"));
             done.click();
-            assertTrue("Independent app must receive Activity RESULT_OK ("+AttachmentCallerActivity.error+")",
-                AttachmentCallerActivity.done.await(45,TimeUnit.SECONDS));
+            boolean returned=AttachmentCallerActivity.done.await(45,TimeUnit.SECONDS);
+            if(!returned)android.util.Log.e("ImageOrderFlow",
+                "Timed out awaiting third-party result after tapping Done: currentPackage="+device.getCurrentPackageName()
+                +"; request="+requestedMime+"; error="+AttachmentCallerActivity.error);
+            assertTrue("Independent app must receive Activity RESULT_OK ("+AttachmentCallerActivity.error+")",returned);
             assertNull("Result path must not fail",AttachmentCallerActivity.error);
             assertEquals(Activity.RESULT_OK,AttachmentCallerActivity.resultCode);
             Intent result=AttachmentCallerActivity.resultData;
