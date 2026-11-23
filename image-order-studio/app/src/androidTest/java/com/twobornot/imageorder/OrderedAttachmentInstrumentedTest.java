@@ -256,6 +256,44 @@ public class OrderedAttachmentInstrumentedTest {
         assertEquals(Intent.ACTION_SEND,share.getAction());
         assertEquals(original,share.getParcelableExtra(Intent.EXTRA_STREAM));
     }
+    /** Regression: Android 15+ edge-to-edge must not place Done under the system status bar. */
+    @Test public void galleryDoneControlClearsAndroid15SystemBars() throws Exception {
+        if(android.os.Build.VERSION.SDK_INT<35)return;
+        Instrumentation inst=InstrumentationRegistry.getInstrumentation();
+        Context ctx=inst.getTargetContext();
+        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),Manifest.permission.READ_MEDIA_IMAGES);
+        Intent launch=new Intent(ctx,NativeGalleryActivity.class);
+        launch.setAction(Intent.ACTION_GET_CONTENT);
+        launch.setType("image/png");
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Activity gallery=inst.startActivitySync(launch);
+        try{
+            inst.waitForIdleSync();
+            AtomicReference<android.graphics.Rect> bounds=new AtomicReference<>();
+            AtomicReference<Integer> topSafe=new AtomicReference<>();
+            AtomicReference<Integer> rootPadding=new AtomicReference<>();
+            inst.runOnMainSync(()->{
+                try{
+                    android.view.ViewGroup content=gallery.findViewById(android.R.id.content);
+                    android.view.View root=content.getChildAt(0);
+                    android.view.WindowInsets insets=root.getRootWindowInsets();
+                    android.graphics.Insets bars=insets.getInsets(
+                        android.view.WindowInsets.Type.systemBars()|android.view.WindowInsets.Type.displayCutout());
+                    android.graphics.Rect confirmRect=new android.graphics.Rect();
+                    assertTrue(((TextView)getField(gallery,"confirm")).getGlobalVisibleRect(confirmRect));
+                    bounds.set(confirmRect);topSafe.set(bars.top);rootPadding.set(root.getPaddingTop());
+                }catch(Exception e){throw new RuntimeException(e);}
+            });
+            assertNotNull(bounds.get());
+            assertTrue("Gallery root must respect Android 15 status-bar inset",
+                rootPadding.get()>=topSafe.get());
+            assertTrue("Done button must begin below the status-bar obstruction: "+bounds.get(),
+                bounds.get().top>=topSafe.get());
+        }finally{
+            inst.runOnMainSync(gallery::finish);
+        }
+    }
+
     @Test public void theImagePickerIsAdvertisedToNormalAndroidCallers() {
         Context ctx=InstrumentationRegistry.getInstrumentation().getTargetContext();
         Intent get=new Intent(Intent.ACTION_GET_CONTENT);
