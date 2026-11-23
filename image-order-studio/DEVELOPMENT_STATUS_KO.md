@@ -90,3 +90,12 @@
 - 최신 확장 외부 UID E2E: https://github.com/sangkukzoa-ctrl/assets/actions/runs/45165284367 (결과 완료 여부를 다음 재개 시 조회).
 - 미완료: Android 16(API 36), 실제 Samsung 갤러리/브라우저의 개별 첨부창, ACTION_PICK 및 system Photo Picker fallback의 외부 APK 완전 왕복, 수신 앱의 별도 재정렬과 업로드 후 순서 검증, 비정상 Activity 재생성.
 - v0.5.5 공개 배포 여부는 최신 테스트 및 실제 앱 호환성 확인 후 판단한다. 공개된 최신 APK는 아직 v0.5.4이며 기존 서명 인증서를 유지한다.
+
+## 다음 단계: 실제 HTML 파일 첨부 통합 QA (2026-11-23)
+
+- 별도 APK/UID(`com.twobornot.imageorder.caller`)에 테스트용 WebView 액티비티를 추가하고, 네트워크/INTERNET 권한 없이 로컬 HTML `<input type=file accept=image/* multiple>`을 실제로 클릭한다.
+- WebChromeClient.onShowFileChooser()의 FileChooserParams.createIntent()를 사용하여 Image Order를 호출하고, parseResult()로 URI 배열을 돌려받아 HTML `input.files`까지 전달한다.
+- PNG/JPEG/WebP 혼합 5장의 사용자 탭 순서 5→2→4→1→3이 실제 웹 페이지의 FileList 이름·형식·크기 순서와 일치하는지 검사한다.
+- 별도 UID의 원본 MIME/파일명/SHA-256 및 읽기 권한도 검증한다.
+- WebView는 실제 Chrome 브라우저가 아니므로 양쪽을 구분하고, Chrome과 삼성 인터넷의 실기기 개별 검증은 별도 항목으로 남긴다.
+- Android 16(API 36)을 기존 Android 13/14/15 외부 APK 테스트 매트릭스에 추가했다. `ACTION_PICK` MIME+URI 및 URI-only 입력을 별도 외부 앱 테스트로 추가했다.

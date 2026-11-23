@@ -8,5 +8,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Test-only independent UID HTML file input / WebChromeClient caller. -->
+        <activity android:name=".WebUploadCallerActivity" android:exported="false" />
     </application>
 </manifest>

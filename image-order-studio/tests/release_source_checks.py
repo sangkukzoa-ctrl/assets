@@ -22,6 +22,14 @@ assert 'android:mimeType="*/*"' in manifest
 external=p/'externalcaller'
 foreign_manifest=(external/'src/main/AndroidManifest.xml').read_text()
 assert "applicationId 'com.twobornot.imageorder.caller'" in (external/'build.gradle').read_text()
+assert 'WebUploadCallerActivity' in foreign_manifest
+assert 'WebUploadCallerActivity' not in manifest
+html_host=(external/'src/main/java/com/twobornot/imageorder/caller/WebUploadCallerActivity.java').read_text()
+assert "type='file'" in html_host and 'multiple' in html_host
+assert 'WebChromeClient.FileChooserParams.parseResult' in html_host
+assert 'https://imageorder-local.invalid/' in html_host
+assert 'WebUploadCallerTest.java' in {x.name for x in (external/'src/androidTest/java/com/twobornot/imageorder/caller').iterdir()}
+assert 'localHtmlMultiUploadPreservesOriginalFilesAndTapOrder' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/WebUploadCallerTest.java').read_text()
 assert "android.permission.READ_MEDIA_IMAGES" not in foreign_manifest and "android.permission.READ_EXTERNAL_STORAGE" not in foreign_manifest
 assert 'CrossAppMediaFixtureActivity' in (p/'app/src/debug/AndroidManifest.xml').read_text()
 assert 'CrossAppMediaFixtureActivity' not in manifest
