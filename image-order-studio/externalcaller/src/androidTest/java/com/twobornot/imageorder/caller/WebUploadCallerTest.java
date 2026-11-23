@@ -62,9 +62,10 @@ public final class WebUploadCallerTest {
             photos.click();
             assertNotNull("Fixture metadata",WebUploadCallerActivity.names);
             assertEquals(5,WebUploadCallerActivity.names.length);
+            int expected=0;
             for(int i:ORDER){
                 String desc="imageorder.photo:"+WebUploadCallerActivity.names[i];
-                clickFresh(device,desc);
+                clickPhotoAndWaitForCount(device,desc,++expected);
             }
             UiObject2 done=device.wait(Until.findObject(By.desc("imageorder.confirm")),15000);
             assertNotNull("Picker Done",done);
@@ -122,6 +123,23 @@ public final class WebUploadCallerTest {
             }
             device.pressBack();device.pressHome();
         }
+    }
+    private static void clickPhotoAndWaitForCount(UiDevice device,String desc,int expected) throws Exception {
+        for(int retry=0;retry<3;retry++){
+            clickFresh(device,desc);
+            long deadline=android.os.SystemClock.uptimeMillis()+3500;
+            while(android.os.SystemClock.uptimeMillis()<deadline){
+                UiObject2 done=device.wait(Until.findObject(By.desc("imageorder.confirm")),400);
+                if(done!=null){
+                    try{
+                        String count=done.getText();
+                        if(count!=null && count.trim().endsWith(" "+expected))return;
+                    }catch(androidx.test.uiautomator.StaleObjectException ignored){}
+                }
+                Thread.sleep(100);
+            }
+        }
+        fail("WebView target gallery did not commit photo tap #"+expected+" for "+desc);
     }
     private static void clickFresh(UiDevice d,String desc) throws Exception{
         for(int retry=0;retry<25;retry++){

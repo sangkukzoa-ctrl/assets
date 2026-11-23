@@ -122,8 +122,11 @@ public final class CrossPackagePickerTest {
             assertFalse("Before user selection caller must NOT be able to open target-owned files",
                 AttachmentCallerActivity.hadAccessBeforeUserSelection);
             int[] selectedOrder=!allowMultiple?new int[]{TAP_ORDER[0]}:fixtureCount==5?FIVE_ORDER:TAP_ORDER;
+            int expectedCount=0;
             for(int index:selectedOrder) {
-                clickFresh(device,"imageorder.photo:"+names[index],30000);
+                String desc="imageorder.photo:"+names[index];
+                if(allowMultiple)clickPhotoAndWaitForCount(device,desc,++expectedCount);
+                else clickFresh(device,desc,30000);
             }
             boolean returned;
             if(allowMultiple) {
@@ -214,6 +217,34 @@ public final class CrossPackagePickerTest {
             device.pressBack();
             device.pressHome();
         }
+    }
+    /**
+     * A successful UiAutomator click only guarantees input injection, not that a
+     * rapidly re-rendered gallery registered a change. Check the VISIBLE
+     * selection counter before sending the next, ordered user tap.
+     */
+    private static void clickPhotoAndWaitForCount(UiDevice device,String desc,int expected) throws Exception {
+        for(int attempt=0;attempt<3;attempt++){
+            clickFresh(device,desc,30000);
+            if(waitForSelectionCount(device,expected,3500))return;
+            android.util.Log.w("ImageOrderFlow",
+                "Expected selected count "+expected+" after "+desc+"; resync attempt="+attempt);
+        }
+        fail("Gallery did not commit user tap #"+expected+" for "+desc);
+    }
+    private static boolean waitForSelectionCount(UiDevice device,int expected,long millis) throws Exception {
+        long end=android.os.SystemClock.uptimeMillis()+millis;
+        while(android.os.SystemClock.uptimeMillis()<end){
+            UiObject2 count=device.wait(Until.findObject(By.desc("imageorder.confirm")),400);
+            if(count!=null){
+                try{
+                    String value=count.getText();
+                    if(value!=null && value.trim().endsWith(" "+expected))return true;
+                }catch(androidx.test.uiautomator.StaleObjectException ignored){}
+            }
+            Thread.sleep(100);
+        }
+        return false;
     }
     /**
      * GridView replaces visible tile nodes after each numbered selection.

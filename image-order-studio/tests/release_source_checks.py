@@ -35,7 +35,7 @@ assert 'localHtmlMultiUploadPreservesOriginalFilesAndTapOrder' in (external/'src
 assert "android.permission.READ_MEDIA_IMAGES" not in foreign_manifest and "android.permission.READ_EXTERNAL_STORAGE" not in foreign_manifest
 assert 'CrossAppMediaFixtureActivity' in (p/'app/src/debug/AndroidManifest.xml').read_text()
 assert 'CrossAppMediaFixtureActivity' not in manifest
-assert 'clickFresh(device,"imageorder.photo:"+names[index]' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()
+assert 'clickPhotoAndWaitForCount(device,desc,++expectedCount)' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()
 assert 'hadAccessBeforeUserSelection' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()
 assert 'fiveMixedMimeOriginalsKeepExplicitTapOrderAcrossApps' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()
 assert 'imageorder.photo:' in native

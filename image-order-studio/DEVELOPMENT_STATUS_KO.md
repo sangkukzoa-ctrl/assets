@@ -109,3 +109,10 @@
 - 이 호스트 측 수정이 외부 Chrome, 다른 앱의 낡은 WebChromeClient를 자동 교체하지는 않는다. 수신자가 `ClipData`를 무시하는 경우 단일 URI 제공만으로는 다중 사진 보장을 충족하지 못한다.
 - Chromium 구현: https://chromium.googlesource.com/chromium/src/+/refs/heads/main/android_webview/java/src/org/chromium/android_webview/AwContentsClient.java
 - 실제 WebView 앱 사례: https://github.com/home-assistant/android/issues/7548
+
+## Android 16 계측 테스트 입력 안정화 (2026-11-23)
+
+- 최초 Android 16 E2E에서 외부 GET_CONTENT `*/*` 테스트가 사진 3회 신속 탭 직후 `Done 2`로 나타났다. 갤러리 반응이 완료되기 전에 다음 UiAutomator 클릭을 전송해 실제 UI 선택 개수와 테스트가 어긋난 사례.
+- Android 16에서 같은 실행의 독립 WebView HTML 업로드는 `FileChooserParams.parseResult` 기본 null을 우회한 뒤 실제 `FileList` 5개 항목(파일명·MIME·크기) 순서까지 완전히 도달하는 로그 확인.
+- 테스트가 클릭 명령 성공을 선택 완료로 착각하지 않도록 사진마다 완료 버튼의 선택 개수를 재확인한다. 재렌더/노드 교체로 누락된 시도에 한하여 최대 2회 재시도. UI가 3회 내 응답하지 않으면 여전히 실패 처리한다.
+- 일반 사용자 UI와 선택 순서 처리 로직은 변경하지 않으며, 테스트 조건만 가시적 UI 확정 상태 기준으로 강화한다.
