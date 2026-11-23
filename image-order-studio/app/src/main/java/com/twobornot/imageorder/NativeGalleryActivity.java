@@ -294,8 +294,10 @@ public final class NativeGalleryActivity extends Activity {
         Intent picker=new Intent(MediaStore.ACTION_PICK_IMAGES);
         picker.setType("image/*");
         int maximum=MediaStore.getPickImagesMaxLimit();
-        if(maximum>1)picker.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX,
-            Math.max(1,Math.min(maximum,maxSelection)));
+        // Android rejects EXTRA_PICK_IMAGES_MAX=1 (RESULT_CANCELED).
+        // Omitting this extra is the platform's required single-image mode.
+        if(maxSelection>1 && maximum>1)picker.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX,
+            Math.min(maximum,maxSelection));
         if(maxSelection>1 && supportsOrderedSystemPicker())
             picker.putExtra(MediaStore.EXTRA_PICK_IMAGES_IN_ORDER,true);
         return picker;
