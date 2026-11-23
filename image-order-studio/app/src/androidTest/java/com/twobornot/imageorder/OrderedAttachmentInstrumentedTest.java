@@ -57,7 +57,7 @@ public class OrderedAttachmentInstrumentedTest {
                 ContentValues v=new ContentValues();
                 v.put(MediaStore.Images.Media.DISPLAY_NAME,"imageorder_ci_"+System.nanoTime()+"_"+i+".png");
                 v.put(MediaStore.Images.Media.MIME_TYPE,"image/png");
-                v.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/ImageOrderStudioCI");
+                v.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/ImageOrderCI");
                 v.put(MediaStore.Images.Media.IS_PENDING,1);
                 Uri uri=cr.insert(media,v);
                 assertNotNull(uri);inserted.add(uri);expected.add(original);
@@ -103,7 +103,7 @@ public class OrderedAttachmentInstrumentedTest {
         ContentValues cv=new ContentValues();
         cv.put(MediaStore.Images.Media.DISPLAY_NAME,name);
         cv.put(MediaStore.Images.Media.MIME_TYPE,"image/png");
-        cv.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/ImageOrderStudioCI");
+        cv.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/ImageOrderCI");
         cv.put(MediaStore.Images.Media.IS_PENDING,1);
         Uri added=cr.insert(mediaRoot,cv);assertNotNull(added);
         try {
@@ -170,7 +170,7 @@ public class OrderedAttachmentInstrumentedTest {
                 ContentValues values=new ContentValues();
                 values.put(MediaStore.Images.Media.DISPLAY_NAME,name);
                 values.put(MediaStore.Images.Media.MIME_TYPE,"image/png");
-                values.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/ImageOrderStudioCI");
+                values.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/ImageOrderCI");
                 values.put(MediaStore.Images.Media.IS_PENDING,1);
                 Uri uri=cr.insert(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),values);
                 assertNotNull(uri);inserted.add(uri);expected.add(data);names.add(name);
@@ -266,7 +266,7 @@ public class OrderedAttachmentInstrumentedTest {
             if(info.activityInfo!=null && ctx.getPackageName().equals(info.activityInfo.packageName)
                 && MainActivity.class.getName().equals(info.activityInfo.name))found=true;
         }
-        assertTrue("Image Order Studio must resolve for image/jpeg GET_CONTENT",found);
+        assertTrue("Image Order must resolve for image/jpeg GET_CONTENT",found);
         Intent generic=new Intent(Intent.ACTION_GET_CONTENT);
         generic.setType("*/*");generic.addCategory(Intent.CATEGORY_OPENABLE);
         generic.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"image/png","image/jpeg"});

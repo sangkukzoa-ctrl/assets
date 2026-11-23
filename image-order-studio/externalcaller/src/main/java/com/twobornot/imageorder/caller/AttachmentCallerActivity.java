@@ -8,7 +8,7 @@ import android.os.Bundle;
 import java.io.InputStream;
 import java.util.concurrent.CountDownLatch;
 
-/** Truly separate UID and APK: asks Image Order Studio to pick original photos. */
+/** Truly separate UID and APK: asks Image Order to pick original photos. */
 public final class AttachmentCallerActivity extends Activity {
     public static volatile String[] names,uriStrings,hashes;
     public static volatile boolean hadAccessBeforeUserSelection;

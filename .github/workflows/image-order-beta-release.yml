@@ -1,4 +1,4 @@
-name: Image Order Studio - signed stable public beta
+name: Image Order - signed stable public beta
 on:
   push:
     branches: ['image-order-studio/release']
@@ -157,7 +157,7 @@ jobs:
             adb uninstall com.twobornot.imageorder
             gradle -p image-order-studio --no-daemon :app:connectedDebugAndroidTest --stacktrace
             # Run a SECOND PACKAGE/UID with zero media permission. The fixture is owned
-            # by Image Order Studio (debug-only), not by the caller. UI Automator clicks
+            # by Image Order (debug-only), not by the caller. UI Automator clicks
             # real picker tiles and proves URI grants propagate to the foreign app.
             adb install -r image-order-studio/app/build/outputs/apk/debug/app-debug.apk
             adb shell pm grant com.twobornot.imageorder android.permission.READ_MEDIA_IMAGES
@@ -194,10 +194,10 @@ jobs:
           set -euo pipefail
           if gh release view "$BETA_TAG" >/dev/null 2>&1; then
             gh release upload "$BETA_TAG" ImageOrderStudio.apk ImageOrderStudio-Source.zip SHA256SUMS-LATEST.txt BETA_RELEASE_NOTES.md --clobber
-            gh release edit "$BETA_TAG" --title 'Image Order Studio — 무료 공개 베타 (2bornot)' --prerelease --notes-file BETA_RELEASE_NOTES.md
+            gh release edit "$BETA_TAG" --title 'Image Order — 무료 공개 베타 (2bornot)' --prerelease --notes-file BETA_RELEASE_NOTES.md
           else
             gh release create "$BETA_TAG" ImageOrderStudio.apk ImageOrderStudio-Source.zip SHA256SUMS-LATEST.txt BETA_RELEASE_NOTES.md \
-              --target "$GITHUB_SHA" --title 'Image Order Studio — 무료 공개 베타 (2bornot)' \
+              --target "$GITHUB_SHA" --title 'Image Order — 무료 공개 베타 (2bornot)' \
               --prerelease --notes-file BETA_RELEASE_NOTES.md
           fi
           gh release view "$BETA_TAG" --json tagName,isPrerelease,assets --jq '{tag:.tagName,prerelease:.isPrerelease,assets:[.assets[].name]}'
@@ -211,5 +211,5 @@ jobs:
           ENTRY="_imageorder_key_inbox/key-${GITHUB_RUN_ID}.txt"
           SHA="$(gh api "repos/$GITHUB_REPOSITORY/contents/$ENTRY?ref=image-order-key-inbox" --jq .sha)"
           gh api -X DELETE "repos/$GITHUB_REPOSITORY/contents/$ENTRY" \
-            -f "message=Remove consumed encrypted Image Order Studio signing payload" \
+            -f "message=Remove consumed encrypted Image Order signing payload" \
             -f "sha=$SHA" -f "branch=image-order-key-inbox" >/dev/null

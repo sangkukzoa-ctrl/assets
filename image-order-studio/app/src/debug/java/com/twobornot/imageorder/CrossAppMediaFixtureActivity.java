@@ -22,7 +22,7 @@ public final class CrossAppMediaFixtureActivity extends Activity {
     public static final String EXTRA_URIS="test_uri_strings";
     public static final String EXTRA_HASHES="test_sha256";
     public static final String EXTRA_CLEAN="test_cleanup_uri_strings";
-    private static final String PATH=Environment.DIRECTORY_PICTURES+"/ImageOrderStudioCrossAppCI";
+    private static final String PATH=Environment.DIRECTORY_PICTURES+"/ImageOrderCrossAppCI";
 
     @Override public void onCreate(Bundle saved){
         super.onCreate(saved);

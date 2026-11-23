@@ -1,10 +1,10 @@
-# Image Order Studio v0.5.5 — 서로 다른 Android 앱 사이의 원본 첨부 검증
+# Image Order v0.5.5 — 서로 다른 Android 앱 사이의 원본 첨부 검증
 
 개발자: 2bornot · 광고 없음 · 인터넷 권한 없음 · Android 8.0 이상
 
 ## 이번 단계
 
-- **별도 Android 패키지 개발:** `com.twobornot.imageorder.caller`는 앱 자체 권한으로 사진을 읽지 않고, Image Order Studio가 반환한 원본 이미지 URI만 읽을 수 있는지 테스트합니다.
+- **별도 Android 패키지 개발:** `com.twobornot.imageorder.caller`는 앱 자체 권한으로 사진을 읽지 않고, Image Order가 반환한 원본 이미지 URI만 읽을 수 있는지 테스트합니다.
 - **UI Automator 연결:** 다른 앱에서 `GET_CONTENT`(`image/png`, `*/*`)를 호출하고, 실제 갤러리 타일을 순서 3→1→2로 누른 뒤 완료하도록 자동화했습니다.
 - **원본 확인:** 응답을 받은 별도 앱이 URI 접근 권한, JPEG/PNG MIME, 파일명, SHA-256 원본 바이트 및 선택 순서를 검증합니다.
 - **테스트 사진의 소유권 분리:** 이미지 생성은 본 앱의 디버그 구성요소가 수행하고, 호출 앱은 미리 사진 읽기 권한을 받지 않습니다. 서명 배포 APK에는 이 디버그 구성요소를 포함하지 않습니다.
