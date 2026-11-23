@@ -77,7 +77,7 @@ public final class CrossAppMediaFixtureActivity extends Activity {
     private static String hex(byte[] data){
         char[] alphabet="0123456789abcdef".toCharArray();
         StringBuilder sb=new StringBuilder(data.length*2);
-        for(byte b:data){sb.append(alphabet.charAt((b>>4)&15));sb.append(alphabet.charAt(b&15));}
+        for(byte b:data){sb.append(alphabet[(b>>4)&15]);sb.append(alphabet[b&15]);}
         return sb.toString();
     }
 }
