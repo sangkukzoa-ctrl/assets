@@ -75,24 +75,37 @@ public final class CrossPackagePickerTest {
             assertNotNull("Gallery Done button",done);
             assertTrue("Three taps must be recognized before returning. Actual label: "+done.getText(),
                 done.getText()!=null && done.getText().trim().endsWith("3"));
-            // Touch the visible button rather than using a flaky accessibility-node action.
+            // Distinguish input routing problems from cross-UID result/grant failures.
             android.graphics.Rect doneRect=done.getVisibleBounds();
-            assertTrue("Done must be tappable",device.click(doneRect.centerX(),doneRect.centerY()));
-            boolean returned=AttachmentCallerActivity.done.await(12,TimeUnit.SECONDS);
+            android.util.Log.i("ImageOrderFlow","Confirm probe: bounds="+doneRect
+                +"; text="+done.getText()+"; display="+device.getDisplayWidth()+"x"+device.getDisplayHeight()
+                +"; foreground="+device.getCurrentPackageName());
+            done.click();
+            boolean returned=AttachmentCallerActivity.done.await(4,TimeUnit.SECONDS);
             if(!returned && device.hasObject(By.desc("imageorder.confirm"))){
-                android.util.Log.w("ImageOrderFlow","Retry Done via coordinate input; gallery still visible");
-                device.click(doneRect.centerX(),doneRect.centerY());
-                returned=AttachmentCallerActivity.done.await(12,TimeUnit.SECONDS);
+                android.util.Log.w("ImageOrderFlow","Accessibility click did not deliver result; inject physical coordinates");
+                assertTrue("Coordinate input must inject",device.click(doneRect.centerX(),doneRect.centerY()));
+                returned=AttachmentCallerActivity.done.await(4,TimeUnit.SECONDS);
             }
             if(!returned && device.hasObject(By.desc("imageorder.confirm"))){
-                android.util.Log.w("ImageOrderFlow","Final test-only shell tap of gallery Done");
+                android.util.Log.w("ImageOrderFlow","Shell-level physical tap as independent input route");
                 try(android.os.ParcelFileDescriptor fd=instrumentation.getUiAutomation().executeShellCommand(
                     "input tap "+doneRect.centerX()+" "+doneRect.centerY())){}
-                returned=AttachmentCallerActivity.done.await(10,TimeUnit.SECONDS);
+                returned=AttachmentCallerActivity.done.await(6,TimeUnit.SECONDS);
             }
-            if(!returned)android.util.Log.e("ImageOrderFlow",
-                "Timed out awaiting third-party result after tapping Done: currentPackage="+device.getCurrentPackageName()
-                +"; request="+requestedMime+"; error="+AttachmentCallerActivity.error);
+            if(!returned){
+                java.io.File diagnostics=context.getExternalFilesDir(null);
+                if(diagnostics!=null){
+                    String label=requestedMime.equals("*/*")?"wildcard":"png";
+                    try{device.takeScreenshot(new java.io.File(diagnostics,"imageorder-"+label+"-failure.png"));}
+                    catch(Exception ex){android.util.Log.e("ImageOrderFlow","Screenshot capture failed",ex);}
+                    try{device.dumpWindowHierarchy(new java.io.File(diagnostics,"imageorder-"+label+"-hierarchy.xml"));}
+                    catch(Exception ex){android.util.Log.e("ImageOrderFlow","Hierarchy capture failed",ex);}
+                }
+                android.util.Log.e("ImageOrderFlow",
+                    "No result after three input methods: currentPackage="+device.getCurrentPackageName()
+                    +"; request="+requestedMime+"; bounds="+doneRect+"; error="+AttachmentCallerActivity.error);
+            }
             assertTrue("Independent app must receive Activity RESULT_OK ("+AttachmentCallerActivity.error+")",returned);
             assertNull("Result path must not fail",AttachmentCallerActivity.error);
             assertEquals(Activity.RESULT_OK,AttachmentCallerActivity.resultCode);
