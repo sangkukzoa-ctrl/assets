@@ -73,3 +73,20 @@
 - URI/원본 바이트는 여전히 재인코딩·복사·파일명 변경을 거치지 않음.
 - 참고: https://developer.android.com/reference/android/provider/MediaStore#EXTRA_PICK_IMAGES_IN_ORDER
 - 직접 플랫폼 picker 호출은 시스템 Photo Picker를 교체하거나 모든 앱의 자체 첨부 창을 강제 대체하는 기능은 아니다.
+
+## 2차 세션 기술 인수인계 — v0.5.5 검증 확대 (2026-11-23)
+
+- 기본 Android 13/14/15 외부 APK 테스트 성공: https://github.com/sangkukzoa-ctrl/assets/actions/runs/45150025193 (각 OS 앱 6개+별도 패키지 4개).
+- 원본 파일명/바이트/MIME와 다른 UID의 URI 읽기 권한을 실제 검증한다. 최근 확대 테스트는 PNG/JPEG/WebP 5개 이미지의 5→2→4→1→3 선택 순서를 포함한다.
+- 확장 검증 성공: https://github.com/sangkukzoa-ctrl/assets/actions/runs/45164473132 (Android 13/14/15 모두 통과).
+- Android 13/14에서 StaleObjectException을 유발한 UiAutomator 테스트는 매 클릭마다 화면 노드를 재탐색하도록 수정. 실제 앱 원본 반환 결함과 구별한다.
+- Android 15 이상 강제 Edge-to-Edge 완료 버튼 가림 결함을 WindowInsets 적용으로 수정. 갤러리 완료 버튼 탭/외부 반환 통과: https://github.com/sangkukzoa-ctrl/assets/actions/runs/45148994457
+- Android MediaStore.EXTRA_PICK_IMAGES_IN_ORDER(API 35 또는 R Extensions 12+)를 권한 거부 시 시스템 Photo Picker fallback에 적용해 2차 재선택 과정을 제거하도록 구현. 단일 사진 fallback은 EXTRA_PICK_IMAGES_MAX=1이 Android에서 무효이므로 해당 extra를 넣지 않는다.
+- Android 8~12 권한 거부 시 시스템 GET_CONTENT 선택창에서 NativeGalleryActivity 자체를 제외해 Image Order가 다시 자기 자신을 열어 반복하는 경로 차단.
+- 개발 CI/외부 APK E2E는 소스 변경에만 동작하도록 경로 필터 조정, 동일 브랜치 오래된 실행 취소(최신 실행만 유지) 추가.
+- 차기 정식 릴리스에서 공식 APK는 ImageOrder.apk, 공식 소스는 ImageOrder-Source.zip. 이전 설치 링크/사용자의 기존 사용 환경 보호를 위해 ImageOrderStudio.apk, ImageOrderStudio-Source.zip 별도 호환 별칭 제공. 정식 공개 브랜치는 아직 변경하지 않았다.
+- 이 2차 세션의 최신 소스 브랜치: image-order/dev-v2. 최종 승계 기준 커밋은 git 브랜치 HEAD를 읽어 결정하며 문서에 오래된 SHA를 고정하지 않는다.
+- 최신 확장 시스템 Photo Picker fallback 포함 APK 개발 CI 성공: https://github.com/sangkukzoa-ctrl/assets/actions/runs/45165284373
+- 최신 확장 외부 UID E2E: https://github.com/sangkukzoa-ctrl/assets/actions/runs/45165284367 (결과 완료 여부를 다음 재개 시 조회).
+- 미완료: Android 16(API 36), 실제 Samsung 갤러리/브라우저의 개별 첨부창, ACTION_PICK 및 system Photo Picker fallback의 외부 APK 완전 왕복, 수신 앱의 별도 재정렬과 업로드 후 순서 검증, 비정상 Activity 재생성.
+- v0.5.5 공개 배포 여부는 최신 테스트 및 실제 앱 호환성 확인 후 판단한다. 공개된 최신 APK는 아직 v0.5.4이며 기존 서명 인증서를 유지한다.
