@@ -9,7 +9,7 @@ provider=(src/'OriginalImageProvider.java').read_text()
 mime=(src/'ImageMimePolicy.java').read_text()
 manifest=(p/'app/src/main/AndroidManifest.xml').read_text()
 gradle=(p/'app/build.gradle').read_text()
-assert "versionCode 9" in gradle and "versionName '0.5.3'" in gradle
+assert "versionCode 10" in gradle and "versionName '0.5.4'" in gradle
 assert "applicationId 'com.twobornot.imageorder'" in gradle
 assert 'android.permission.INTERNET' not in manifest
 assert 'BIND_ACCESSIBILITY_SERVICE' not in manifest and 'UploadAssistService' not in manifest
@@ -44,6 +44,12 @@ assert 'ImageExporter.java' not in {x.name for x in src.iterdir()}
 assert 'GalleryMediaExporter.java' not in {x.name for x in src.iterdir()}
 assert 'Bitmap.compress' not in helper and 'Bitmap.compress' not in native
 assert 'getString("name")' in provider and 'getString("mime")' in provider
-assert 'ParcelFileDescriptor.MODE_READ_ONLY' in provider
+assert 'openFileDescriptor(photoUri(' in (src/'OrderedDocumentsProvider.java').read_text()
+assert 'SafDocumentIds.photo(' in (src/'OrderedDocumentsProvider.java').read_text()
+assert 'OriginalImageProvider' in provider
 assert not list(p.rglob('*.jks')) and not list(p.rglob('*.p12'))
-print('v0.5.3 zero-copy original URI, MIME filters, launcher and no accessibility: PASS')
+assert not (src/'OrderedOutbox.java').exists()
+assert 'OrderedOutbox' not in (src/'OrderedDocumentsProvider.java').read_text()
+assert 'queryRecentDocuments(' in (src/'OrderedDocumentsProvider.java').read_text()
+assert 'querySearchDocuments(' in (src/'OrderedDocumentsProvider.java').read_text()
+print('v0.5.4 original-byte MediaStore SAF, MIME, launcher and no accessibility: PASS')

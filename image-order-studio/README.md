@@ -1,27 +1,19 @@
-# Image Order Studio / 이미지 순서 스튜디오 v0.5.3
+# Image Order Studio / 이미지 순서 스튜디오 v0.5.4
 
-**Fixed goal:** one native-like Android gallery that is automatically selectable for image upload wherever the Android platform permits, returning unchanged original URIs in the exact user-tap order. Universal system-level upload integration remains an active objective.
+**Immutable goal:** one natural Android gallery for image upload across apps and web sites, returning the exact original photographs in the user's selection order. The global picker invocation and receiver-side order guarantee remain open engineering objectives; no app-specific workaround is considered completion.
 
-# Image Order Studio v0.5.2 — Original-byte order-only upload
+Android 8+ · `com.twobornot.imageorder` · by 2bornot · no ads · no network permission.
 
-By 2bornot. Android 8.0+, offline, no ads.
+## Original photos, zero edits
 
-## One workflow
+Compatible `ACTION_GET_CONTENT` and `ACTION_PICK` requests launch the app's gallery, where numbered overlays show **tap order only**. The result is a grantable `ClipData` containing the **original MediaStore URIs, in that order**. No compression, modification, stamping, merge, renaming or copy of photos takes place in the primary upload path.
 
-Open Image Order Studio from a compatible photo attachment action, choose original photos in the order you want, and tap Done. The app returns the selected images with their **original bytes, original MIME types and original filenames**. The numbers appear only on the selector UI.
+The launcher opens the same gallery; Done opens the normal Android sharing sheet for original photos.
 
-When started directly, choose pictures and the Android Share sheet opens with the unmodified originals in the selected order. The app does not stamp numbers, resize, recompress, combine, edit EXIF, or convert formats as part of an upload.
+For `ACTION_OPEN_DOCUMENT` callers, Android Files can now display Image Order Studio as an independent read-only source showing **all accessible original photos, native albums, recents, search and thumbnails**, directly backed by MediaStore (not the old numbered export batches). Opening a document streams the original MediaStore bytes, with the original filename and MIME type. Grant photo access in the app gallery first if the Android Files source appears empty. Android's own DocumentsUI controls ordering within SAF; our native gallery controls tap ordering in supported GET_CONTENT/PICK callers.
 
-The order contract is explicit: the app builds Android ClipData in selection order and uses read-granted `content://` URIs. The private original-byte copies are readable via a small read-only provider exposing original filenames and MIME types. The originals on the device are not modified.
+**Android platform boundary:** An ordinary sideloaded APK cannot globally replace the system Photo Picker `ACTION_PICK_IMAGES` or intercept every custom app uploader. Neither this version nor older versions should be described as achieving that fixed goal.
 
-**Platform boundary:** Third-party sites/apps may rearrange received files; this app cannot force a receiver to maintain list order when the receiver ignores it. System Photo Picker is managed by Android and cannot be globally replaced by an ordinary APK.
+## Build and release
 
-Gallery + picker intent integrations remain. No AccessibilityService is used, to avoid sideload protection blocking.
-
-## Development
-
-- Package `com.twobornot.imageorder`
-- Stable signing certificate reused from versions 0.2–0.5.1
-- `versionCode 8`, `versionName 0.5.2`
-- GitHub release tag: `image-order-beta`
-- CI checks original-byte delivery, no rendering in upload code, gallery, permissions, signature, and install.
+Gradle 8.11.1, Java 17, compileSdk 36, targetSdk 35. GitHub dev/release CI tests order, image types, SAF IDs, Android emulator original bytes, signed installation and public release integrity. Signed v0.5.4 beta is published only after all release gates pass. Signing identity must remain unchanged.

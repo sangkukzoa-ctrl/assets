@@ -46,10 +46,12 @@ jobs:
           java -cp build/testclasses com.twobornot.imageorder.MediaNamingTest
           javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/OriginalDelivery.java app/src/main/java/com/twobornot/imageorder/SequenceLedger.java tests/OriginalDeliveryTest.java
           java -cp build/testclasses com.twobornot.imageorder.OriginalDeliveryTest
+          javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/SafDocumentIds.java tests/SafDocumentIdsTest.java
+          java -cp build/testclasses com.twobornot.imageorder.SafDocumentIdsTest
           gradle --no-daemon :app:assembleRelease --stacktrace
           test -s app/build/outputs/apk/release/app-release-unsigned.apk
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | tee /tmp/imageorder-aapt.txt
-          grep -F "package: name='com.twobornot.imageorder' versionCode='9' versionName='0.5.3'" /tmp/imageorder-aapt.txt
+          grep -F "package: name='com.twobornot.imageorder' versionCode='10' versionName='0.5.4'" /tmp/imageorder-aapt.txt
           grep -F "sdkVersion:'26'" /tmp/imageorder-aapt.txt
           ! grep -F 'BIND_ACCESSIBILITY_SERVICE' /tmp/imageorder-aapt.txt
           ! grep -F 'AccessibilityService' /tmp/imageorder-aapt.txt
@@ -113,7 +115,7 @@ jobs:
           grep -F 'Verified using v2 scheme (APK Signature Scheme v2): true' signature-report.txt
           grep -F 'Verified using v3 scheme (APK Signature Scheme v3): true' signature-report.txt
           "$BUILD_TOOLS/zipalign" -c -p 4 ImageOrderStudio.apk
-          "$BUILD_TOOLS/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='9' versionName='0.5.3'"
+          "$BUILD_TOOLS/aapt" dump badging ImageOrderStudio.apk | grep -F "package: name='com.twobornot.imageorder' versionCode='10' versionName='0.5.4'"
           test "$(stat -c %s ImageOrderStudio.apk)" -gt 200000
           if "$BUILD_TOOLS/aapt" dump xmltree ImageOrderStudio.apk AndroidManifest.xml | grep -E 'BIND_ACCESSIBILITY_SERVICE|android.accessibilityservice|UploadAssistService'; then
             echo '::error::Sensitive Accessibility component present in a sideloaded APK'
@@ -153,8 +155,7 @@ jobs:
             # The signed install has passed; Android instrumented tests use the debug package
             # to verify actual original MediaStore byte streams, ClipData order and MIME.
             adb uninstall com.twobornot.imageorder
-            cd image-order-studio
-            gradle --no-daemon :app:connectedDebugAndroidTest --stacktrace
+            gradle -p image-order-studio --no-daemon :app:connectedDebugAndroidTest --stacktrace
             adb logcat -d -s AndroidRuntime:E | tee /tmp/imageorder-crashes.txt
             ! grep -q 'FATAL EXCEPTION.*com.twobornot.imageorder' /tmp/imageorder-crashes.txt
       - name: Package public sources, hashes, release notes

@@ -1,6 +1,13 @@
 package com.twobornot.imageorder;
 
 import android.content.ClipData;
+import android.content.ContentUris;
+import android.database.Cursor;
+import android.provider.DocumentsContract;
+import android.provider.OpenableColumns;
+import android.content.res.AssetFileDescriptor;
+import java.io.FileNotFoundException;
+import android.util.Size;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
@@ -72,6 +79,67 @@ public class OrderedAttachmentInstrumentedTest {
             for(Uri uri:inserted)cr.delete(uri,null,null);
         }
     }
+    /** SAF root: original MediaStore bytes, name, MIME, thumbnail and read-only contract. */
+    @Test public void safDocumentProviderExposesRealPhotosWithoutNumberedCopies() throws Exception {
+        Context ctx=InstrumentationRegistry.getInstrumentation().getTargetContext();
+        ContentResolver cr=ctx.getContentResolver();
+        String authority=ctx.getPackageName()+".documents";
+        Uri mediaRoot=MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+        Bitmap bitmap=Bitmap.createBitmap(11,9,Bitmap.Config.ARGB_8888);
+        bitmap.eraseColor(0xff335577);
+        ByteArrayOutputStream buffer=new ByteArrayOutputStream();
+        assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG,100,buffer));bitmap.recycle();
+        byte[] original=buffer.toByteArray();
+        String name="saf_original_"+System.nanoTime()+".png";
+        ContentValues cv=new ContentValues();
+        cv.put(MediaStore.Images.Media.DISPLAY_NAME,name);
+        cv.put(MediaStore.Images.Media.MIME_TYPE,"image/png");
+        cv.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/ImageOrderStudioCI");
+        cv.put(MediaStore.Images.Media.IS_PENDING,1);
+        Uri added=cr.insert(mediaRoot,cv);assertNotNull(added);
+        try {
+            try(OutputStream out=cr.openOutputStream(added,"w")){assertNotNull(out);out.write(original);}
+            ContentValues done=new ContentValues();done.put(MediaStore.Images.Media.IS_PENDING,0);
+            assertEquals(1,cr.update(added,done,null,null));
+            try(Cursor roots=cr.query(DocumentsContract.buildRootsUri(authority),null,null,null,null)) {
+                assertNotNull(roots);assertTrue(roots.moveToFirst());
+                assertEquals("images",roots.getString(roots.getColumnIndexOrThrow(DocumentsContract.Root.COLUMN_ROOT_ID)));
+                assertEquals("image/*",roots.getString(roots.getColumnIndexOrThrow(DocumentsContract.Root.COLUMN_MIME_TYPES)));
+            }
+            String id=SafDocumentIds.photo(ContentUris.parseId(added));
+            boolean found=false;
+            try(Cursor photos=cr.query(DocumentsContract.buildChildDocumentsUri(authority,"all"),null,null,null,null)) {
+                assertNotNull(photos);
+                while(photos.moveToNext()){
+                    String row=photos.getString(photos.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID));
+                    if(id.equals(row)){
+                        found=true;
+                        assertEquals(name,photos.getString(photos.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)));
+                        assertEquals("image/png",photos.getString(photos.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)));
+                        assertEquals(original.length,photos.getLong(photos.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_SIZE)));
+                        break;
+                    }
+                }
+            }
+            assertTrue("SAF must display the original photo",found);
+            Uri document=DocumentsContract.buildDocumentUri(authority,id);
+            assertArrayEquals(original,readAll(cr,document));
+            assertEquals("image/png",cr.getType(document));
+            try(Cursor file=cr.query(document,new String[]{DocumentsContract.Document.COLUMN_DISPLAY_NAME,DocumentsContract.Document.COLUMN_MIME_TYPE},null,null,null)){
+                assertNotNull(file);assertTrue(file.moveToFirst());assertEquals(name,file.getString(0));
+                assertEquals("image/png",file.getString(1));
+            }
+            android.graphics.Bitmap preview=DocumentsContract.getDocumentThumbnail(cr,document,new android.graphics.Point(80,80),null);
+            assertNotNull("SAF thumbnail should decode",preview);
+            preview.recycle();
+            try {cr.openOutputStream(document,"w");fail("SAF must be read-only");}
+            catch(FileNotFoundException | SecurityException | UnsupportedOperationException expected){}
+            Uri traversal=DocumentsContract.buildDocumentUri(authority,"photo:../../etc/passwd");
+            try {cr.openInputStream(traversal);fail("SAF ID traversal must be rejected");}
+            catch(FileNotFoundException | SecurityException expected){}
+        }finally{cr.delete(added,null,null);}
+    }
+
     @Test public void singleResultHasReadableImageTypeAndOriginalUri() {
         Uri original=Uri.parse("content://media/external/images/media/12345");
         ArrayList<Uri> originals=new ArrayList<>(Arrays.asList(original));
