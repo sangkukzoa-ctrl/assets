@@ -87,7 +87,7 @@ public final class CrossPackagePickerTest {
             }
             if(tab==null)captureFailure(instrumentation,requestedMime,"gallery-not-found");
             assertNotNull("Picker gallery must appear in another app's GET_CONTENT",tab);
-            tab.click();
+            clickFresh(device,"imageorder.photos",15000);
             String[] names=AttachmentCallerActivity.names;
             for(int attempt=0;names==null && attempt<16;attempt++){
                 Thread.sleep(250);
@@ -100,9 +100,7 @@ public final class CrossPackagePickerTest {
                 AttachmentCallerActivity.hadAccessBeforeUserSelection);
             int[] selectedOrder=allowMultiple?TAP_ORDER:new int[]{TAP_ORDER[0]};
             for(int index:selectedOrder) {
-                UiObject2 photo=device.wait(Until.findObject(By.desc("imageorder.photo:"+names[index])),30000);
-                assertNotNull("Photo must be visible to target gallery: "+names[index],photo);
-                photo.click();
+                clickFresh(device,"imageorder.photo:"+names[index],30000);
             }
             boolean returned;
             if(allowMultiple) {
@@ -193,6 +191,31 @@ public final class CrossPackagePickerTest {
             device.pressHome();
         }
     }
+    /**
+     * GridView replaces visible tile nodes after each numbered selection.
+     * A UiObject2 from the preceding layout becomes stale mid-click on API 33/34.
+     * Re-acquire each node by its unique content description, and only retry
+     * the UiAutomator stale-node exception (not an app-level result failure).
+     */
+    private static void clickFresh(UiDevice device,String description,long timeoutMs) throws Exception {
+        final long deadline=android.os.SystemClock.uptimeMillis()+timeoutMs;
+        androidx.test.uiautomator.StaleObjectException stale=null;
+        while(android.os.SystemClock.uptimeMillis()<deadline){
+            UiObject2 current=device.wait(Until.findObject(By.desc(description)),2000);
+            if(current==null)continue;
+            try{
+                current.click();
+                return;
+            }catch(androidx.test.uiautomator.StaleObjectException e){
+                stale=e;
+                android.util.Log.w("ImageOrderFlow","Recycler UI node stale during click: "+description+"; reacquiring");
+                Thread.sleep(150);
+            }
+        }
+        if(stale!=null)throw new AssertionError("UI never stabilized for "+description,stale);
+        fail("Expected gallery item is missing: "+description);
+    }
+
     /** Keep emulator evidence outside the instrumented APK's auto-removed app data. */
     private static void captureFailure(Instrumentation inst,String mime,String reason){
         String label=mime.equals("*/*")?"wildcard":"png";
