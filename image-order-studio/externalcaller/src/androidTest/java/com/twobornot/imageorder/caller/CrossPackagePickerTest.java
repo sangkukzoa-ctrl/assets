@@ -56,7 +56,7 @@ public final class CrossPackagePickerTest {
         Intent start=new Intent(context,AttachmentCallerActivity.class);
         start.putExtra("requestedMime",requestedMime);
         start.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        instrumentation.startActivitySync(start);
+        context.startActivity(start); // asynchronous cross-app launch: do not block test instrumentation idle
         try {
             UiObject2 tab=device.wait(Until.findObject(By.desc("imageorder.photos")),35000);
             assertNotNull("Picker gallery must appear in another app's GET_CONTENT",tab);
@@ -73,6 +73,8 @@ public final class CrossPackagePickerTest {
             }
             UiObject2 done=device.wait(Until.findObject(By.desc("imageorder.confirm")),15000);
             assertNotNull("Gallery Done button",done);
+            assertTrue("Three taps must be recognized before returning. Actual label: "+done.getText(),
+                done.getText()!=null && done.getText().trim().endsWith("3"));
             done.click();
             assertTrue("Independent app must receive Activity RESULT_OK ("+AttachmentCallerActivity.error+")",
                 AttachmentCallerActivity.done.await(30,TimeUnit.SECONDS));
@@ -116,6 +118,8 @@ public final class CrossPackagePickerTest {
                 cleanup.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 try{context.startActivity(cleanup);}catch(Exception ignored){}
             }
+            device.pressBack();
+            device.pressBack();
             device.pressHome();
         }
     }
