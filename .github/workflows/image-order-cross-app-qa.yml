@@ -43,7 +43,7 @@ jobs:
             gradle -p image-order-studio --no-daemon :app:connectedDebugAndroidTest --stacktrace
             adb install -r image-order-studio/app/build/outputs/apk/debug/app-debug.apk
             adb shell pm grant com.twobornot.imageorder android.permission.READ_MEDIA_IMAGES
-            gradle -p image-order-studio --no-daemon :externalcaller:connectedDebugAndroidTest --stacktrace || { adb logcat -d -v time > image-order-studio/android-e2e-logcat.txt 2>&1 || true; adb shell dumpsys activity activities > image-order-studio/android-e2e-activities.txt 2>&1 || true; exit 1; }
+            gradle -p image-order-studio --no-daemon :externalcaller:connectedDebugAndroidTest --stacktrace || { adb logcat -d -v time > image-order-studio/android-e2e-logcat.txt 2>&1 || true; adb shell dumpsys activity activities > image-order-studio/android-e2e-activities.txt 2>&1 || true; mkdir -p image-order-studio/crossuid-diagnostics; adb pull /sdcard/Android/data/com.twobornot.imageorder.caller/files/. image-order-studio/crossuid-diagnostics/ || true; exit 1; }
             adb logcat -d -s AndroidRuntime:E > image-order-studio/android-e2e-crashes.log
       - name: Keep full Android test XML/reports on failures
         if: always()
@@ -58,5 +58,6 @@ jobs:
             image-order-studio/android-e2e-crashes.log
             image-order-studio/android-e2e-logcat.txt
             image-order-studio/android-e2e-activities.txt
+            image-order-studio/crossuid-diagnostics/
           if-no-files-found: warn
           retention-days: 14
