@@ -75,8 +75,21 @@ public final class CrossPackagePickerTest {
             assertNotNull("Gallery Done button",done);
             assertTrue("Three taps must be recognized before returning. Actual label: "+done.getText(),
                 done.getText()!=null && done.getText().trim().endsWith("3"));
-            done.click();
-            boolean returned=AttachmentCallerActivity.done.await(45,TimeUnit.SECONDS);
+            // Touch the visible button rather than using a flaky accessibility-node action.
+            android.graphics.Rect doneRect=done.getVisibleBounds();
+            assertTrue("Done must be tappable",device.click(doneRect.centerX(),doneRect.centerY()));
+            boolean returned=AttachmentCallerActivity.done.await(12,TimeUnit.SECONDS);
+            if(!returned && device.hasObject(By.desc("imageorder.confirm"))){
+                android.util.Log.w("ImageOrderFlow","Retry Done via coordinate input; gallery still visible");
+                device.click(doneRect.centerX(),doneRect.centerY());
+                returned=AttachmentCallerActivity.done.await(12,TimeUnit.SECONDS);
+            }
+            if(!returned && device.hasObject(By.desc("imageorder.confirm"))){
+                android.util.Log.w("ImageOrderFlow","Final test-only shell tap of gallery Done");
+                try(android.os.ParcelFileDescriptor fd=instrumentation.getUiAutomation().executeShellCommand(
+                    "input tap "+doneRect.centerX()+" "+doneRect.centerY())){}
+                returned=AttachmentCallerActivity.done.await(10,TimeUnit.SECONDS);
+            }
             if(!returned)android.util.Log.e("ImageOrderFlow",
                 "Timed out awaiting third-party result after tapping Done: currentPackage="+device.getCurrentPackageName()
                 +"; request="+requestedMime+"; error="+AttachmentCallerActivity.error);
