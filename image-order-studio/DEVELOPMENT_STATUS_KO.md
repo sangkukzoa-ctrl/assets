@@ -116,3 +116,15 @@
 - Android 16에서 같은 실행의 독립 WebView HTML 업로드는 `FileChooserParams.parseResult` 기본 null을 우회한 뒤 실제 `FileList` 5개 항목(파일명·MIME·크기) 순서까지 완전히 도달하는 로그 확인.
 - 테스트가 클릭 명령 성공을 선택 완료로 착각하지 않도록 사진마다 완료 버튼의 선택 개수를 재확인한다. 재렌더/노드 교체로 누락된 시도에 한하여 최대 2회 재시도. UI가 3회 내 응답하지 않으면 여전히 실패 처리한다.
 - 일반 사용자 UI와 선택 순서 처리 로직은 변경하지 않으며, 테스트 조건만 가시적 UI 확정 상태 기준으로 강화한다.
+
+## Android 13~16 최종 독립 앱 및 HTML 업로드 E2E 64/64 통과 (2026-11-23)
+
+- 마지막 실제 코드 변경: `1f81002fd9f8b1e95d79b8286fa1fd263ee14c4b` (빠른 연속 선택에도 각 사진의 선택 카운터를 확인하고 다음 사진으로 진행).
+- Android 개발 CI: https://github.com/sangkukzoa-ctrl/assets/actions/runs/45178396631 — 소스/단위 검사, APK 빌드, 전체 소스 ZIP 패키징 성공.
+- 독립 Android 4개 버전 E2E: https://github.com/sangkukzoa-ctrl/assets/actions/runs/45178396640 — 33/34/35/36 모두 성공.
+- 각 OS마다 **앱 내부 8개 + 별도 UID의 외부 앱 테스트 8개 = 16개**, 4개 OS 합산 **64/64 통과**.
+- 실제 `ACTION_GET_CONTENT`의 `image/png`, `image/*`, `*/*`, 단일/다중 요청, `ACTION_PICK` MIME+MediaStore URI 및 URI-only 경로의 반환/읽기 권한/원본 SHA-256/파일명/MIME 검증.
+- 실제 로컬 HTML `<input type=file multiple accept=image/*>`과 WebChromeClient를 사용하는 별도 Android WebView APK에서 PNG/JPEG/WebP 다섯 장을 5→2→4→1→3 순서로 선택, URI/원본 바이트 검증뿐 아니라 최종 HTML `FileList` 이름/형식/크기/순서까지 성공.
+- **주의할 계약 차이:** Chromium 기본 `FileChooserParams.parseResult()`는 다중 URI의 `ClipData`를 무시하므로 별도 WebView 호스트에서 `OrderedWebFileChooserResult`로 보정했다. 이는 외부 브라우저 앱의 내부 로직을 자동 패치하는 기능이 아니다.
+- 전체 개발 소스 ZIP은 GitHub CI의 `ImageOrder-v0.5.5-complete-source` 아티팩트이며, 주요 소스 89개 파일/디렉터리 항목을 포함하고 무결성 및 비밀 서명키 제외 확인.
+- 공개 v0.5.4와 서명된 APK는 변경하지 않았다. 다음 우선과제: 실제 Galaxy 삼성 갤러리/삼성 인터넷/Chrome 업로드, Android 8~12 구형 OS fallback, 실제 서버 수신 후 이미지 순서 검증, 수신 앱의 내장 WebChromeClient 호환 범위 분석.
