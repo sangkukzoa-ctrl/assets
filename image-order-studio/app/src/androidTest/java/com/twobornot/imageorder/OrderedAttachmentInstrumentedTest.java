@@ -255,6 +255,8 @@ public class OrderedAttachmentInstrumentedTest {
             NativeGalleryActivity.supportsOrderedSystemPicker(),
             many.getBooleanExtra(MediaStore.EXTRA_PICK_IMAGES_IN_ORDER,false));
         Intent one=NativeGalleryActivity.newSystemPickerIntent(1);
+        assertFalse("Android rejects max=1; single selection must omit this extra",
+            one.hasExtra(MediaStore.EXTRA_PICK_IMAGES_MAX));
         assertFalse("Single-image picker should not require ordering extra",
             one.getBooleanExtra(MediaStore.EXTRA_PICK_IMAGES_IN_ORDER,false));
     }
