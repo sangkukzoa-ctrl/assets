@@ -33,7 +33,16 @@ assert 'imageorder.confirm' in native
 assert '"*/*".equals(type)' in main
 # NativeGallery is now the launcher; no intermediate home/import step for normal use.
 assert '<activity android:name=".NativeGalleryActivity" android:exported="true"' in manifest
-assert 'launchedFromHome=Intent.ACTION_MAIN.equals(getIntent().getAction())' in native
+assert 'launchedFromHome=Intent.ACTION_MAIN.equals(action)' in native
+# Direct external intent integration: avoid intermediate MainActivity for standard uploads.
+import re
+native_manifest=manifest.split('<activity android:name=".NativeGalleryActivity"',1)[1].split('</activity>',1)[0]
+main_manifest=manifest.split('<activity android:name=".MainActivity"',1)[1].split('</activity>',1)[0]
+assert 'android.intent.action.GET_CONTENT' in native_manifest
+assert 'android.intent.action.PICK' in native_manifest
+assert 'android:mimeType="*/*"' in native_manifest
+assert 'android.intent.action.GET_CONTENT' not in main_manifest
+assert 'getBooleanExtra(Intent.EXTRA_ALLOW_MULTIPLE,false)' in native
 assert 'MediaIntentResult.forShare(getContentResolver(),uris)' in native
 assert 'MediaIntentResult.forSelection(getContentResolver(),uris)' in native
 assert 'EXTRA_ORDER_VERIFIED,true' in native
