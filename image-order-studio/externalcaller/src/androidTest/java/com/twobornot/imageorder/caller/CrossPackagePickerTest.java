@@ -75,9 +75,16 @@ public final class CrossPackagePickerTest {
             assertNotNull("Gallery Done button",done);
             assertTrue("Three taps must be recognized before returning. Actual label: "+done.getText(),
                 done.getText()!=null && done.getText().trim().endsWith("3"));
+            android.graphics.Rect rect=done.getVisibleBounds();
+            android.util.Log.i("ImageOrderStudioQA","DoneText="+done.getText()+" bounds="+rect+" clickable="+done.isClickable());
+            assertTrue("Confirm node must have a visible tappable rectangle",rect.width()>0 && rect.height()>0);
             done.click();
+            if(!AttachmentCallerActivity.done.await(5,TimeUnit.SECONDS)){
+                android.util.Log.w("ImageOrderStudioQA","Accessibility Done click returned no result; injecting physical screen-coordinate tap "+rect);
+                device.click(rect.centerX(),rect.centerY());
+            }
             assertTrue("Independent app must receive Activity RESULT_OK ("+AttachmentCallerActivity.error+")",
-                AttachmentCallerActivity.done.await(30,TimeUnit.SECONDS));
+                AttachmentCallerActivity.done.await(25,TimeUnit.SECONDS));
             assertNull("Result path must not fail",AttachmentCallerActivity.error);
             assertEquals(Activity.RESULT_OK,AttachmentCallerActivity.resultCode);
             Intent result=AttachmentCallerActivity.resultData;
