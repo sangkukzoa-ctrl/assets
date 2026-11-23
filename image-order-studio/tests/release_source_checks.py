@@ -48,6 +48,9 @@ assert 'openFileDescriptor(photoUri(' in (src/'OrderedDocumentsProvider.java').r
 assert 'SafDocumentIds.photo(' in (src/'OrderedDocumentsProvider.java').read_text()
 assert 'OriginalImageProvider' in provider
 assert not list(p.rglob('*.jks')) and not list(p.rglob('*.p12'))
+assert 'PickerHostActivity' not in manifest
+assert (p/'app/src/debug/java/com/twobornot/imageorder/PickerHostActivity.java').is_file()
+assert 'externalPickerRoundTripPreservesTapSequence' in (p/'app/src/androidTest/java/com/twobornot/imageorder/OrderedAttachmentInstrumentedTest.java').read_text()
 assert not (src/'OrderedOutbox.java').exists()
 assert 'OrderedOutbox' not in (src/'OrderedDocumentsProvider.java').read_text()
 assert 'queryRecentDocuments(' in (src/'OrderedDocumentsProvider.java').read_text()

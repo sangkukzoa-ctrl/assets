@@ -2,6 +2,15 @@ package com.twobornot.imageorder;
 
 import android.content.ClipData;
 import android.content.ContentUris;
+import android.Manifest;
+import android.app.Activity;
+import android.app.Instrumentation;
+import android.widget.GridView;
+import android.widget.TextView;
+import java.lang.reflect.Field;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 import android.database.Cursor;
 import android.provider.DocumentsContract;
 import android.provider.OpenableColumns;
@@ -138,6 +147,100 @@ public class OrderedAttachmentInstrumentedTest {
             try {cr.openInputStream(traversal);fail("SAF ID traversal must be rejected");}
             catch(FileNotFoundException | SecurityException expected){}
         }finally{cr.delete(added,null,null);}
+    }
+
+    /** A real Activity sends GET_CONTENT, taps photos in the gallery and receives RESULT_OK. */
+    @Test public void externalPickerRoundTripPreservesTapSequence() throws Exception {
+        Instrumentation inst=InstrumentationRegistry.getInstrumentation();
+        Context ctx=inst.getTargetContext();
+        ContentResolver cr=ctx.getContentResolver();
+        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),Manifest.permission.READ_MEDIA_IMAGES);
+        ArrayList<Uri> inserted=new ArrayList<>();
+        ArrayList<byte[]> expected=new ArrayList<>();
+        ArrayList<String> names=new ArrayList<>();
+        Activity gallery=null;
+        try {
+            for(int i=0;i<3;i++){
+                Bitmap bitmap=Bitmap.createBitmap(13,12,Bitmap.Config.ARGB_8888);
+                bitmap.eraseColor(0xff112233+i*0x10000);
+                ByteArrayOutputStream out=new ByteArrayOutputStream();
+                assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG,100,out));bitmap.recycle();
+                byte[] data=out.toByteArray();
+                String name="e2e_picker_"+System.nanoTime()+"_"+i+".png";
+                ContentValues values=new ContentValues();
+                values.put(MediaStore.Images.Media.DISPLAY_NAME,name);
+                values.put(MediaStore.Images.Media.MIME_TYPE,"image/png");
+                values.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/ImageOrderStudioCI");
+                values.put(MediaStore.Images.Media.IS_PENDING,1);
+                Uri uri=cr.insert(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),values);
+                assertNotNull(uri);inserted.add(uri);expected.add(data);names.add(name);
+                try(OutputStream write=cr.openOutputStream(uri,"w")){assertNotNull(write);write.write(data);}
+                ContentValues published=new ContentValues();published.put(MediaStore.Images.Media.IS_PENDING,0);
+                assertEquals(1,cr.update(uri,published,null,null));
+            }
+            PickerHostActivity.receivedCode=Activity.RESULT_CANCELED;
+            PickerHostActivity.receivedIntent=null;
+            PickerHostActivity.completed=new CountDownLatch(1);
+            Instrumentation.ActivityMonitor monitor=inst.addMonitor(NativeGalleryActivity.class.getName(),null,false);
+            Intent host=new Intent(ctx,PickerHostActivity.class);
+            host.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            inst.startActivitySync(host);
+            gallery=inst.waitForMonitorWithTimeout(monitor,20000);
+            assertNotNull("Native picker must open from external GET_CONTENT",gallery);
+            final Activity selectedGallery=gallery;
+            int[] indexes=null;
+            for(int retry=0;retry<80;retry++){
+                AtomicReference<int[]> found=new AtomicReference<>();
+                inst.runOnMainSync(()->{
+                    try{
+                        TextView photosTab=(TextView)getField(selectedGallery,"photosTab");
+                        photosTab.performClick();
+                        ArrayList<?> displayed=(ArrayList<?>)getField(selectedGallery,"displayed");
+                        int[] slots={-1,-1,-1};
+                        for(int i=0;i<displayed.size();i++){
+                            String n=(String)getField(displayed.get(i),"name");
+                            for(int k=0;k<3;k++)if(names.get(k).equals(n))slots[k]=i;
+                        }
+                        if(slots[0]>=0&&slots[1]>=0&&slots[2]>=0)found.set(slots);
+                    }catch(Exception e){throw new RuntimeException(e);}
+                });
+                indexes=found.get();if(indexes!=null)break;
+                Thread.sleep(250);
+            }
+            assertNotNull("Inserted photos must appear in the native gallery",indexes);
+            final int[] positions=indexes;
+            inst.runOnMainSync(()->{
+                try{
+                    GridView grid=(GridView)getField(selectedGallery,"grid");
+                    for(int index:new int[]{2,0,1}) {
+                        int position=positions[index];
+                        grid.performItemClick(null,position,position);
+                    }
+                    ((TextView)getField(selectedGallery,"confirm")).performClick();
+                }catch(Exception e){throw new RuntimeException(e);}
+            });
+            assertTrue("Caller must receive picker result",PickerHostActivity.completed.await(20,TimeUnit.SECONDS));
+            assertEquals(Activity.RESULT_OK,PickerHostActivity.receivedCode);
+            Intent result=PickerHostActivity.receivedIntent;
+            assertNotNull(result);assertTrue((result.getFlags()&Intent.FLAG_GRANT_READ_URI_PERMISSION)!=0);
+            ClipData clip=result.getClipData();assertNotNull(clip);assertEquals(3,clip.getItemCount());
+            for(int i=0;i<3;i++){
+                int source=new int[]{2,0,1}[i];
+                Uri uri=clip.getItemAt(i).getUri();
+                assertEquals(ContentUris.parseId(inserted.get(source)),ContentUris.parseId(uri));
+                assertArrayEquals("Caller must get unchanged original bytes",expected.get(source),readAll(cr,uri));
+                assertEquals("image/png",cr.getType(uri));
+            }
+        }finally{
+            if(gallery!=null && !gallery.isFinishing()) {
+                final Activity g=gallery;inst.runOnMainSync(g::finish);
+            }
+            for(Uri uri:inserted)cr.delete(uri,null,null);
+        }
+    }
+    private static Object getField(Object target,String name) throws Exception {
+        Field field=target.getClass().getDeclaredField(name);
+        field.setAccessible(true);return field.get(target);
     }
 
     @Test public void singleResultHasReadableImageTypeAndOriginalUri() {
