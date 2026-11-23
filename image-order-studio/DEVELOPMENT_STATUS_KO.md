@@ -128,3 +128,12 @@
 - **주의할 계약 차이:** Chromium 기본 `FileChooserParams.parseResult()`는 다중 URI의 `ClipData`를 무시하므로 별도 WebView 호스트에서 `OrderedWebFileChooserResult`로 보정했다. 이는 외부 브라우저 앱의 내부 로직을 자동 패치하는 기능이 아니다.
 - 전체 개발 소스 ZIP은 GitHub CI의 `ImageOrder-v0.5.5-complete-source` 아티팩트이며, 주요 소스 89개 파일/디렉터리 항목을 포함하고 무결성 및 비밀 서명키 제외 확인.
 - 공개 v0.5.4와 서명된 APK는 변경하지 않았다. 다음 우선과제: 실제 Galaxy 삼성 갤러리/삼성 인터넷/Chrome 업로드, Android 8~12 구형 OS fallback, 실제 서버 수신 후 이미지 순서 검증, 수신 앱의 내장 WebChromeClient 호환 범위 분석.
+
+## 2026-11-23 밤 — 외부 앱 회전 검증 / 시스템 Picker 재생성 보강
+
+- 독립 UID의 `ACTION_GET_CONTENT` 호출에서 두 장 선택 후 가로 회전→세로 복귀→세 번째 사진 선택을 실행하여 원본 URI, 선택 순서, SHA-256, 이름, MIME, 읽기 권한을 재검증함.
+- Android 13/14/15/16 네 버전 모두 실제 외부 앱 테스트 성공: https://github.com/sangkukzoa-ctrl/assets/actions/runs/45191830916
+- Android 13/14/15/16 기본 내부 갤러리 재생성 회귀도 이전 기준 https://github.com/sangkukzoa-ctrl/assets/actions/runs/45179770404 에서 통과.
+- 권한 거부 후 외부 시스템 사진 선택창을 기다리는 동안 부모 Activity가 재생성되어도 선택창/권한 창을 중복 실행하지 않도록 `fallbackPickerPending` 상태를 `onSaveInstanceState`에 보존.
+- pending 상태가 Android Activity 재생성 이후 유지되는 전용 내부 계측 회귀 테스트를 추가함.
+- 새 pending 수정은 CI 및 Android 매트릭스 재검증 대상으로 남겨 두며, 별도 공개 APK는 생성하지 않음.

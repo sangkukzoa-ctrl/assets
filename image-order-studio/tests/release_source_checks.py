@@ -58,6 +58,8 @@ assert 'getBooleanExtra(Intent.EXTRA_ALLOW_MULTIPLE,false)' in native
 assert 'MediaStore.EXTRA_PICK_IMAGES_IN_ORDER' in native
 # Legacy denied-permission GET_CONTENT chooser must never recurse into our own gallery.
 assert 'new ComponentName(this,NativeGalleryActivity.class)' in native
+assert 'fallbackPickerPending' in native and 'STATE_FALLBACK_PENDING' in native
+assert 'fallbackPickerPendingStateSurvivesActivityRecreation' in (p/'app/src/androidTest/java/com/twobornot/imageorder/OrderedAttachmentInstrumentedTest.java').read_text()
 assert 'supportsOrderedSystemPicker()' in native
 assert 'System picker originals return directly' in native
 assert 'MediaIntentResult.forShare(getContentResolver(),uris)' in native

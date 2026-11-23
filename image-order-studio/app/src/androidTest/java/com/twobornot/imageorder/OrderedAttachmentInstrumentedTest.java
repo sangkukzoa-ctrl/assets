@@ -362,6 +362,53 @@ public class OrderedAttachmentInstrumentedTest {
         }
     }
 
+    /** Android must not start another platform picker while a prior picker is pending. */
+    @Test public void fallbackPickerPendingStateSurvivesActivityRecreation() throws Exception {
+        Instrumentation inst=InstrumentationRegistry.getInstrumentation();
+        Context context=inst.getTargetContext();
+        inst.getUiAutomation().grantRuntimePermission(context.getPackageName(),Manifest.permission.READ_MEDIA_IMAGES);
+        Intent start=new Intent(context,NativeGalleryActivity.class);
+        start.setAction(Intent.ACTION_GET_CONTENT);
+        start.setType("image/png");
+        start.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);
+        start.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Activity initial=inst.startActivitySync(start),updated=null;
+        java.lang.reflect.Field pending=NativeGalleryActivity.class.getDeclaredField("fallbackPickerPending");
+        pending.setAccessible(true);
+        try {
+            inst.runOnMainSync(()->{
+                try{pending.setBoolean(initial,true);}catch(Exception ex){throw new RuntimeException(ex);}
+                initial.recreate();
+            });
+            AtomicReference<Activity> next=new AtomicReference<>();
+            for(int attempt=0;attempt<100 && next.get()==null;attempt++){
+                inst.runOnMainSync(()->{
+                    for(Activity candidate:androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+                            .getInstance().getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED)){
+                        if(candidate instanceof NativeGalleryActivity && candidate!=initial)next.set(candidate);
+                    }
+                });
+                if(next.get()==null)Thread.sleep(120);
+            }
+            updated=next.get();
+            assertNotNull("Pending platform chooser must not destroy external picker",updated);
+            Activity target=updated;
+            inst.runOnMainSync(()->{
+                try {
+                    assertTrue("Recreated gallery remembers an outstanding platform picker",
+                        pending.getBoolean(target));
+                    @SuppressWarnings("unchecked")
+                    ArrayList<Object> photos=(ArrayList<Object>)getField(target,"photos");
+                    assertTrue("Do not reload/reopen a new gallery over pending system chooser",
+                        photos.isEmpty());
+                }catch(Exception ex){throw new RuntimeException(ex);}
+            });
+        }finally {
+            Activity end=updated!=null?updated:initial;
+            if(!end.isFinishing())inst.runOnMainSync(end::finish);
+        }
+    }
+
     @Test public void singleResultHasReadableImageTypeAndOriginalUri() {
         Uri original=Uri.parse("content://media/external/images/media/12345");
         ArrayList<Uri> originals=new ArrayList<>(Arrays.asList(original));

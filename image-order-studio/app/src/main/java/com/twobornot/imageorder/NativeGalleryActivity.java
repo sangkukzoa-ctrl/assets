@@ -39,6 +39,8 @@ public final class NativeGalleryActivity extends Activity {
     private String[] acceptedMimeTypes=null;
     private boolean launchedFromHome=false;
     private boolean fallbackOrderedSelectionRequested=false;
+    // Prevent a second permission request/picker when Android recreates us mid-fallback.
+    private boolean fallbackPickerPending=false;
     private GridView grid;
     private BaseAdapter adapter;
     private TextView heading, confirm, photosTab, albumsTabView, hint;
@@ -83,8 +85,11 @@ public final class NativeGalleryActivity extends Activity {
         makeUi();
         // In imported-photo fallback mode do not reopen the platform picker on rotation.
         // In normal mode reload MediaStore without losing the restored LinkedHashMap order.
-        if(!restorePickerState(b)){
+        boolean restoredImported=restorePickerState(b);
+        if(!restoredImported && !fallbackPickerPending){
             if(hasPermission())reload();else askPermission();
+        } else if(fallbackPickerPending){
+            hint.setText(t("시스템 사진 선택을 기다리는 중…","Waiting for system photo selection…"));
         }
     }
 
@@ -95,6 +100,7 @@ public final class NativeGalleryActivity extends Activity {
     private static final String STATE_ALBUM_TAB="imageorder.state.albumTab";
     private static final String STATE_ALBUM="imageorder.state.album";
     private static final String STATE_FALLBACK_ORDERED="imageorder.state.fallbackOrdered";
+    private static final String STATE_FALLBACK_PENDING="imageorder.state.fallbackPending";
     private static final String STATE_IMPORTED="imageorder.state.imported";
 
     @Override protected void onSaveInstanceState(Bundle state){
@@ -106,6 +112,7 @@ public final class NativeGalleryActivity extends Activity {
         state.putBoolean(STATE_ALBUM_TAB,albumsTab);
         state.putString(STATE_ALBUM,activeAlbum);
         state.putBoolean(STATE_FALLBACK_ORDERED,fallbackOrderedSelectionRequested);
+        state.putBoolean(STATE_FALLBACK_PENDING,fallbackPickerPending);
         ArrayList<String> imports=new ArrayList<>();
         for(Photo photo:photos){
             if(!photo.key.startsWith("fallback:"))continue;
@@ -138,6 +145,7 @@ public final class NativeGalleryActivity extends Activity {
         albumsTab=state.getBoolean(STATE_ALBUM_TAB,true);
         activeAlbum=state.getString(STATE_ALBUM);
         fallbackOrderedSelectionRequested=state.getBoolean(STATE_FALLBACK_ORDERED,false);
+        fallbackPickerPending=state.getBoolean(STATE_FALLBACK_PENDING,false);
         ArrayList<String> imports=state.getStringArrayList(STATE_IMPORTED);
         if(imports==null || imports.isEmpty() || imports.size()%5!=0){
             updateSelection();
@@ -393,12 +401,17 @@ public final class NativeGalleryActivity extends Activity {
                     new ComponentName(this,MainActivity.class)
                 });
             }
+            fallbackPickerPending=true;
             startActivityForResult(i,FALLBACK);
-        }catch(Exception ex){Toast.makeText(this,t("사진 접근 권한이 필요합니다.","Photo access is required."),Toast.LENGTH_LONG).show();finish();}
+        }catch(Exception ex){
+            fallbackPickerPending=false;
+            Toast.makeText(this,t("사진 접근 권한이 필요합니다.","Photo access is required."),Toast.LENGTH_LONG).show();finish();
+        }
     }
     @Override protected void onActivityResult(int request,int result,Intent data){
         super.onActivityResult(request,result,data);
         if(request!=FALLBACK)return;
+        fallbackPickerPending=false;
         if(result!=RESULT_OK||data==null){finish();return;}
         ArrayList<Uri> uris=new ArrayList<>();
         if(data.getClipData()!=null){
