@@ -8,8 +8,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/image-order-public-download-check.yml'
-  schedule:
-    - cron: '45 19 * * *'  # 04:45 Asia/Seoul
+  # Nightly schedule migrated to the independent image-order-studio repository.
 permissions:
   contents: read
 concurrency:
