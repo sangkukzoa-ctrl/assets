@@ -104,6 +104,84 @@ with TemporaryDirectory(prefix="rgb-private-source-release-test-") as temp:
         else:raise AssertionError("Missing author source Release silently bypassed")
         assert not bundle.exists()
 
+# Direct original-pair path: simulate both original SHA-locked archive
+# responses and verify the same private-release and fail-closed rules.
+fabric_bytes=b"test owner-original Fabric TAR"
+neo_bytes=b"test owner-original NeoForge ZIP"
+module.EXPECTED_FABRIC=hashlib.sha256(fabric_bytes).hexdigest()
+module.EXPECTED_NEO_RAW=hashlib.sha256(neo_bytes).hexdigest()
+pair_assets=[{"id":30001,"name":module.FABRIC_NAME},
+             {"id":30002,"name":module.NEO_RAW_NAME}]
+pair_release={**release,"assets":pair_assets}
+with TemporaryDirectory(prefix="rgb-owner-pair-") as temp:
+    root=Path(temp)
+    canonical=root/module.CANONICAL_NAME
+    fabric=root/module.FABRIC_NAME
+    neo=root/module.NEO_RAW_NAME
+    requests=[]
+    def pair_urlopen(request,timeout=0):
+        url=request.full_url
+        requests.append(url)
+        assert request.headers.get("Authorization")=="Bearer fake-test-token"
+        if "/releases/tags/" in url:
+            return FakeResponse(json.dumps(pair_release).encode("utf-8"))
+        if url.endswith("/30001"):
+            return FakeResponse(fabric_bytes)
+        if url.endswith("/30002"):
+            return FakeResponse(neo_bytes)
+        raise AssertionError("Unexpected request "+url)
+    with patch.dict(os.environ,env),patch.object(module.urllib.request,"urlopen",side_effect=pair_urlopen):
+        assert module.private_owner_source_release(canonical,(fabric,neo))=="raw_pair"
+        assert fabric.read_bytes()==fabric_bytes and neo.read_bytes()==neo_bytes
+        assert not canonical.exists() and len(requests)==3
+    fabric.unlink()
+    neo.unlink()
+    for rejected in (
+        {**pair_release,"draft":False},
+        {**pair_release,"assets":pair_assets[:1]},
+        {**pair_release,"assets":pair_assets+[pair_assets[0]]},
+    ):
+        requests.clear()
+        with patch.dict(os.environ,env),patch.object(module.urllib.request,"urlopen",
+                  return_value=FakeResponse(json.dumps(rejected).encode("utf-8"))) as call:
+            try:module.private_owner_source_release(canonical,(fabric,neo))
+            except RuntimeError:pass
+            else:raise AssertionError("Unsafe or incomplete original pair accepted")
+            assert call.call_count==1 and not fabric.exists() and not neo.exists()
+    def corrupt_pair(request,timeout=0):
+        if request.full_url.endswith("/30002"):
+            return FakeResponse(b"corrupt NeoForge")
+        return pair_urlopen(request,timeout)
+    with patch.dict(os.environ,env),patch.object(module.urllib.request,"urlopen",side_effect=corrupt_pair):
+        try:module.private_owner_source_release(canonical,(fabric,neo))
+        except RuntimeError as error:assert "SHA-256 mismatch" in str(error)
+        else:raise AssertionError("Unverified original pair was accepted")
+        assert not neo.exists() and not neo.with_name(neo.name+".partial").exists()
+
+# Real zipfile staging method with canonical and arbitrary nested source
+# roots. Actual owner archives are verified separately by stage() SHA locks.
+import zipfile
+for prefix in ("neoforge/","owner project/NeoForge original/",""):
+    memory=io.BytesIO()
+    with zipfile.ZipFile(memory,"w") as z:
+        z.writestr(prefix+"src/main/java/com/rgbblocks/RgbBlocksMod.java",b"entrypoint")
+        z.writestr(prefix+"src/main/java/com/rgbblocks/runtime/RGBRuntime.java",b"runtime")
+        z.writestr(prefix+"src/main/resources/META-INF/neoforge.mods.toml",b"metadata")
+        z.writestr(prefix+"src/main/resources/rgbblocks.mixins.json",b"mixin")
+        z.writestr(prefix+"build/generated/noise.java",b"ignored")
+    recorded={}
+    stats={"neo_java":0}
+    with zipfile.ZipFile(memory) as z:
+        module.stage_neo_java(z,lambda root,rel,data:recorded.update({(root.name,rel):data}),stats)
+    assert stats["neo_java"]==2 and len(recorded)==4
+    assert recorded["neoforge","com/rgbblocks/RgbBlocksMod.java"]==b"entrypoint"
+    assert recorded["resources","META-INF/neoforge.mods.toml"]==b"metadata"
+print("RGB_OWNER_DIRECT_ORIGINAL_PAIR_TRANSPORT_PASS",json.dumps({
+    "original_pair_draft_download":True,"both_sha_verified":True,
+    "incomplete_duplicate_public_rejected":True,"corrupt_neo_rejected":True,
+    "full_zip_root_and_core_zip_supported":True,"native_build_not_claimed":True
+}),flush=True)
+
 print("RGB_OWNER_PRIVATE_DRAFT_SOURCE_TRANSPORT_PASS",
       json.dumps({"draft_404_fallback":True,
                   "authenticated_source_download":True,
