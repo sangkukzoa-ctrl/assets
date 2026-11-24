@@ -28,7 +28,10 @@ jobs:
   real-two-clients:
     # Avoid repeated early 404 on automatic pushes before author-source bootstrap.
     # Explicit dispatch still reports any missing/invalid original package.
-    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true'
+    # An explicit maintainer push marker can start the native matrix when
+    # the verified DRAFT exists but the connected client cannot dispatch or
+    # set repository variables. The SHA-pinned source step remains mandatory.
+    if: github.event_name == 'workflow_dispatch' || vars.RGB_OWNER_SOURCE_READY == 'true' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[rgb-native-ci]'))
     name: ${{ matrix.target }} ${{ matrix.mode }} genuine 2 players
     runs-on: ubuntu-latest
     timeout-minutes: 110
