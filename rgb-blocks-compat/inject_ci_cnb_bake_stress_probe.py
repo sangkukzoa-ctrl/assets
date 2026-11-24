@@ -96,12 +96,18 @@ code=r'''
  // pair of rapid Bake requests. No light or model changes here.
  if(Boolean.getBoolean("rgbport.ci.bakeStress") && ticks%10==0 && mc.player!=null){
    var camera=mc.player.blockPosition();
-   if(camera.getY()==120 && Math.abs(camera.getZ())<=1
-       && mc.level.isLoaded(camera.below())
-       && mc.level.getBlockState(camera.below()).is(net.minecraft.world.level.block.Blocks.STONE)){
-     if(camera.getX()==1 || camera.getX()==132)
-       System.out.println("RGB_PORT_BAKE_STRESS_CAMERA_READY region="+
-           (camera.getX()==1?"NEAR":"FAR")+" pos="+camera);
+   boolean floorLoaded=mc.level.isLoaded(camera.below());
+   boolean floorStone=floorLoaded &&
+       mc.level.getBlockState(camera.below()).is(net.minecraft.world.level.block.Blocks.STONE);
+   if(camera.getY()==120 && Math.abs(camera.getZ())<=1 && floorStone
+       && (camera.getX()==1 || camera.getX()==132)){
+     System.out.println("RGB_PORT_BAKE_STRESS_CAMERA_READY region="+
+         (camera.getX()==1?"NEAR":"FAR")+" lane="+camera.getZ()+" pos="+camera);
+   }else if(ticks%120==0){
+     System.out.println("RGB_PORT_BAKE_STRESS_CAMERA_NOT_READY pos="+camera
+         +" exact="+mc.player.position()+" floorLoaded="+floorLoaded
+         +" floor="+(floorLoaded?mc.level.getBlockState(camera.below()).toString():"UNLOADED")
+         +" ticks="+ticks);
    }
  }
  if(Boolean.getBoolean("rgbport.ci.bakeStress") && ticks%30==0 &&

@@ -516,15 +516,27 @@ try:
         ensure_stress_floor(-5,7,"NEAR")
         ensure_stress_floor(126,142,"FAR")
         def stress_teleport(x,facing):
-            before_a=len(clog); before_b=len(peerlog)
-            command(server,f"tp RGBPortTester {x} 120.0 0.5 facing {facing} 121.5 7.5")
-            command(server,f"tp RGBPortPeer {x} 120.0 0.5 facing {facing} 121.5 7.5")
-            time.sleep(0.75)
-            marker="RGB_PORT_BAKE_STRESS_CAMERA_READY region="+("NEAR" if x<100 else "FAR")
-            assert await_pattern_since(clog,marker,before_a,client,45,"stress_primary_camera"), (
-                "Primary never received actual target platform at Y=120")
-            assert await_pattern_since(peerlog,marker,before_b,peer,45,"stress_peer_camera"), (
-                "Peer never received actual target platform at Y=120")
+            # Avoid overlapping player hitboxes: two distinct lanes, both
+            # inside the existing radius and original strict camera predicate.
+            region="NEAR" if x<100 else "FAR"
+            marker="RGB_PORT_BAKE_STRESS_CAMERA_READY region="+region
+            for attempt in range(2):
+                before_a=len(clog); before_b=len(peerlog)
+                command(server,f"tp RGBPortTester {x} 120.0 -0.5 facing {facing} 121.5 7.5")
+                command(server,f"tp RGBPortPeer {x} 120.0 0.5 facing {facing} 121.5 7.5")
+                time.sleep(0.75)
+                ready_a=await_pattern_since(clog,marker+" lane=-1 ",before_a,client,45,"stress_primary_camera")
+                ready_b=await_pattern_since(peerlog,marker+" lane=0 ",before_b,peer,45,"stress_peer_camera")
+                if ready_a and ready_b:
+                    return
+                # A bounded fixture-only retry before any Bake, never a retry
+                # of a failed mesh/RGB assertion. Preserve diagnostic evidence.
+                command(server,"data get entity RGBPortTester Pos")
+                command(server,"data get entity RGBPortPeer Pos")
+                time.sleep(1)
+                if client.poll() is not None or peer.poll() is not None:
+                    break
+            raise AssertionError("Both clients must confirm their distinct loaded STONE camera lanes at Y=120 before Bake")
         command(server,"setblock 134 121 7 chiselsandbits:chiseled")
         command(server,"execute if block 134 121 7 chiselsandbits:chiseled run say RGB_PORT_BAKE_FAR_REAL_TILE")
         result["bake_stress_far_sculpted"]=await_pattern(slog,"RGB_PORT_BAKE_STRESS_FAR_SETUP_PASS",server,110,"far_real_CnB_voxel_sculpture")
