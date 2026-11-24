@@ -71,6 +71,15 @@ assert handoff.count("transfer_private_handoff.py stage ")==2
 assert handoff.count("transfer_private_handoff.py download ")==2
 assert handoff.count("transfer_private_handoff.py verified ")==2
 assert handoff.count("runs-on: windows-latest")==2
+assert handoff.count("id: handoff")==2
+assert handoff.count("RGB_HANDOFF_RELEASE_ID:")==2
+assert handoff.count("RGB_HANDOFF_SERVER_ASSET_ID:")==2
+assert handoff.count("RGB_HANDOFF_SUMS_ASSET_ID:")==2
+transfer=Path("rgb-blocks-compat/transfer_private_handoff.py").read_text("utf-8")
+assert '/releases?per_page=' not in transfer
+assert 'require_draft(created)' in transfer
+assert 'server_asset=upload(server,created)' in transfer
+assert 'r["draft"] is True and r["published_at"] is None' in transfer
 assert "actions/download-artifact" not in handoff
 for section in handoff.split("uses: actions/upload-artifact@v4")[1:]:
     block=section.split("\n  ",1)[0]

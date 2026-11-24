@@ -35,7 +35,7 @@ EXPECTED = {
         "lock": "RGBBlocks-1.3.1-MC1.20.1-forge-complete-ecosystem-lock.json",
         "shader_run": 45435835184,
         "dimension_run": 45435835341,
-        "integrated_run": 45435835438,
+        "integrated_run": 45450046213,
         "world_restart_run": 45435835205,
     },
 }

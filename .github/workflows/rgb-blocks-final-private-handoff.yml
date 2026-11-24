@@ -10,6 +10,10 @@ permissions:
   contents: write
 jobs:
   neoforge1211:
+    outputs:
+      release_id: ${{ steps.handoff.outputs.release_id }}
+      server_asset_id: ${{ steps.handoff.outputs.server_asset_id }}
+      sums_asset_id: ${{ steps.handoff.outputs.sums_asset_id }}
     if: github.event_name == 'workflow_dispatch' || (vars.RGB_OWNER_SOURCE_READY == 'true' && vars.RGB_FULL_MATRIX == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[rgb-package-ci]'))
     name: Build native NeoForge 1.21.1 RGB + full source + ecosystem
     runs-on: ubuntu-latest
@@ -19,7 +23,7 @@ jobs:
         with: {persist-credentials: false}
       - name: Preflight packaging and build scripts
         run: |
-          python3 -m py_compile rgb-blocks-compat/validate_full_parity.py rgb-blocks-compat/assemble_legacy_release_candidate.py rgb-blocks-compat/package_ecosystem.py rgb-blocks-compat/build_mc1211_fabric.py rgb-blocks-compat/build_mc1211_neoforge.py
+          python3 -m py_compile rgb-blocks-compat/transfer_private_handoff.py rgb-blocks-compat/build_windows_ready_server.py rgb-blocks-compat/test_windows_ready_server.py rgb-blocks-compat/validate_full_parity.py rgb-blocks-compat/assemble_legacy_release_candidate.py rgb-blocks-compat/package_ecosystem.py rgb-blocks-compat/build_mc1211_fabric.py rgb-blocks-compat/build_mc1211_neoforge.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -56,6 +60,7 @@ jobs:
           cp release-stage/neoforge1211/* input/neoforge1211/
           python3 rgb-blocks-compat/build_windows_ready_server.py neoforge1211
       - name: Store verified production candidate and Windows ZIP in an UNPUBLISHED owner draft
+        id: handoff
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 rgb-blocks-compat/transfer_private_handoff.py stage neoforge1211
@@ -69,6 +74,10 @@ jobs:
           if-no-files-found: error
           retention-days: 30
   forge1201:
+    outputs:
+      release_id: ${{ steps.handoff.outputs.release_id }}
+      server_asset_id: ${{ steps.handoff.outputs.server_asset_id }}
+      sums_asset_id: ${{ steps.handoff.outputs.sums_asset_id }}
     if: github.event_name == 'workflow_dispatch' || (vars.RGB_OWNER_SOURCE_READY == 'true' && vars.RGB_FULL_MATRIX == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[rgb-package-ci]'))
     name: Build native Forge 1.20.1 RGB + full source + ecosystem
     runs-on: ubuntu-latest
@@ -78,7 +87,7 @@ jobs:
         with: {persist-credentials: false}
       - name: Preflight packaging and build scripts
         run: |
-          python3 -m py_compile rgb-blocks-compat/validate_full_parity.py rgb-blocks-compat/assemble_legacy_release_candidate.py rgb-blocks-compat/package_ecosystem.py rgb-blocks-compat/build_mc1211_fabric.py rgb-blocks-compat/build_mc1201_forge.py
+          python3 -m py_compile rgb-blocks-compat/transfer_private_handoff.py rgb-blocks-compat/build_windows_ready_server.py rgb-blocks-compat/test_windows_ready_server.py rgb-blocks-compat/validate_full_parity.py rgb-blocks-compat/assemble_legacy_release_candidate.py rgb-blocks-compat/package_ecosystem.py rgb-blocks-compat/build_mc1211_fabric.py rgb-blocks-compat/build_mc1201_forge.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -115,6 +124,7 @@ jobs:
           cp release-stage/forge1201/* input/forge1201/
           python3 rgb-blocks-compat/build_windows_ready_server.py forge1201
       - name: Store verified production candidate and Windows ZIP in an UNPUBLISHED owner draft
+        id: handoff
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 rgb-blocks-compat/transfer_private_handoff.py stage forge1201
@@ -130,6 +140,10 @@ jobs:
 
   neoforge1211-windows:
     needs: neoforge1211
+    env:
+      RGB_HANDOFF_RELEASE_ID: ${{ needs.neoforge1211.outputs.release_id }}
+      RGB_HANDOFF_SERVER_ASSET_ID: ${{ needs.neoforge1211.outputs.server_asset_id }}
+      RGB_HANDOFF_SUMS_ASSET_ID: ${{ needs.neoforge1211.outputs.sums_asset_id }}
     if: github.event_name == 'workflow_dispatch' || (vars.RGB_OWNER_SOURCE_READY == 'true' && vars.RGB_FULL_MATRIX == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[rgb-package-ci]'))
     runs-on: windows-latest
     timeout-minutes: 45
@@ -162,6 +176,10 @@ jobs:
 
   forge1201-windows:
     needs: forge1201
+    env:
+      RGB_HANDOFF_RELEASE_ID: ${{ needs.forge1201.outputs.release_id }}
+      RGB_HANDOFF_SERVER_ASSET_ID: ${{ needs.forge1201.outputs.server_asset_id }}
+      RGB_HANDOFF_SUMS_ASSET_ID: ${{ needs.forge1201.outputs.sums_asset_id }}
     if: github.event_name == 'workflow_dispatch' || (vars.RGB_OWNER_SOURCE_READY == 'true' && vars.RGB_FULL_MATRIX == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[rgb-package-ci]'))
     runs-on: windows-latest
     timeout-minutes: 45
