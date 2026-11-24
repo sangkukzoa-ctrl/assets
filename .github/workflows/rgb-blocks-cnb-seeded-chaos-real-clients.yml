@@ -7,6 +7,7 @@ on:
       - 'rgb-blocks-compat/recovered/fabric/com/rgbblocks/client/cnb/RGBCnbGeometryBakeDebouncer.java'
       - 'rgb-blocks-compat/recovered/fabric/com/rgbblocks/client/cnb/RGBCnbMeshIntegrity.java'
       - 'rgb-blocks-compat/recovered/fabric/com/rgbblocks/client/lighting/RGBRealLightEngine.java'
+      - 'rgb-blocks-compat/recovered/fabric/com/rgbblocks/client/lighting/RGBLightEngine.java'
       - 'rgb-blocks-compat/stage_owner_original.py'
       - 'rgb-blocks-compat/verify_native_owner_mixin_inventory.py'
       - 'rgb-blocks-compat/verify_owner_runtime_migration.py'
@@ -20,7 +21,8 @@ on:
       - '.github/workflows/rgb-blocks-cnb-seeded-chaos-real-clients.yml'
 concurrency:
   group: rgbblocks-hostile-chaos-${{ github.ref }}
-  cancel-in-progress: true
+  # Retain in-flight native evidence even when a newer source revision is pushed.
+  cancel-in-progress: false
 permissions:
   # Draft-source release visibility requires collaborator/write authority.
   # Token is exposed ONLY to the gated source-unpacking step below.
