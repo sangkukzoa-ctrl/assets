@@ -13,9 +13,13 @@ public final class PickerHostActivity extends Activity {
     public static volatile CountDownLatch completed=new CountDownLatch(1);
     @Override public void onCreate(Bundle savedState){
         super.onCreate(savedState);
-        Intent pick=new Intent(this,MainActivity.class);
+        // Existing MainActivity test remains unchanged unless direct native picker is
+        // explicitly requested. Both paths are debug-only.
+        boolean nativePicker=getIntent().getBooleanExtra("testNativeGallery",false);
+        Intent pick=new Intent(this,nativePicker?NativeGalleryActivity.class:MainActivity.class);
         pick.setAction(Intent.ACTION_GET_CONTENT);
-        pick.setType("image/png");
+        String mime=getIntent().getStringExtra("testRequestedMime");
+        pick.setType(mime==null?"image/png":mime);
         pick.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);
         startActivityForResult(pick,567);
     }

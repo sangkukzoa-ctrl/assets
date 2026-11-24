@@ -60,6 +60,7 @@ assert 'MediaStore.EXTRA_PICK_IMAGES_IN_ORDER' in native
 assert 'new ComponentName(this,NativeGalleryActivity.class)' in native
 assert 'fallbackPickerPending' in native and 'STATE_FALLBACK_PENDING' in native
 assert 'fallbackPickerPendingStateSurvivesActivityRecreation' in (p/'app/src/androidTest/java/com/twobornot/imageorder/OrderedAttachmentInstrumentedTest.java').read_text()
+assert 'orderedSystemPhotoPickerFallbackDeliversUnchangedMixedOriginals' in (p/'app/src/androidTest/java/com/twobornot/imageorder/OrderedAttachmentInstrumentedTest.java').read_text()
 assert 'supportsOrderedSystemPicker()' in native
 assert 'System picker originals return directly' in native
 assert 'MediaIntentResult.forShare(getContentResolver(),uris)' in native

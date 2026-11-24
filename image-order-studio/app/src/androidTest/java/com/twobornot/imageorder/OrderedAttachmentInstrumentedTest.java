@@ -409,6 +409,105 @@ public class OrderedAttachmentInstrumentedTest {
         }
     }
 
+    /**
+     * Feed an OS-style ordered ClipData result through the ACTUAL gallery
+     * onActivityResult and verify that the requesting host receives original
+     * mixed-format streams in identical order. Synthetic platform response:
+     * distinct from UI-driving a vendor's system Photo Picker.
+     */
+    @Test public void orderedSystemPhotoPickerFallbackDeliversUnchangedMixedOriginals() throws Exception {
+        if(android.os.Build.VERSION.SDK_INT<35)return;
+        Instrumentation inst=InstrumentationRegistry.getInstrumentation();
+        Context ctx=inst.getTargetContext();
+        ContentResolver cr=ctx.getContentResolver();
+        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),Manifest.permission.READ_MEDIA_IMAGES);
+        ArrayList<Uri> media=new ArrayList<>();
+        ArrayList<byte[]> contents=new ArrayList<>();
+        ArrayList<String> names=new ArrayList<>();
+        Activity gallery=null;
+        try {
+            Bitmap.CompressFormat[] formats={
+                Bitmap.CompressFormat.PNG,Bitmap.CompressFormat.JPEG,Bitmap.CompressFormat.WEBP_LOSSLESS
+            };
+            String[] mimes={"image/png","image/jpeg","image/webp"};
+            String[] extensions={"png","jpg","webp"};
+            for(int i=0;i<3;i++){
+                Bitmap bitmap=Bitmap.createBitmap(12,14,Bitmap.Config.ARGB_8888);
+                bitmap.eraseColor(0xff123456+i*0x13290a);
+                ByteArrayOutputStream bytes=new ByteArrayOutputStream();
+                assertTrue(bitmap.compress(formats[i],90,bytes));bitmap.recycle();
+                String name="imageorder_fallback_"+System.nanoTime()+"_"+i+"."+extensions[i];
+                ContentValues values=new ContentValues();
+                values.put(MediaStore.Images.Media.DISPLAY_NAME,name);
+                values.put(MediaStore.Images.Media.MIME_TYPE,mimes[i]);
+                values.put(MediaStore.Images.Media.RELATIVE_PATH,
+                    Environment.DIRECTORY_PICTURES+"/ImageOrderCI");
+                values.put(MediaStore.Images.Media.IS_PENDING,1);
+                Uri uri=cr.insert(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),values);
+                assertNotNull(uri);
+                media.add(uri);contents.add(bytes.toByteArray());names.add(name);
+                try(OutputStream out=cr.openOutputStream(uri,"w")){
+                    assertNotNull(out);out.write(bytes.toByteArray());
+                }
+                ContentValues publish=new ContentValues();publish.put(MediaStore.Images.Media.IS_PENDING,0);
+                assertEquals(1,cr.update(uri,publish,null,null));
+            }
+            PickerHostActivity.receivedCode=Activity.RESULT_CANCELED;
+            PickerHostActivity.receivedIntent=null;
+            PickerHostActivity.completed=new CountDownLatch(1);
+            Instrumentation.ActivityMonitor monitor=inst.addMonitor(NativeGalleryActivity.class.getName(),null,false);
+            Intent host=new Intent(ctx,PickerHostActivity.class);
+            host.putExtra("testNativeGallery",true);
+            host.putExtra("testRequestedMime","image/*");
+            host.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            inst.startActivitySync(host);
+            gallery=inst.waitForMonitorWithTimeout(monitor,20000);
+            assertNotNull("Debug caller must launch native Image Order directly",gallery);
+            final Activity target=gallery;
+            ClipData clip=new ClipData("Ordered platform selection",new String[]{"image/*"},
+                new ClipData.Item(media.get(2)));
+            clip.addItem(new ClipData.Item(media.get(0)));
+            clip.addItem(new ClipData.Item(media.get(1)));
+            Intent platformResult=new Intent().setClipData(clip)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            inst.runOnMainSync(()->{
+                try {
+                    Field ordered=NativeGalleryActivity.class.getDeclaredField("fallbackOrderedSelectionRequested");
+                    ordered.setAccessible(true);
+                    ordered.setBoolean(target,true);
+                    ((NativeGalleryActivity)target).onActivityResult(28,Activity.RESULT_OK,platformResult);
+                }catch(Exception ex){throw new RuntimeException(ex);}
+            });
+            assertTrue("Source caller must receive ordered fallback result",
+                PickerHostActivity.completed.await(20,TimeUnit.SECONDS));
+            assertEquals(Activity.RESULT_OK,PickerHostActivity.receivedCode);
+            Intent returned=PickerHostActivity.receivedIntent;
+            assertNotNull(returned);
+            assertEquals("image/*",returned.getType());
+            assertTrue((returned.getFlags()&Intent.FLAG_GRANT_READ_URI_PERMISSION)!=0);
+            ClipData received=returned.getClipData();
+            assertNotNull(received);assertEquals(3,received.getItemCount());
+            int[] indices={2,0,1};
+            for(int i=0;i<3;i++){
+                int original=indices[i];
+                Uri uri=received.getItemAt(i).getUri();
+                assertEquals("System picker URI order must not change",media.get(original),uri);
+                assertArrayEquals("Original bytes must be untouched",contents.get(original),readAll(cr,uri));
+                assertEquals(mimes[original],cr.getType(uri));
+                try(Cursor c=cr.query(uri,new String[]{OpenableColumns.DISPLAY_NAME},null,null,null)){
+                    assertNotNull(c);assertTrue(c.moveToFirst());
+                    assertEquals(names.get(original),c.getString(0));
+                }
+            }
+        }finally{
+            if(gallery!=null && !gallery.isFinishing()){
+                Activity toFinish=gallery;
+                inst.runOnMainSync(toFinish::finish);
+            }
+            for(Uri uri:media)cr.delete(uri,null,null);
+        }
+    }
+
     @Test public void singleResultHasReadableImageTypeAndOriginalUri() {
         Uri original=Uri.parse("content://media/external/images/media/12345");
         ArrayList<Uri> originals=new ArrayList<>(Arrays.asList(original));

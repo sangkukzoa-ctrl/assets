@@ -137,3 +137,10 @@
 - 권한 거부 후 외부 시스템 사진 선택창을 기다리는 동안 부모 Activity가 재생성되어도 선택창/권한 창을 중복 실행하지 않도록 `fallbackPickerPending` 상태를 `onSaveInstanceState`에 보존.
 - pending 상태가 Android Activity 재생성 이후 유지되는 전용 내부 계측 회귀 테스트를 추가함.
 - 새 pending 수정은 CI 및 Android 매트릭스 재검증 대상으로 남겨 두며, 별도 공개 APK는 생성하지 않음.
+
+## 2026-11-24 — 시스템 Picker 반환 QA 및 CI 외부 서버 지연 대응
+- 이전 커밋 `1b12aa74`: Android 13/15/16 E2E 모두 통과. Android 14는 Gradle 의존성 다운로드 중 Maven Central HTTP 429(Too Many Requests)로 실패, 앱 계측 테스트 실패와 구분해 기록. 해당 Android 14 job만 재실행 요청.
+- 테스트용 `PickerHostActivity`에서 직접 NativeGalleryActivity 선택 가능하도록 확장(릴리스 APK에는 디버그 호스트 제외).
+- Android 15/16에서 OS의 선택 순서가 보장된 `ClipData` 형태를 모사해 NativeGalleryActivity의 실제 `onActivityResult` 처리 경로에 전달한 뒤, 첨부 요청자가 PNG/JPEG/WebP 원본 파일 3개를 3→1→2 순서로 받는지 검증하는 단말 계측 테스트 추가. 이 테스트는 플랫폼 Photo Picker UI 직접 조작 테스트와 구별.
+- GitHub E2E에서 Maven Central 429일 때만 재시도하고, 실제 계측 테스트 실패에서는 즉시 실패하도록 제한. Gradle 빌드에도 동일한 다운로드 일시제한 복구 적용. 동시 에뮬레이터 다운로드 수를 2로 제한.
+- 공개 v0.5.4 유지, v0.5.5 기능 테스트 및 실제 OEM 갤러리 호환 시험 계속.
