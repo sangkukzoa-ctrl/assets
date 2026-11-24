@@ -1,11 +1,7 @@
 name: RGB Blocks two READY Windows native servers Forge 1.20.1 and NeoForge 1.21.1
 on:
   workflow_dispatch:
-  push:
-    branches: [rgb-blocks-legacy-compat-audit]
-    paths:
-      - '.github/workflows/rgb-blocks-two-windows-ready-servers.yml'
-      - 'rgb-blocks-compat/build_windows_ready_server.py'
+  # Historical job retained for audit only; no automatic stale package rebuild.
 permissions:
   contents: read
   actions: read

@@ -1,11 +1,7 @@
 name: RGB Blocks verify both ready server ZIPs on genuine Windows with bundled Java
 on:
   workflow_dispatch:
-  push:
-    branches: [rgb-blocks-legacy-compat-audit]
-    paths:
-      - '.github/workflows/rgb-blocks-two-windows-ready-servers-native-windows-smoke.yml'
-      - 'rgb-blocks-compat/test_windows_ready_server.py'
+  # Historical job retained for audit only; no automatic stale package rebuild.
 permissions:
   actions: read
   contents: read

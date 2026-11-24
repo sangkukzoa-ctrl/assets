@@ -89,6 +89,10 @@ manifest=json.loads(manifests[0].read_text(encoding="utf-8"))
 assert manifest["release_files_sha256"][rgb.name]==sha(rgb), "RGB JAR not the verified release candidate"
 assert manifest["target"]==target and manifest["jar_registry_colors"]==16687
 assert manifest["jar_blockmodel_count"]==50061
+if os.environ.get("RGB_FINAL_HANDOFF")=="1":
+    assert manifest["source_commit"]==os.environ["GITHUB_SHA"]
+    assert str(manifest["build_actions_run"])==os.environ["GITHUB_RUN_ID"]
+    assert manifest["no_ci_diagnostics_in_release_jar"]
 with zipfile.ZipFile(rgb) as z:
     assert z.testzip() is None
     assert c["jarexpect"] in z.namelist()
@@ -292,7 +296,8 @@ info_lines=[
     "Minecraft EULA: eula.txt is preset true for the server owner who has",
     "already operated and accepted a Minecraft server; review official terms.",
     "",
-    "GitHub proof: https://github.com/sangkukzoa-ctrl/assets/actions/runs/44045724254",
+    "Production build: https://github.com/sangkukzoa-ctrl/assets/actions/runs/"+str(manifest.get("build_actions_run") or "unknown"),
+    "Windows runtime verification is recorded separately in the matching handoff draft.",
 ]
 (server/"README-FIRST-WINDOWS-SERVER.txt").write_text("\n".join(info_lines)+"\n",encoding="utf-8")
 direct_lines=[
@@ -318,7 +323,8 @@ release={
     "all_server_libraries_installed":True,
     "tested_mods":addons,"required_optional_mods":[],
     "standalone_server_default":True,
-    "github_source_actions_run":44037516139
+    "github_source_actions_run":manifest.get("build_actions_run"),
+    "source_commit":manifest.get("source_commit")
 }
 (server/"SERVER_VERSION_AND_HASHES.json").write_text(json.dumps(release,indent=2,ensure_ascii=False)+"\n",encoding="utf-8")
 # Direct ZIP must contain all the files required for Windows startup:

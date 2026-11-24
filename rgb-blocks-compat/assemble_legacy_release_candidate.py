@@ -10,6 +10,7 @@ from pathlib import Path
 import argparse
 import hashlib
 import json
+import os
 import shutil
 import zipfile
 
@@ -21,10 +22,10 @@ EXPECTED = {
         "modmeta": "META-INF/neoforge.mods.toml",
         "pack": "RGBBlocks-1.3.1-MC1.21.1-neoforge-complete-ecosystem.mrpack",
         "lock": "RGBBlocks-1.3.1-MC1.21.1-neoforge-complete-ecosystem-lock.json",
-        "shader_run": 44029914251,
-        "dimension_run": 44033632613,
-        "integrated_run": 44033632635,
-        "world_restart_run": 44033632688,
+        "shader_run": 45435835262,
+        "dimension_run": 45435835165,
+        "integrated_run": 45450046102,
+        "world_restart_run": 45435835349,
     },
     "forge1201": {
         "game": "1.20.1", "loader": "Forge", "loader_id": "forge",
@@ -32,10 +33,10 @@ EXPECTED = {
         "modmeta": "META-INF/mods.toml",
         "pack": "RGBBlocks-1.3.1-MC1.20.1-forge-complete-ecosystem.mrpack",
         "lock": "RGBBlocks-1.3.1-MC1.20.1-forge-complete-ecosystem-lock.json",
-        "shader_run": 44029919077,
-        "dimension_run": 44032050646,
-        "integrated_run": 44032721736,
-        "world_restart_run": 43950863449,
+        "shader_run": 45435835184,
+        "dimension_run": 45435835341,
+        "integrated_run": 45435835438,
+        "world_restart_run": 45435835205,
     },
 }
 GITHUB = "https://github.com/sangkukzoa-ctrl/assets"
@@ -127,15 +128,19 @@ def build_one(target):
     assert parity["rgb_color_count"] == 16687
     assert parity["registered_rgb_block_model_pairs"] == 50061
     assert parity["glass_render_type_parity"]
-    assert parity["original_png_language_palette_byte_identical"] > 33377
+    assert parity["original_png_language_palette_byte_identical"] == 33379
     assert parity["ported_jar_sha256"] == sha(jar), "Parity audit verified a different build JAR"
     shutil.copy2(static_parity, out / ("parity-" + target + ".json"))
     proof = {key.removesuffix("_run"): GITHUB + "/actions/runs/" + str(value)
              for key, value in c.items() if key.endswith("_run")}
+    proof["native_live_stress"] = GITHUB + "/actions/runs/45427869887"
+    proof["native_seeded_chaos"] = GITHUB + "/actions/runs/45427869736"
     manifest = {
         "mod": "RGB Blocks", "upstream": "1.3.1",
         "target": target, "minecraft": c["game"], "loader": c["loader"],
         "min_java": c["min_java"], "variant": "native build / test candidate",
+        "source_commit": os.environ.get("GITHUB_SHA"),
+        "build_actions_run": os.environ.get("GITHUB_RUN_ID"),
         "jar_registry_colors": len(palette),
         "jar_blockstate_count": asset_count, "jar_blockmodel_count": model_count,
         "jar_itemmodels": item_count,

@@ -7,6 +7,7 @@ Tests first-launch and same-world reopen with ONLY owner RGB mod installed.
 """
 from pathlib import Path
 import json
+import hashlib
 import os
 import queue
 import re
@@ -40,6 +41,14 @@ args=server/c["arg"]
 assert args.is_file()
 mods=list((server/"mods").glob("*.jar"))
 assert len(mods)==1 and "RGBBlocks" in mods[0].name,mods
+def sha256(path):
+    with path.open("rb") as f:return hashlib.file_digest(f,"sha256").hexdigest()
+manifest=json.loads((server/"SERVER_VERSION_AND_HASHES.json").read_text(encoding="utf-8"))
+assert sha256(mods[0])==manifest["rgb_jar_sha256"],"Windows server embedded RGB hash mismatch"
+if os.environ.get("RGB_FINAL_HANDOFF")=="1":
+    assert manifest["source_commit"]==os.environ["GITHUB_SHA"]
+    assert str(manifest["github_source_actions_run"])==os.environ["GITHUB_RUN_ID"]
+    assert sha256(zipfile_path)==os.environ["RGB_EXPECTED_WINDOWS_SHA256"]
 bat=(server/"run.bat").read_text(encoding="ascii")
 assert "runtime\\java\\bin\\java.exe" in bat and "@"+c["arg"] in bat and "@user_jvm_args.txt" in bat,bat
 assert (server/"eula.txt").read_text().strip()=="eula=true"
@@ -48,7 +57,8 @@ version=subprocess.run([str(java.resolve()),"-version"],stdout=subprocess.PIPE,s
 assert re.search(r'version "'+c["java"]+r'(?:\.|")',version),version
 print("WINDOWS_BUNDLED_JAVA_PASS",target,version.splitlines()[0],flush=True)
 
-report={"target":target,"java_version":version.strip(),"mods":[m.name for m in mods],
+report={"target":target,"server_zip_sha256":sha256(zipfile_path),
+        "rgb_jar_sha256":sha256(mods[0]),"source_commit":manifest.get("source_commit"),"java_version":version.strip(),"mods":[m.name for m in mods],
         "bundled_runtime":True,"native_win_args":str(args.relative_to(server)),
         "first_start":False,"rgb_palette":False,"rgb_commands":False,
         "normal_glow_glass_block_created":False,
