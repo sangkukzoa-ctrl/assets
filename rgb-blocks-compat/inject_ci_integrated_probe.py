@@ -88,11 +88,26 @@ logic += r'''
    boolean host=Boolean.getBoolean("rgbport.ci.lanHost");
    var server=mc.getSingleplayerServer();
    if(host && integratedChecked && server!=null && !lanPublished) {
+     // CI uses local test identities, just as its dedicated test server does.
+     // Do not modify production LAN authentication or user server settings.
+     server.setUsesAuthentication(false);
      lanPublished=server.publishServer(net.minecraft.world.level.GameType.SURVIVAL,true,25569);
      if(!lanPublished)throw new IllegalStateException("Actual integrated server LAN publish failed");
      System.out.println("RGB_PORT_LAN_PUBLISHED port=25569");
    }
-   if(host && lanPublished && server!=null && !lanCommandsFinished
+   if(host && lanPublished && server!=null && !lanGuestPositioned) {
+     server.execute(()->{
+       if(!lanGuestPositioned && server.getPlayerList().getPlayerByName("RGBPortTester")!=null){
+         server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),
+             "tp RGBPortTester -1.5 120 0.5 facing 6.5 121.5 7.5");
+         server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),
+             "tp RGBPortPeer 1.5 120 0.5 facing 6.5 121.5 7.5");
+         lanGuestPositioned=true;
+         System.out.println("RGB_PORT_LAN_GUEST_JOINED_AND_POSITIONED");
+       }
+     });
+   }
+   if(host && lanPublished && server!=null && lanGuestPositioned && !lanCommandsFinished
        && java.nio.file.Files.isRegularFile(mc.gameDirectory.toPath().resolve("rgbport-lan-guest-ready"))) {
      // Execute actual registered commands on the logical server thread,
      // not synthetic client state changes. One step per sample (30 ticks).
@@ -170,7 +185,7 @@ logic += r'''
  }
 '''
 code=code.replace("private static boolean integratedChecked = false;",
-    "private static boolean integratedChecked = false;\nprivate static boolean lanPublished=false,lanPassed=false;\nprivate static volatile boolean lanCommandsFinished=false;\nprivate static int lanStep=0,lanStableSamples=0;",1)
+    "private static boolean integratedChecked = false;\nprivate static boolean lanPublished=false,lanPassed=false;\nprivate static volatile boolean lanCommandsFinished=false,lanGuestPositioned=false;\nprivate static int lanStep=0,lanStableSamples=0;",1)
 assert code.count(anchor)==1
 code=code.replace(anchor,anchor+"\n"+logic,1)
 path.write_text(code,encoding="utf-8")

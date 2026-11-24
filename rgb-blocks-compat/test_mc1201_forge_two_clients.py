@@ -795,25 +795,36 @@ try:
         result["integrated_same_world_id"]=bool(integrated_ids) and integrated_ids[-1]==initial_peer_world_id
         assert result["integrated_same_world_id"],"Forge integrated saved world RGBRuntime world ID changed"
         screenshot=EVIDENCE/"forge-integrated-original-dedicated-world-mixed-rgb-cnb.png"
-        shot=subprocess.run(["scrot",str(screenshot.resolve())],env=peer_env,
-            stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=45)
-        result["integrated_screenshot"]=shot.returncode==0 and screenshot.is_file() and screenshot.stat().st_size>10000
+        for capture_attempt in range(5):
+            time.sleep(2)
+            screenshot.unlink(missing_ok=True)
+            shot=subprocess.run(["scrot",str(screenshot.resolve())],env=peer_env,
+                stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=45)
+            result["integrated_screenshot"]=shot.returncode==0 and screenshot.is_file() and screenshot.stat().st_size>10000
+            if result["integrated_screenshot"]:break
+            record("INTEGRATED_CAPTURE_NOT_READY attempt="+str(capture_attempt+1)+" output="+shot.stdout+
+                " bytes="+str(screenshot.stat().st_size if screenshot.exists() else 0))
         assert result["integrated_screenshot"],"Forge integrated real OpenGL screenshot missing"
         result["screenshots"].append({"file":screenshot.name,"size":screenshot.stat().st_size})
         assert peer.poll() is None,"Forge integrated singleplayer crashed"
         if LAN_PROBE:
             assert await_pattern(peerlog,"RGB_PORT_LAN_PUBLISHED port=25569",peer,60,"lan_publish"), "Actual integrated server was not published"
+            # Preserve the original primary's red-light and renderer evidence.
+            # The LAN guest starts in the saved GREEN world, not the original RED scene.
+            original_primary_log=(GAME/"logs/latest.log").read_text(encoding="utf-8",errors="replace")
+            (EVIDENCE/"primary-before-lan.log").write_text(original_primary_log,encoding="utf-8")
             guest_cmd=list(launchcmd)
             guest_cmd[guest_cmd.index("--join-server-port")+1]="25569"
             guest_cmd.append("--jvm-arg=-Drgbport.ci.lanGuest=true")
             client=subprocess.Popen(guest_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
                 text=True,bufsize=1,env=env,start_new_session=True)
-            clog,cthread=runthread(client,"LAN_GUEST",EVIDENCE/"lan-guest-launcher.log")
-            assert await_pattern(clog,"RGB_PORT_CNB_MIXED_PROBE_PASS",client,240,"lan_guest_mixed"), "Real LAN guest did not load saved mixed C&B"
+            guestlog,cthread=runthread(client,"LAN_GUEST",EVIDENCE/"lan-guest-launcher.log")
+            assert await_pattern(peerlog,"RGB_PORT_LAN_GUEST_JOINED_AND_POSITIONED",peer,240,"lan_guest_real_login"), "Actual guest login/positioning not confirmed on integrated server"
+            assert await_pattern(guestlog,"RGB_PORT_CNB_MIXED_PROBE_PASS",client,145,"lan_guest_mixed"), "Real LAN guest did not load saved mixed C&B"
             (PEER/"rgbport-lan-guest-ready").write_text("guest C&B verified",encoding="utf-8")
             assert await_pattern(peerlog,"RGB_PORT_LAN_SERVER_GUEST_PRESENT player=RGBPortTester",peer,60,"lan_real_server_guest"), "Integrated server never confirmed actual guest"
             assert await_pattern(peerlog,"RGB_PORT_LAN_BAKE_SEQUENCE_DONE count=8",peer,90,"lan_eight_bakes"), "LAN manual bake sequence did not finish"
-            for role,lines,process in (("HOST",peerlog,peer),("GUEST",clog,client)):
+            for role,lines,process in (("HOST",peerlog,peer),("GUEST",guestlog,client)):
                 marker="RGB_PORT_LAN_POST_BAKE_PASS role="+role+" worldId="+integrated_ids[-1]
                 deadline=time.monotonic()+180
                 while time.monotonic()<deadline and process.poll() is None:
@@ -829,6 +840,8 @@ try:
                     stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=45)
                 assert snap.returncode==0 and image.is_file() and image.stat().st_size>10000
             result["lan_both_screenshots"]=True
+            assert not any(token in "".join(guestlog+peerlog) for token in
+                ("MixinApplyError","NoSuchMethodError","NoClassDefFoundError","Crash report saved")), "LAN client fatal compatibility error"
 
     if CHAOS_PROBE:
         # Two production players and the genuinely sculpted original mixed
@@ -902,7 +915,7 @@ try:
 
     client_game=GAME/"logs/latest.log"
     if client_game.is_file():
-        txt=client_game.read_text(encoding="utf-8",errors="replace")
+        txt=original_primary_log if LAN_PROBE else client_game.read_text(encoding="utf-8",errors="replace")
         shutil.copy2(client_game,EVIDENCE/"minecraft-client-latest.log")
         result["rgb_light_propagation_verified"]="RGB_PORT_LIGHT_PROBE_PASS" in (txt+"\n"+"".join(clog))
         result["cnb_rgb_propagation_verified"]="RGB_PORT_CNB_LIGHT_PROBE_PASS" in (txt+"\n"+"".join(clog))

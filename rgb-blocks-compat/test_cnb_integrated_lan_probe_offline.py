@@ -22,7 +22,9 @@ ast.parse(inject.read_text("utf-8"),filename=str(inject))
 source='''package com.rgbblocks.ci;
 public class RgbPortLightProbe {
  private static int tickCallbackCount = 0;
+ private static boolean passed=false,cnbPassed=false,mixedPassed=false;
  public void run() {
+ if (passed && cnbPassed && mixedPassed) return;
  net.minecraft.core.BlockPos near=new net.minecraft.core.BlockPos(0,121,6);
  }
 }
@@ -47,6 +49,9 @@ for loader,folder,harness in (
         assert 'if(actualMixed && lanHostCnbModelRepair && realRgb' in generated
         assert generated.index("RGB_PORT_INTEGRATED_LAN_HOST_MESH_GUARD_PASS") < (
                generated.index("RGB_PORT_INTEGRATED_SINGLEPLAYER_PASS"))
+        assert 'server.setUsesAuthentication(false)' in generated
+        assert 'RGB_PORT_LAN_GUEST_JOINED_AND_POSITIONED' in generated
+        assert '!Boolean.getBoolean("rgbport.ci.lanHost")' in generated
         assert "getSingleplayerServer()" in generated, (
             "CI fixture must actually require the integrated LAN server")
         harness_path=HERE/harness
