@@ -773,15 +773,21 @@ try:
         # but NO RGB after relaunch for >1680 ticks, while round-3 still PASSed.
         # Require the NEW independent peer JVM to rediscover original mixed
         # C&B emission without asking the server to sculpt or resend the tile.
+        # The mixed oracle samples (6,121,7) only when loaded. The
+        # restarted peer is currently at x=162.5 after the distant CHAOS
+        # round-3 check; restore the original scene's chunk before waiting.
+        # No sculpture edits, explicit refresh command or light bake here.
+        command(server,"tp RGBPortPeer 1.5 120 0.5 facing 0.5 121.5 7.5")
         assert await_pattern_since(peerlog,"RGB_PORT_CNB_MIXED_PROBE_PASS",
              0,peer,120,"forge_chaos_rejoined_peer_old_mixed_cnb_rgb"), (
-            "CHAOS: restarted peer kept valid old mixed C&B voxel bits but "
-            "its RGB source and neighbor light stayed BLACK after reconnect")
+            "CHAOS: restarted peer did not verify original mixed C&B bits "
+            "and RGB propagation after returning to the original scene")
         result["chaos"]["restarted_peer_existing_mixed_source_restored"]=True
         # The opposite of ghost geometry: delete the last glow sculpture after
         # rapid edits/relogin and insist that its RGB light vanishes on BOTH
         # independent clients, not merely that the tile became air on server.
         command(server,"tp RGBPortTester 161.5 120 0.5 facing 166.5 121.5 7.5")
+        command(server,"tp RGBPortPeer 162.5 120 0.5 facing 166.5 121.5 7.5")
         command(server,"rgb auto")
         command(server,"setblock 166 121 7 minecraft:air")
         command(server,"rgb setbake all")

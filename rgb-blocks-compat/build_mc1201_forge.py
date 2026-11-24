@@ -300,6 +300,18 @@ def migrate_client_config(s):
     assert 'FMLPaths.CONFIGDIR.get()' in s
     return s
 patch(config,migrate_client_config)
+
+# Actual Forge 47.4.28 runtime crash: C&B 20.1.20 implements the
+# Minecraft BlockColor interface in SRG production names, not Mojmap.
+# The same callback is getColor in a deobfuscated dev workspace.
+# Keep require=1; do NOT silently disable the worker-thread safety hook.
+cnb_color=CODE/"com/rgbblocks/mixin/client/CnbChiseledBlockColorProviderMixin.java"
+def forge_cnb_color_mapping(src):
+    old='@Inject(method="getColor",'
+    assert src.count(old)==1, "Expected one C&B color callback selector"
+    return src.replace(old,'@Inject(method={"m_92566_","getColor"},',1)
+patch(cnb_color,forge_cnb_color_mapping)
+
 client=CODE/"com/rgbblocks/client/RgbBlocksClient.java"
 client.write_text('''package com.rgbblocks.client;
 import com.rgbblocks.client.config.RGBClientConfig;
