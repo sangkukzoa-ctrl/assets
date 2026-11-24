@@ -309,6 +309,14 @@ try:
     (PEER/"mods").mkdir(parents=True,exist_ok=True)
     shutil.copytree(C_MODS,PEER/"mods",dirs_exist_ok=True)
     shutil.copy2(GAME/"options.txt",PEER/"options.txt")
+    # Seed only the independent loader config from the verified primary.
+    # A real Forge 47.4.28 peer previously failed at FMLConfig.booleanValue
+    # before it ever joined; do not copy RGB persistence or world data.
+    primary_fml=GAME/"config/fml.toml"
+    peer_fml=PEER/"config/fml.toml"
+    if primary_fml.is_file():
+        peer_fml.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copy2(primary_fml,peer_fml)
     peer_display=subprocess.Popen(["Xvfb",":87","-screen","0","1024x576x24","-ac","+extension","GLX"],
            stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
     time.sleep(2)
@@ -323,6 +331,25 @@ try:
                           text=True,start_new_session=True,bufsize=1)
     peerlog,peerthread=runthread(peer,"PEER",EVIDENCE/"peer-console.log")
     result["peer_joined"]=await_pattern(slog,"RGBPortPeer joined the game",server,210,"second_FML_player_join")
+    # Retry exactly the observed loader-startup failure once, not a failed
+    # in-world RGB assertion. Preserve the failed real process logs.
+    if not result["peer_joined"] and any("FMLConfig$ConfigValue.getConfigValue" in line and "is null" in line for line in peerlog):
+        result["forge_peer_loader_retry_used"]=True
+        terminate(peer);peerthread.join(timeout=10)
+        for candidate in (PEER/"logs/latest.log",EVIDENCE/"peer-console.log",peer_fml):
+            if candidate.is_file():
+                shutil.copy2(candidate,EVIDENCE/("peer-fml-failed-"+candidate.name))
+        if primary_fml.is_file():
+            peer_fml.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copy2(primary_fml,peer_fml)
+        else:
+            peer_fml.unlink(missing_ok=True)
+        before_retry=len(slog)
+        peer=subprocess.Popen(peer_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,env=peer_env,
+                              text=True,start_new_session=True,bufsize=1)
+        peerlog,peerthread=runthread(peer,"PEER_RETRY",EVIDENCE/"peer-console-retry.log")
+        result["peer_joined"]=await_pattern_since(slog,"RGBPortPeer joined the game",before_retry,server,210,"fresh_second_FML_player_join")
+        result["forge_peer_loader_retry_recovered"]=result["peer_joined"]
     assert result["peer_joined"],"Second real Forge client did not join the same server"
     command(server,"tp RGBPortPeer 1.5 120.0 0.5 facing 0.5 121.5 7.5")
     command(server,"gamemode creative RGBPortPeer")
@@ -471,8 +498,33 @@ try:
         # Keep two real C&B voxel sculptures 128 blocks apart. Both players
         # travel back/forth during rapid location-scoped manual bakes.
         # This is a rendering test, not merely a preserved light-source test.
-        command(server,"forceload add 128 0")
-        command(server,"fill 126 119 -3 142 119 12 minecraft:stone")
+        # The old far fill crossed four chunks but pinned only one.
+        # A player falling into y=-60 is not a valid radius-24 Bake test.
+        # Pin the entire intended floor and wait for actual server blocks.
+        def ensure_stress_floor(x0,x1,label):
+            command(server,f"forceload add {x0} -3 {x1} 12")
+            corners=[(x,z) for x in (x0,x1) for z in (-3,12)]
+            condition=" ".join(f"if block {x} 119 {z} minecraft:stone" for x,z in corners)
+            for attempt in range(12):
+                start=len(slog)
+                command(server,f"fill {x0} 119 -3 {x1} 119 12 minecraft:stone")
+                marker=f"RGB_PORT_STRESS_FLOOR_READY_{label}_{attempt}"
+                command(server,"execute "+condition+" run say "+marker)
+                if await_pattern_since(slog,marker,start,server,5,"stress_floor_"+label):
+                    return
+            raise AssertionError("Stress floor incomplete before teleport: "+label)
+        ensure_stress_floor(-5,7,"NEAR")
+        ensure_stress_floor(126,142,"FAR")
+        def stress_teleport(x,facing):
+            before_a=len(clog); before_b=len(peerlog)
+            command(server,f"tp RGBPortTester {x} 120.0 0.5 facing {facing} 121.5 7.5")
+            command(server,f"tp RGBPortPeer {x} 120.0 0.5 facing {facing} 121.5 7.5")
+            time.sleep(0.75)
+            marker="RGB_PORT_BAKE_STRESS_CAMERA_READY region="+("NEAR" if x<100 else "FAR")
+            assert await_pattern_since(clog,marker,before_a,client,45,"stress_primary_camera"), (
+                "Primary never received actual target platform at Y=120")
+            assert await_pattern_since(peerlog,marker,before_b,peer,45,"stress_peer_camera"), (
+                "Peer never received actual target platform at Y=120")
         command(server,"setblock 134 121 7 chiselsandbits:chiseled")
         command(server,"execute if block 134 121 7 chiselsandbits:chiseled run say RGB_PORT_BAKE_FAR_REAL_TILE")
         result["bake_stress_far_sculpted"]=await_pattern(slog,"RGB_PORT_BAKE_STRESS_FAR_SETUP_PASS",server,110,"far_real_CnB_voxel_sculpture")
@@ -481,9 +533,7 @@ try:
         command(server,"rgb setbake 24")
         for cycle in range(4):
             for x in (1.5,132.5):
-                command(server,f"tp RGBPortTester {x} 120.0 0.5 facing {x} 121.5 7.5")
-                command(server,f"tp RGBPortPeer {x} 120.0 0.5 facing {x} 121.5 7.5")
-                time.sleep(0.75)
+                stress_teleport(x,x)
                 command(server,"rgb bake")
                 time.sleep(0.35)
                 command(server,"rgb bake")
@@ -491,15 +541,13 @@ try:
         # After 16 real remote-location bake requests, verify that C&B's
         # actual baked mesh has quads, not just intact RGB lightmap data.
         command(server,"setblock 0 120 9 minecraft:gold_block")
-        command(server,"tp RGBPortTester 1.5 120.0 0.5 facing 6.5 121.5 7.5")
-        command(server,"tp RGBPortPeer 1.5 120.0 0.5 facing 6.5 121.5 7.5")
+        stress_teleport(1.5,6.5)
         visible_a=await_pattern(clog,"RGB_PORT_BAKE_STRESS_NEAR_MESH_PASS",client,170,"primary_mixed_geometry_after_rapid_bake")
         visible_b=await_pattern(peerlog,"RGB_PORT_BAKE_STRESS_NEAR_MESH_PASS",peer,170,"peer_mixed_geometry_after_rapid_bake")
         result["bake_stress_near_both_models_visible"]=visible_a and visible_b
         assert result["bake_stress_near_both_models_visible"],"C&B mixed sculpture retained light but its near-region baked mesh is EMPTY/transparent after rapid bakes"
         command(server,"setblock 134 120 9 minecraft:gold_block")
-        command(server,"tp RGBPortTester 132.5 120.0 0.5 facing 134.5 121.5 7.5")
-        command(server,"tp RGBPortPeer 132.5 120.0 0.5 facing 134.5 121.5 7.5")
+        stress_teleport(132.5,134.5)
         far_a=await_pattern(clog,"RGB_PORT_BAKE_STRESS_FAR_MESH_PASS",client,170,"primary_far_CnB_mesh")
         far_b=await_pattern(peerlog,"RGB_PORT_BAKE_STRESS_FAR_MESH_PASS",peer,170,"peer_far_CnB_mesh")
         result["bake_stress_far_both_models_visible"]=far_a and far_b

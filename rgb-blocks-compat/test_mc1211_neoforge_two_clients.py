@@ -458,8 +458,33 @@ try:
         # Keep two real C&B voxel sculptures 128 blocks apart. Both players
         # travel back/forth during rapid location-scoped manual bakes.
         # This is a rendering test, not merely a preserved light-source test.
-        cmd(server,"forceload add 128 0")
-        cmd(server,"fill 126 119 -3 142 119 12 minecraft:stone")
+        # The old far fill crossed four chunks but pinned only one.
+        # A player falling into y=-60 is not a valid radius-24 Bake test.
+        # Pin the entire intended floor and wait for actual server blocks.
+        def ensure_stress_floor(x0,x1,label):
+            cmd(server,f"forceload add {x0} -3 {x1} 12")
+            corners=[(x,z) for x in (x0,x1) for z in (-3,12)]
+            condition=" ".join(f"if block {x} 119 {z} minecraft:stone" for x,z in corners)
+            for attempt in range(12):
+                start=len(slog)
+                cmd(server,f"fill {x0} 119 -3 {x1} 119 12 minecraft:stone")
+                marker=f"RGB_PORT_STRESS_FLOOR_READY_{label}_{attempt}"
+                cmd(server,"execute "+condition+" run say "+marker)
+                if await_new_line(slog,marker,start,server,5,"stress_floor_"+label):
+                    return
+            raise AssertionError("Stress floor incomplete before teleport: "+label)
+        ensure_stress_floor(-5,7,"NEAR")
+        ensure_stress_floor(126,142,"FAR")
+        def stress_teleport(x,facing):
+            before_a=len(clog); before_b=len(peerlog)
+            cmd(server,f"tp RGBPortTester {x} 120.0 0.5 facing {facing} 121.5 7.5")
+            cmd(server,f"tp RGBPortPeer {x} 120.0 0.5 facing {facing} 121.5 7.5")
+            time.sleep(0.75)
+            marker="RGB_PORT_BAKE_STRESS_CAMERA_READY region="+("NEAR" if x<100 else "FAR")
+            assert await_new_line(clog,marker,before_a,client,45,"stress_primary_camera"), (
+                "Primary never received actual target platform at Y=120")
+            assert await_new_line(peerlog,marker,before_b,peer,45,"stress_peer_camera"), (
+                "Peer never received actual target platform at Y=120")
         cmd(server,"setblock 134 121 7 chiselsandbits:chiseled")
         cmd(server,"execute if block 134 121 7 chiselsandbits:chiseled run say RGB_PORT_BAKE_FAR_REAL_TILE")
         result["bake_stress_far_sculpted"]=await_line(slog,"RGB_PORT_BAKE_STRESS_FAR_SETUP_PASS",server,110)
@@ -468,9 +493,7 @@ try:
         cmd(server,"rgb setbake 24")
         for cycle in range(4):
             for x in (1.5,132.5):
-                cmd(server,f"tp RGBPortTester {x} 120.0 0.5 facing {x} 121.5 7.5")
-                cmd(server,f"tp RGBPortPeer {x} 120.0 0.5 facing {x} 121.5 7.5")
-                time.sleep(0.75)
+                stress_teleport(x,x)
                 cmd(server,"rgb bake")
                 time.sleep(0.35)
                 cmd(server,"rgb bake")
@@ -478,15 +501,13 @@ try:
         # After 16 real remote-location bake requests, verify that C&B's
         # actual baked mesh has quads, not just intact RGB lightmap data.
         cmd(server,"setblock 0 120 9 minecraft:gold_block")
-        cmd(server,"tp RGBPortTester 1.5 120.0 0.5 facing 6.5 121.5 7.5")
-        cmd(server,"tp RGBPortPeer 1.5 120.0 0.5 facing 6.5 121.5 7.5")
+        stress_teleport(1.5,6.5)
         visible_a=await_line(clog,"RGB_PORT_BAKE_STRESS_NEAR_MESH_PASS",client,170)
         visible_b=await_line(peerlog,"RGB_PORT_BAKE_STRESS_NEAR_MESH_PASS",peer,170)
         result["bake_stress_near_both_models_visible"]=visible_a and visible_b
         assert result["bake_stress_near_both_models_visible"],"C&B mixed sculpture retained light but its near-region baked mesh is EMPTY/transparent after rapid bakes"
         cmd(server,"setblock 134 120 9 minecraft:gold_block")
-        cmd(server,"tp RGBPortTester 132.5 120.0 0.5 facing 134.5 121.5 7.5")
-        cmd(server,"tp RGBPortPeer 132.5 120.0 0.5 facing 134.5 121.5 7.5")
+        stress_teleport(132.5,134.5)
         far_a=await_line(clog,"RGB_PORT_BAKE_STRESS_FAR_MESH_PASS",client,170)
         far_b=await_line(peerlog,"RGB_PORT_BAKE_STRESS_FAR_MESH_PASS",peer,170)
         result["bake_stress_far_both_models_visible"]=far_a and far_b

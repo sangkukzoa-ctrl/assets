@@ -91,6 +91,19 @@ end=s.index(") return;",i)
 s=s[:end]+' && (!Boolean.getBoolean("rgbport.ci.bakeStress") || (bakeStressNearVisible && bakeStressFarVisible))'+s[end:]
 needle=" net.minecraft.core.BlockPos near=new net.minecraft.core.BlockPos(0,121,6);"
 code=r'''
+ // Camera readiness is independent of RGB state: a physically valid
+ // loaded floor and actual client coordinates are required before each
+ // pair of rapid Bake requests. No light or model changes here.
+ if(Boolean.getBoolean("rgbport.ci.bakeStress") && ticks%10==0 && mc.player!=null){
+   var camera=mc.player.blockPosition();
+   if(camera.getY()==120 && Math.abs(camera.getZ())<=1
+       && mc.level.isLoaded(camera.below())
+       && mc.level.getBlockState(camera.below()).is(net.minecraft.world.level.block.Blocks.STONE)){
+     if(camera.getX()==1 || camera.getX()==132)
+       System.out.println("RGB_PORT_BAKE_STRESS_CAMERA_READY region="+
+           (camera.getX()==1?"NEAR":"FAR")+" pos="+camera);
+   }
+ }
  if(Boolean.getBoolean("rgbport.ci.bakeStress") && ticks%30==0 &&
    !(bakeStressNearVisible && bakeStressFarVisible)){
    try{
@@ -131,7 +144,11 @@ code=r'''
            }
          }
        }
-       boolean okay=total==4095 && rgb.active() && nonempty>0 && quads>0;
+       var camera=mc.player.blockPosition();
+       boolean cameraReady=camera.getY()==120 && camera.getX()==(isFar?132:1)
+           && Math.abs(camera.getZ())<=1 && mc.level.isLoaded(camera.below())
+           && mc.level.getBlockState(camera.below()).is(net.minecraft.world.level.block.Blocks.STONE);
+       boolean okay=cameraReady && total==4095 && rgb.active() && nonempty>0 && quads>0;
        if(okay) {
          if(isFar){
            if(++bakeStressFarSamples>=3){
