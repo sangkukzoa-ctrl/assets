@@ -216,9 +216,18 @@ rt.write_text(s,encoding="utf-8")
 
 # Keep settings, renderer, and light engine class locations identical.
 config=JAVA/"client/config/RGBClientConfig.java"
-s=config.read_text(encoding="utf-8").replace("net.fabricmc.loader.api.FabricLoader","net.neoforged.fml.loading.FMLPaths")
-s=s.replace("FabricLoader.getInstance().getConfigDir()","FMLPaths.CONFIGDIR.get()")
-config.write_text(s,encoding="utf-8")
+# The verified owner source wraps the method chain across lines; exact
+# one-line replacement only migrated the import, leaving FabricLoader in
+# the native initializer (Forge javac error / NeoForge source gate).
+def migrate_client_config(s):
+    s=s.replace("net.fabricmc.loader.api.FabricLoader","net.neoforged.fml.loading.FMLPaths")
+    s,count=re.subn(r"\bFabricLoader\s*\.\s*getInstance\s*\(\s*\)\s*\.\s*getConfigDir\s*\(\s*\)",
+                    "FMLPaths.CONFIGDIR.get()",s)
+    assert count==1,("Expected exactly one original client config directory lookup",count)
+    assert "FabricLoader" not in s, "Native client config retained Fabric API"
+    assert 'FMLPaths.CONFIGDIR.get()' in s
+    return s
+config.write_text(migrate_client_config(config.read_text(encoding="utf-8")),encoding="utf-8")
 
 # Restore the ORIGINAL 1.3.1 NeoForge Mixin plugin, not the Fabric loader's
 # optional-mixin discovery implementation. Preserve platform source structure.

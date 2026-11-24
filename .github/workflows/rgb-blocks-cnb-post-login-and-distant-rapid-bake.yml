@@ -12,6 +12,7 @@ on:
       - 'rgb-blocks-compat/verify_owner_runtime_migration.py'
       - 'rgb-blocks-compat/build_mc1211_fabric.py'
       - 'rgb-blocks-compat/build_mc1201_forge.py'
+      - 'rgb-blocks-compat/build_mc1211_neoforge.py'
       - 'rgb-blocks-compat/inject_ci_live_cnb_edit_probe.py'
       - 'rgb-blocks-compat/inject_ci_cnb_bake_stress_probe.py'
       - 'rgb-blocks-compat/test_mc1201_forge_two_clients.py'

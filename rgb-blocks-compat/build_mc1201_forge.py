@@ -288,8 +288,18 @@ import java.util.function.Supplier;''')
 patch(runtime,network1201)
 
 config=CODE/"com/rgbblocks/client/config/RGBClientConfig.java"
-patch(config,lambda s:s.replace("net.fabricmc.loader.api.FabricLoader","net.minecraftforge.fml.loading.FMLPaths")
-    .replace("FabricLoader.getInstance().getConfigDir()","FMLPaths.CONFIGDIR.get()"))
+# The verified owner source wraps the method chain across lines; exact
+# one-line replacement only migrated the import, leaving FabricLoader in
+# the native initializer (Forge javac error / NeoForge source gate).
+def migrate_client_config(s):
+    s=s.replace("net.fabricmc.loader.api.FabricLoader","net.minecraftforge.fml.loading.FMLPaths")
+    s,count=re.subn(r"\bFabricLoader\s*\.\s*getInstance\s*\(\s*\)\s*\.\s*getConfigDir\s*\(\s*\)",
+                    "FMLPaths.CONFIGDIR.get()",s)
+    assert count==1,("Expected exactly one original client config directory lookup",count)
+    assert "FabricLoader" not in s, "Native client config retained Fabric API"
+    assert 'FMLPaths.CONFIGDIR.get()' in s
+    return s
+patch(config,migrate_client_config)
 client=CODE/"com/rgbblocks/client/RgbBlocksClient.java"
 client.write_text('''package com.rgbblocks.client;
 import com.rgbblocks.client.config.RGBClientConfig;
