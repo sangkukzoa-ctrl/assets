@@ -16,6 +16,8 @@ NEO_CORE_NAME="RGB-Blocks-1.3.1-OWNER-JAVA-and-BUILD-SOURCES.zip"
 EXPECTED_BUNDLE="1aea93f67e0375ecea72c86a5a72add5488d43d87a6b058dbce93128f250d007"
 EXPECTED_FABRIC="ae5fffb7b37d7376f4e579491af878b7ed74fbe386b8691751e6d1c538bcb39c"
 EXPECTED_NEO_CORE="420da2011167e9dac00b6404eba29043e9a342dd61c7c1fc4d4cd85662d64607"
+NEO_RAW_NAME="RGB-Blocks-1.3.1-NeoForge-26.1.2-full-source.zip"
+EXPECTED_NEO_RAW="f267b09141811f3eeb64e8247fff1d08ed2e11fdbea6c5b165f52b93e31607e1"
 
 def hash_file(p):
     h=hashlib.sha256()
@@ -104,13 +106,14 @@ def verified_stage_cache(code_only):
 def stage(fabric,neo_core,code_only=False):
     if hash_file(fabric)!=EXPECTED_FABRIC:
         raise RuntimeError("Wrong owner Fabric 1.3.1 source TAR fingerprint")
-    if hash_file(neo_core)!=EXPECTED_NEO_CORE:
+    neo_digest=hash_file(neo_core)
+    if neo_digest not in (EXPECTED_NEO_CORE,EXPECTED_NEO_RAW):
         raise RuntimeError("Wrong owner NeoForge source ZIP fingerprint")
     # Hundreds of thousands of tiny assets take much longer than hashing
     # their original compressed source. Keep a checked, resumable extraction
     # checkpoint. Never accept a tree sourced from different archive hashes.
     wanted={"owner_fabric_sha256":EXPECTED_FABRIC,
-            "owner_neo_core_sha256":EXPECTED_NEO_CORE}
+            "owner_neo_core_sha256":neo_digest}
     provenance=OUT/"source-provenance.json"
     if provenance.is_file():
         existing=json.loads(provenance.read_text(encoding="utf-8"))
@@ -143,7 +146,7 @@ def stage(fabric,neo_core,code_only=False):
     stat={"kind":"author-original-sources","fabric_java":0,"neo_java":0,
           "resources":0,"resources_extracted":not code_only,
           "owner_fabric_sha256":EXPECTED_FABRIC,
-          "owner_neo_core_sha256":EXPECTED_NEO_CORE,
+          "owner_neo_core_sha256":neo_digest,
           "modrinth_original_download_count":0}
     with tarfile.open(fabric) as tf:
         for member in tf:
@@ -165,16 +168,7 @@ def stage(fabric,neo_core,code_only=False):
                 put_cached(OUT/"fabric",rel,tf.extractfile(member).read())
                 stat["fabric_java"]+=1
     with zipfile.ZipFile(neo_core) as z:
-        for name in z.namelist():
-            if name.startswith("neoforge/src/main/java/") and name.endswith(".java"):
-                rel=name.split("neoforge/src/main/java/",1)[1]
-                put_cached(OUT/"neoforge",rel,z.read(name))
-                stat["neo_java"]+=1
-            elif name in (
-                "neoforge/src/main/resources/META-INF/neoforge.mods.toml",
-                "neoforge/src/main/resources/rgbblocks.mixins.json"):
-                rel=name.split("neoforge/src/main/resources/",1)[1]
-                put_cached(OUT/"neoforge/resources",rel,z.read(name))
+        stage_neo_java(z,put_cached,stat)
     if (stat["fabric_java"],stat["neo_java"],stat["resources"])!=(32,31,233629):
         raise RuntimeError("Owner source inventory mismatch "+str(stat))
     stat["owner_java_trees"]={
@@ -190,7 +184,38 @@ def stage(fabric,neo_core,code_only=False):
     marker.unlink(missing_ok=True)
     print("RGB_PORT_ORIGINAL_OWNER_SOURCE_STAGED",json.dumps(stat),flush=True)
 
-def private_owner_source_release(archive):
+def stage_neo_java(z,put_cached,stat):
+    # Both the canonical core archive and the original full project ZIP
+    # are accepted ONLY after their independent pinned binary SHA check.
+    # Discover the unique original project root, not a generated build dir.
+    names=z.namelist()
+    suffix="src/main/java/com/rgbblocks/RgbBlocksMod.java"
+    roots=[name[:-len(suffix)] for name in names
+           if name.endswith(suffix) and
+           (name==suffix or name[-len(suffix)-1]=="/")]
+    if len(roots)!=1:
+        raise RuntimeError("Expected one owner NeoForge project root")
+    prefix=roots[0]
+    java=prefix+"src/main/java/"
+    res=prefix+"src/main/resources/"
+    selected=set()
+    for name in names:
+        if name.startswith(java) and name.endswith(".java"):
+            rel=name[len(java):]
+            root=OUT/"neoforge"
+            stat["neo_java"]+=1
+        elif name in (res+"META-INF/neoforge.mods.toml",
+                      res+"rgbblocks.mixins.json"):
+            rel=name[len(res):]
+            root=OUT/"neoforge/resources"
+        else:
+            continue
+        if (root,rel) in selected:
+            raise RuntimeError("Duplicate original NeoForge source entry")
+        selected.add((root,rel))
+        put_cached(root,rel,z.read(name))
+
+def private_owner_source_release(archive,raw_paths=None):
     """Optional private draft GitHub Release storage for owner's input JAR-free source.
 
     Runs ONLY when owner explicitly provisioned a draft release, AND a
@@ -242,32 +267,63 @@ def private_owner_source_release(archive):
         raise RuntimeError("Wrong author source release tag")
     if not release.get("draft"):
         raise RuntimeError("The author-source GitHub Release MUST remain a private DRAFT")
-    files=[asset for asset in release.get("assets",[]) if asset.get("name")==CANONICAL_NAME]
-    if len(files)!=1:
+    assets=release.get("assets",[])
+    def matches(name):
+        return [asset for asset in assets if asset.get("name")==name]
+    def download(name,destination,expected):
+        files=matches(name)
+        if len(files)!=1:
+            raise RuntimeError("Owner source draft release missing or duplicate asset: "+name)
+        url="https://api.github.com/repos/"+repository+"/releases/assets/"+str(files[0]["id"])
+        binary_headers={**headers,"Accept":"application/octet-stream"}
+        destination.parent.mkdir(parents=True,exist_ok=True)
+        temp=destination.with_name(destination.name+".partial")
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url,headers=binary_headers),timeout=300) as response:
+                with temp.open("wb") as out:
+                    shutil.copyfileobj(response,out)
+            if hash_file(temp)!=expected:
+                raise RuntimeError("Private owner source release SHA-256 mismatch; refuse corrupted/stale data")
+            os.replace(temp,destination)
+        finally:
+            temp.unlink(missing_ok=True)
+    if matches(CANONICAL_NAME):
+        download(CANONICAL_NAME,archive,EXPECTED_BUNDLE)
+        print("RGB_OWNER_SOURCE_PRIVATE_GITHUB_DRAFT_VERIFIED",archive,flush=True)
+        return True
+    if raw_paths is None:
         raise RuntimeError("Owner source draft release missing exact canonical archive")
-    url="https://api.github.com/repos/"+repository+"/releases/assets/"+str(files[0]["id"])
-    binary_headers={**headers,"Accept":"application/octet-stream"}
-    archive.parent.mkdir(parents=True,exist_ok=True)
-    temp=archive.with_name(archive.name+".partial")
-    try:
-        with urllib.request.urlopen(urllib.request.Request(url,headers=binary_headers),timeout=120) as response:
-            with temp.open("wb") as out:
-                shutil.copyfileobj(response,out)
-        if hash_file(temp)!=EXPECTED_BUNDLE:
-            raise RuntimeError("Private owner source release SHA-256 mismatch; refuse corrupted/stale data")
-        os.replace(temp,archive)
-    finally:
-        temp.unlink(missing_ok=True)
-    print("RGB_OWNER_SOURCE_PRIVATE_GITHUB_DRAFT_VERIFIED",archive,flush=True)
-    return True
+    # Original pair transport is equally strict, with exact original SHA
+    # locks. Reject missing/duplicate pair before downloading either file.
+    if any(len(matches(name))!=1 for name in (FABRIC_NAME,NEO_RAW_NAME)):
+        raise RuntimeError("Owner source draft release missing exact original archive pair")
+    fabric,neo=raw_paths
+    download(FABRIC_NAME,fabric,EXPECTED_FABRIC)
+    download(NEO_RAW_NAME,neo,EXPECTED_NEO_RAW)
+    print("RGB_OWNER_SOURCE_PRIVATE_ORIGINAL_PAIR_VERIFIED",flush=True)
+    return "raw_pair"
 
 def main():
     archive=Path(os.environ.get("RGB_OWNER_SOURCE_COMPLETE",
                  str(HERE/"owner-archives"/CANONICAL_NAME)))
-    if not archive.is_file() and not private_owner_source_release(archive):
-        raise SystemExit("RGB BLOCKS AUTHOR SOURCE MISSING: "+str(archive)+
-           ". Provision the author's private draft GitHub Release or pass "
-           "RGB_OWNER_SOURCE_COMPLETE. Public RGB Blocks JAR fallback is DISABLED.")
+    code_only=os.environ.get("RGB_OWNER_CODE_ONLY")=="1"
+    local_fabric=os.environ.get("RGB_OWNER_FABRIC_TAR")
+    local_neo=os.environ.get("RGB_OWNER_NEOFORGE_ZIP")
+    if local_fabric or local_neo:
+        if not local_fabric or not local_neo:
+            raise RuntimeError("Set BOTH RGB_OWNER_FABRIC_TAR and RGB_OWNER_NEOFORGE_ZIP")
+        stage(Path(local_fabric),Path(local_neo),code_only=code_only)
+        return
+    if not archive.is_file():
+        raw=(archive.parent/FABRIC_NAME,archive.parent/NEO_RAW_NAME)
+        mode=private_owner_source_release(archive,raw_paths=raw)
+        if mode=="raw_pair":
+            stage(*raw,code_only=code_only)
+            return
+        if not mode:
+            raise SystemExit("RGB BLOCKS AUTHOR SOURCE MISSING: "+str(archive)+
+               ". Provision the private draft source or set BOTH RGB_OWNER_FABRIC_TAR "
+               "and RGB_OWNER_NEOFORGE_ZIP. Public RGB Blocks JAR fallback is DISABLED.")
     if hash_file(archive)!=EXPECTED_BUNDLE:
         raise RuntimeError("Unrecognized author-supplied source archive SHA-256")
     with tempfile.TemporaryDirectory(prefix="rgb-owner-") as d:
