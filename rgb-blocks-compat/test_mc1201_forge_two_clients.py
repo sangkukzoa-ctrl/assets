@@ -20,6 +20,8 @@ assert not LIVE_CNB_PROBE or MIXED_CNB_PROBE, "Live after-login C&B probe requir
 SERVER_RESTART_PROBE=os.environ.get("RGB_PORT_TEST_WORLD_RESTART")=="1"
 DIMENSION_PROBE=os.environ.get("RGB_PORT_TEST_DIMENSIONS")=="1"
 INTEGRATED_PROBE=os.environ.get("RGB_PORT_TEST_INTEGRATED")=="1"
+LAN_PROBE=os.environ.get("RGB_PORT_TEST_LAN")=="1"
+assert not LAN_PROBE or INTEGRATED_PROBE, "LAN acceptance requires actual integrated server"
 assert not INTEGRATED_PROBE or MIXED_CNB_PROBE, "Real Forge integrated save requires original mixed 16³ C&B"
 assert not INTEGRATED_PROBE or not (SERVER_RESTART_PROBE or DIMENSION_PROBE), "Keep integrated/world/dimension gates separate"
 assert not DIMENSION_PROBE or MIXED_CNB_PROBE, "Dimension switching requires 4096bit mixed C&B test"
@@ -45,7 +47,7 @@ def runthread(p,label,out):
             for line in p.stdout:
                 lines.append(line)
                 f.write(line);f.flush()
-                if any(q in line for q in ("Done (","joined the game","lost connection","ERROR","FATAL","Fatal","Traceback","Render thread","RGB mode","Server thread","Failed","RGB_PORT_PEER_","RGB_PORT_DIAG_","RGB_PORT_CHAOS_","RGB_PORT_BAKE_STRESS_","RGB_PORT_LIVE_CNB_","RGB_PORT_CNB_MIXED_","RGB_PORT_DIM_","Saved RGB lightmap","Loaded RGB lightmap","Caused by","Exception","MixinApplyError","mixin apply","Mixin config","rgbblocks.mixins")):
+                if any(q in line for q in ("Done (","joined the game","lost connection","ERROR","FATAL","Fatal","Traceback","Render thread","RGB mode","Server thread","Failed","RGB_PORT_PEER_","RGB_PORT_DIAG_","RGB_PORT_CHAOS_","RGB_PORT_BAKE_STRESS_","RGB_PORT_LIVE_CNB_","RGB_PORT_LAN_","RGB_PORT_CNB_MIXED_","RGB_PORT_DIM_","Saved RGB lightmap","Loaded RGB lightmap","Caused by","Exception","MixinApplyError","mixin apply","Mixin config","rgbblocks.mixins")):
                     record(label+" "+line.rstrip()[:450])
     t=threading.Thread(target=reader,daemon=True);t.start()
     return lines,t
@@ -767,6 +769,9 @@ try:
         integrated_cmd.extend(["--join-world","RGBPortIntegrated",
             "--jvm-arg=-Drgbport.ci.reconnect=true",
             "--jvm-arg=-Drgbport.ci.integrated=true"])
+        if LAN_PROBE:
+            (PEER/"rgbport-lan-guest-ready").unlink(missing_ok=True)
+            integrated_cmd.append("--jvm-arg=-Drgbport.ci.lanHost=true")
         record("FORGE_REAL_INTEGRATED_SINGLEPLAYER_LAUNCH "+str(integrated_cmd))
         peer=subprocess.Popen(integrated_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
             text=True,bufsize=1,env=peer_env,start_new_session=True)
@@ -796,6 +801,35 @@ try:
         assert result["integrated_screenshot"],"Forge integrated real OpenGL screenshot missing"
         result["screenshots"].append({"file":screenshot.name,"size":screenshot.stat().st_size})
         assert peer.poll() is None,"Forge integrated singleplayer crashed"
+        if LAN_PROBE:
+            assert await_pattern(peerlog,"RGB_PORT_LAN_PUBLISHED port=25569",peer,60,"lan_publish"), "Actual integrated server was not published"
+            guest_cmd=list(launchcmd)
+            guest_cmd[guest_cmd.index("--join-server-port")+1]="25569"
+            guest_cmd.append("--jvm-arg=-Drgbport.ci.lanGuest=true")
+            client=subprocess.Popen(guest_cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+                text=True,bufsize=1,env=env,start_new_session=True)
+            clog,cthread=runthread(client,"LAN_GUEST",EVIDENCE/"lan-guest-launcher.log")
+            assert await_pattern(clog,"RGB_PORT_CNB_MIXED_PROBE_PASS",client,240,"lan_guest_mixed"), "Real LAN guest did not load saved mixed C&B"
+            (PEER/"rgbport-lan-guest-ready").write_text("guest C&B verified",encoding="utf-8")
+            assert await_pattern(peerlog,"RGB_PORT_LAN_SERVER_GUEST_PRESENT player=RGBPortTester",peer,60,"lan_real_server_guest"), "Integrated server never confirmed actual guest"
+            assert await_pattern(peerlog,"RGB_PORT_LAN_BAKE_SEQUENCE_DONE count=8",peer,90,"lan_eight_bakes"), "LAN manual bake sequence did not finish"
+            for role,lines,process in (("HOST",peerlog,peer),("GUEST",clog,client)):
+                marker="RGB_PORT_LAN_POST_BAKE_PASS role="+role+" worldId="+integrated_ids[-1]
+                deadline=time.monotonic()+180
+                while time.monotonic()<deadline and process.poll() is None:
+                    if any(marker in line for line in lines):break
+                    time.sleep(0.7)
+                assert any(marker in line for line in lines), ("LAN actual post-bake RGB/mesh or same world ID missing",role)
+                result["lan_"+role.lower()+"_post_bake_verified"]=True
+            assert peer.poll() is None and client.poll() is None, "LAN host or guest exited"
+            result["lan_guest_join_and_eight_manual_bakes"]=True
+            for role,display_env in (("host",peer_env),("guest",env)):
+                image=EVIDENCE/("lan-"+role+"-post-bake.png")
+                snap=subprocess.run(["scrot",str(image.resolve())],env=display_env,
+                    stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=45)
+                assert snap.returncode==0 and image.is_file() and image.stat().st_size>10000
+            result["lan_both_screenshots"]=True
+
     if CHAOS_PROBE:
         # Two production players and the genuinely sculpted original mixed
         # material C&B scene exist at this point; chaos uses a SEPARATE chunk.
@@ -978,6 +1012,9 @@ if INTEGRATED_PROBE:
         "integrated_mixed_bits_restored","integrated_host_cnb_mesh_guard_verified","integrated_same_world_id",
         "integrated_screenshot"
     )), "Forge real integrated SingleplayerServer original world and RGB+C&B acceptance failed"
+if LAN_PROBE:
+    assert all(result.get(k) for k in ("lan_guest_join_and_eight_manual_bakes",
+        "lan_host_post_bake_verified","lan_guest_post_bake_verified","lan_both_screenshots")), "Real LAN acceptance failed"
 if DIMENSION_PROBE:
     assert all(result[k] for k in (
         "dimension_nether_entered","dimension_nether_blue_verified",

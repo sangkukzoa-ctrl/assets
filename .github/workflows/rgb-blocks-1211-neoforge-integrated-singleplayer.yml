@@ -50,6 +50,7 @@ jobs:
           RGB_PORT_STRICT_LIGHT_PROBE: '1'
           RGB_PORT_TEST_MIXED_CNB: '1'
           RGB_PORT_TEST_INTEGRATED: '1'
+          RGB_PORT_TEST_LAN: '1'
         run: python3 rgb-blocks-compat/test_mc1211_neoforge_two_clients.py
       - uses: actions/upload-artifact@v4
         if: always()

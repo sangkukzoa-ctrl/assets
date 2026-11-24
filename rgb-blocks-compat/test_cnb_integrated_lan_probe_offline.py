@@ -59,6 +59,10 @@ for loader,folder,harness in (
                 in harness_code),("LAN host probe omitted from final acceptance",loader)
         assert harness_code.index("RGB_PORT_INTEGRATED_LAN_HOST_MESH_GUARD_PASS") > (
                harness_code.index("RGB_PORT_INTEGRATED_SINGLEPLAYER_PASS"))
+        for marker in ("RGB_PORT_LAN_PUBLISHED","RGB_PORT_LAN_SERVER_GUEST_PRESENT",
+                       "RGB_PORT_LAN_BAKE_SEQUENCE_DONE","RGB_PORT_LAN_POST_BAKE_PASS"):
+            assert marker in harness_code,(loader,marker)
+        assert '"lan_host_post_bake_verified","lan_guest_post_bake_verified"' in harness_code
         print("RGB_PORT_INTEGRATED_LAN_CNB_PROBE_INJECTION_PASS",
               loader,"generator=true host_guard_required=true"
               " final_game_acceptance_required=true",flush=True)
