@@ -77,6 +77,11 @@ public final class RGBRealLightEngine {
    private static final Map<String, Map<Long, Long>> DIRTY_LEDGER = new ConcurrentHashMap<>();
    private static final ArrayDeque<RGBRealLightEngine.DirtyBatchEntry> ACTIVE_BATCH = new ArrayDeque<>();
    private static final Set<Long> BATCH_INTERNAL_CNB_REFRESH = ConcurrentHashMap.newKeySet();
+   // A remote Bake received while another batch is running is still a
+   // command, not permission to silently drop work at the other location.
+   private static final ArrayDeque<QueuedManualBake> QUEUED_MANUAL_BAKES = new ArrayDeque<>();
+   private static long manualBakeClock;
+   private record QueuedManualBake(boolean all, int radius, BlockPos center, long receivedTick) {}
    private static long DIRTY_GENERATION;
    private static int BATCH_PROCESSED;
    private static int BATCH_FAILED;
@@ -162,6 +167,8 @@ public final class RGBRealLightEngine {
       DEFERRED_EVENTS.clear();
       REPLAY_EVENTS.clear();
       DIRTY_LEDGER.clear();
+      QUEUED_MANUAL_BAKES.clear();
+      manualBakeClock = 0L;
       ACTIVE_BATCH.clear();
       BATCH_INTERNAL_CNB_REFRESH.clear();
       DIRTY_GENERATION = 0L;
@@ -563,9 +570,7 @@ public final class RGBRealLightEngine {
             }
 
             RGBRuntime.BakeRequest request = RGBRuntime.consumeBakeRequest();
-            if (request != null && EFFECTIVE_MODE != RGBRealLightEngine.EffectiveMode.AUTO) {
-               startManualBake(request.all(), request.radius());
-            }
+            processManualBakeRequests(request);
 
             processCnbValidationAndCleanup();
             processPendingCnbRemovals();
@@ -958,6 +963,12 @@ public final class RGBRealLightEngine {
       if (version != OBSERVED_RUNTIME_VERSION) {
          OBSERVED_RUNTIME_VERSION = version;
          if (RGBRuntime.clientTargetManual()) {
+            // A repeated MANUAL state or a scope-setting packet is not a
+            // mode transition; do not abort a running manual batch.
+            if (EFFECTIVE_MODE == RGBRealLightEngine.EffectiveMode.MANUAL_IDLE
+                || EFFECTIVE_MODE == RGBRealLightEngine.EffectiveMode.MANUAL_BAKING) {
+               return;
+            }
             cancelActiveBatch();
             if (EFFECTIVE_MODE == RGBRealLightEngine.EffectiveMode.AUTO) {
                initializeManualShadow();
@@ -968,10 +979,13 @@ public final class RGBRealLightEngine {
             MANUAL_BOOTSTRAP_SECTIONS.clear();
             RGBLightEngine.clearPendingBootstrapWork();
             RGBRuntime.setClientBootstrapAllowed(false);
-         } else if (EFFECTIVE_MODE == RGBRealLightEngine.EffectiveMode.AUTO) {
-            RGBRuntime.setClientBootstrapAllowed(true);
          } else {
-            startCatchUp();
+            QUEUED_MANUAL_BAKES.clear();
+            if (EFFECTIVE_MODE == RGBRealLightEngine.EffectiveMode.AUTO) {
+               RGBRuntime.setClientBootstrapAllowed(true);
+            } else {
+               startCatchUp();
+            }
          }
       }
    }
@@ -985,10 +999,67 @@ public final class RGBRealLightEngine {
       MANUAL_CNB_WEAK_STRIKES.putAll(CNB_WEAK_STRIKES);
    }
 
-   private static void startManualBake(boolean all, int radius) {
-      if (EFFECTIVE_MODE == RGBRealLightEngine.EffectiveMode.MANUAL_IDLE && ACTIVE_BATCH.isEmpty()) {
+   private static void processManualBakeRequests(RGBRuntime.BakeRequest request) {
+      ++manualBakeClock;
+      if (!RGBRuntime.clientTargetManual()) {
+         QUEUED_MANUAL_BAKES.clear();
+         return;
+      }
+      if (request != null) {
          Minecraft minecraft = Minecraft.getInstance();
-         BlockPos center = minecraft != null && minecraft.player != null ? minecraft.player.blockPosition().immutable() : BlockPos.ZERO;
+         BlockPos center = request.all() ? BlockPos.ZERO :
+             minecraft != null && minecraft.player != null
+             ? minecraft.player.blockPosition().immutable() : BlockPos.ZERO;
+         int radius = clampInt(request.radius(), 4, 256);
+         // Coalesce repeated commands at one location, never replace a
+         // distinct remote scope with the player's later position.
+         QUEUED_MANUAL_BAKES.removeIf(q -> q.all() == request.all()
+             && (q.all() || (q.radius() == radius && q.center().equals(center))));
+         if (QUEUED_MANUAL_BAKES.size() >= 64) {
+            QUEUED_MANUAL_BAKES.removeFirst();
+            System.err.println("[RGB Blocks] Manual bake queue reached 64 distinct scopes; oldest scope remains dirty.");
+         }
+         QUEUED_MANUAL_BAKES.addLast(new QueuedManualBake(request.all(), radius, center, manualBakeClock));
+      }
+      if (EFFECTIVE_MODE != RGBRealLightEngine.EffectiveMode.MANUAL_IDLE || !ACTIVE_BATCH.isEmpty()) return;
+      // Keep a recently requested unloaded scope briefly while its chunk
+      // packets arrive. It must not block an independently loaded scope.
+      Iterator<QueuedManualBake> pending = QUEUED_MANUAL_BAKES.iterator();
+      while (pending.hasNext()) {
+         QueuedManualBake scope = pending.next();
+         long age = manualBakeClock - scope.receivedTick();
+         int availability = manualBakeScopeAvailability(scope);
+         if (availability == 2) {
+            pending.remove();
+            startManualBake(scope.all(), scope.radius(), scope.center());
+            return;
+         }
+         if (age >= 600 || (availability == 0 && age >= 20)) {
+            pending.remove(); // unapplied unloaded positions stay dirty
+         }
+      }
+   }
+
+   // 0=no matching dirty position, 1=only unloaded, 2=at least one loaded.
+   private static int manualBakeScopeAvailability(QueuedManualBake scope) {
+      Map<Long,Long> dirty = DIRTY_LEDGER.get(currentDimensionKey());
+      if (dirty == null) return 0;
+      int found = 0;
+      long radiusSq = (long)scope.radius() * scope.radius();
+      for (Long packed : dirty.keySet()) {
+         BlockPos pos = BlockPos.of(packed);
+         long dx = (long)pos.getX() - scope.center().getX();
+         long dy = (long)pos.getY() - scope.center().getY();
+         long dz = (long)pos.getZ() - scope.center().getZ();
+         if (!scope.all() && dx*dx + dy*dy + dz*dz > radiusSq) continue;
+         if (isPositionLoaded(pos)) return 2;
+         found = 1;
+      }
+      return found;
+   }
+
+   private static void startManualBake(boolean all, int radius, BlockPos center) {
+      if (EFFECTIVE_MODE == RGBRealLightEngine.EffectiveMode.MANUAL_IDLE && ACTIVE_BATCH.isEmpty()) {
          if (!buildFixedBatch(all, radius, center, false)) {
             System.out.println("[RGB Blocks] Bake skipped: no dirty positions in scope.");
          } else {
@@ -1349,6 +1420,7 @@ public final class RGBRealLightEngine {
 
    static void prepareForPersistenceDimensionSwitch() {
       resetCnbDiscovery();
+      QUEUED_MANUAL_BAKES.clear();
       cancelActiveBatch();
       // Never continue a previous dimension's weak cache iterator.
       CNB_RECONCILE_CURSOR = null;
