@@ -468,8 +468,9 @@ public class OrderedAttachmentInstrumentedTest {
                 new ClipData.Item(media.get(2)));
             clip.addItem(new ClipData.Item(media.get(0)));
             clip.addItem(new ClipData.Item(media.get(1)));
-            Intent platformResult=new Intent().setClipData(clip)
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Intent platformResult=new Intent();
+            platformResult.setClipData(clip);
+            platformResult.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             inst.runOnMainSync(()->{
                 try {
                     Field ordered=NativeGalleryActivity.class.getDeclaredField("fallbackOrderedSelectionRequested");
