@@ -55,13 +55,21 @@ public final class AttachmentCallerActivity extends Activity {
                     hadAccessBeforeUserSelection=(in!=null);
                 }catch(SecurityException|java.io.FileNotFoundException denied){hadAccessBeforeUserSelection=false;}
                 Intent picker=new Intent(pickerAction);
-                picker.setPackage(TARGET);
-                if(Intent.ACTION_PICK.equals(pickerAction)){
+                if(Intent.ACTION_OPEN_DOCUMENT.equals(pickerAction)){
+                    // Real system DocumentsUI, NOT an Image Order activity or direct URI grant.
+                    picker.addCategory(Intent.CATEGORY_OPENABLE);
+                    picker.setType(requestedType);
+                    picker.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,allowMultiple);
+                    picker.putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI,
+                        android.provider.DocumentsContract.buildRootUri(TARGET+".documents","images"));
+                }else if(Intent.ACTION_PICK.equals(pickerAction)){
+                    picker.setPackage(TARGET);
                     // Real-world ACTION_PICK callers often supply the MediaStore collection URI
                     // instead of a MIME type, or provide both with setDataAndType().
                     if(uriOnlyPick)picker.setData(MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
                     else picker.setDataAndType(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,requestedType);
                 }else{
+                    picker.setPackage(TARGET);
                     picker.addCategory(Intent.CATEGORY_OPENABLE);
                     picker.setType(requestedType);
                     picker.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,allowMultiple);

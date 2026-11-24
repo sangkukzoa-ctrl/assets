@@ -22,6 +22,8 @@ assert 'android:mimeType="*/*"' in manifest
 external=p/'externalcaller'
 foreign_manifest=(external/'src/main/AndroidManifest.xml').read_text()
 assert "applicationId 'com.twobornot.imageorder.caller'" in (external/'build.gradle').read_text()
+assert 'systemDocumentsUiReturnsReadableOriginalWithoutMediaPermission' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/SafExternalCallerTest.java').read_text()
+assert 'Intent.ACTION_OPEN_DOCUMENT.equals(pickerAction)' in (external/'src/main/java/com/twobornot/imageorder/caller/AttachmentCallerActivity.java').read_text()
 assert 'WebUploadCallerActivity' in foreign_manifest
 assert 'WebUploadCallerActivity' not in manifest
 html_host=(external/'src/main/java/com/twobornot/imageorder/caller/WebUploadCallerActivity.java').read_text()

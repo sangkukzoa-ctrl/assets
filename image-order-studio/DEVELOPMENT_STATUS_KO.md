@@ -150,3 +150,10 @@
 - android-emulator-runner의 script 각 행을 독립 셸 명령으로 실행하는 방식에 맞추어 Bash 파일 `tests/run-cross-app-qa.sh` 단일 호출로 변경.
 - Maven 재시도 공통 helper `tests/gradle-with-retry.sh`와 모의 Gradle 테스트 `tests/gradle-retry-test.sh` 추가. 성공/일시 429/지속 429/계측 실패/혼합 실패/컴파일 실패 여섯 시나리오를 네트워크 없이 확인.
 - 앱 소스와 기존 계측 테스트 자체는 그대로 유지. 신규 커밋에서 네 Android 버전을 재검증한다.
+
+## 2026-11-24 밤 — Android 13~16 전체 회귀 성공 / 실제 SAF 외부 앱 테스트 추가
+- 기준 커밋 a03217c6: 개발 CI 45398517306 및 Android 13/14/15/16 교차 앱 QA 45398517365 전부 성공.
+- 시스템 Photo Picker 순서 보장 반환 데이터를 모사한 혼합 이미지 원본 전달 계측 테스트까지 포함.
+- 별도 UID의 APK에서 실제 ACTION_OPEN_DOCUMENT로 Android DocumentsUI를 열고 Image Order 공급자의 원본 한 장을 선택하는 SafExternalCallerTest 추가.
+- 권한 없는 사전/미선택 URI 접근 거부, 선택한 URI의 이름/MIME/크기/SHA-256, 쓰기 거부, 지속 읽기 권한 확인을 목표로 한다.
+- SAF의 다중 선택 순서는 DocumentsUI가 제어하므로 이 시험은 순서 보장을 주장하지 않는다. 새 테스트의 CI 결과는 미확정.
