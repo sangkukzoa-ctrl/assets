@@ -312,6 +312,60 @@ def forge_cnb_color_mapping(src):
     return src.replace(old,'@Inject(method={"m_92566_","getColor"},',1)
 patch(cnb_color,forge_cnb_color_mapping)
 
+# C&B 20.1.20's VersionedStorageEngine dispatches every payload to a
+# shared IO pool and then publishes it on the game executor. Earlier
+# empty/old snapshots can finish AFTER the final 4095-bit update.
+# Preserve native deserialization and callbacks, but serialize submission
+# per actual client tile, without blocking the Minecraft/render thread.
+cnb_parts=CODE/"com/rgbblocks/mixin/client/CnbChiseledBlockStateModelMixin.java"
+def forge_order_cnb_payloads(src):
+    marker=' @Inject(method="updateModelData()V"'
+    assert src.count(marker)==1, "Expected existing C&B block entity mixin"
+    addition=''' @org.spongepowered.asm.mixin.Unique
+ private java.util.concurrent.CompletableFuture<Void> rgbblocks$payloadTail;
+
+ @org.spongepowered.asm.mixin.injection.Redirect(
+   method="deserializeNBT(Lnet/minecraft/nbt/CompoundTag;Ljava/lang/Runnable;)V",
+   at=@At(value="INVOKE",target="Lmod/chiselsandbits/storage/IMultiThreadedStorageEngine;deserializeOffThread(Lnet/minecraft/nbt/CompoundTag;)Ljava/util/concurrent/CompletableFuture;"),
+   require=1,remap=false)
+ @Dynamic("Forge C&B 20.1.20 ordered asynchronous NBT publication")
+ private java.util.concurrent.CompletableFuture<Void> rgbblocks$orderPayload(
+      @org.spongepowered.asm.mixin.injection.Coerce Object engine,
+      net.minecraft.nbt.CompoundTag tag) {
+    net.minecraft.world.level.block.entity.BlockEntity tile =
+        (net.minecraft.world.level.block.entity.BlockEntity)(Object)this;
+    if (tile.getLevel()==null || !tile.getLevel().isClientSide()) {
+       return rgbblocks$nativeDeserialize(engine,tag);
+    }
+    synchronized(this) {
+       java.util.concurrent.CompletableFuture<Void> previous=rgbblocks$payloadTail;
+       net.minecraft.nbt.CompoundTag snapshot=tag.copy();
+       java.util.concurrent.CompletableFuture<Void> next = previous==null
+           ? rgbblocks$nativeDeserialize(engine,snapshot)
+           : previous.handle((ignored,failure)->(Void)null)
+                     .thenCompose(ignored->rgbblocks$nativeDeserialize(engine,snapshot));
+       rgbblocks$payloadTail=next;
+       return next;
+    }
+ }
+ @org.spongepowered.asm.mixin.Unique
+ @SuppressWarnings("unchecked")
+ private static java.util.concurrent.CompletableFuture<Void> rgbblocks$nativeDeserialize(
+      Object engine,net.minecraft.nbt.CompoundTag tag) {
+    try {
+       java.lang.reflect.Method method=engine.getClass().getMethod(
+         "deserializeOffThread",net.minecraft.nbt.CompoundTag.class);
+       method.setAccessible(true);
+       return (java.util.concurrent.CompletableFuture<Void>)method.invoke(engine,tag);
+    } catch (ReflectiveOperationException failure) {
+       return java.util.concurrent.CompletableFuture.failedFuture(failure);
+    }
+ }
+'''
+    return src.replace(marker,addition+marker,1)
+patch(cnb_parts,forge_order_cnb_payloads)
+
+
 client=CODE/"com/rgbblocks/client/RgbBlocksClient.java"
 client.write_text('''package com.rgbblocks.client;
 import com.rgbblocks.client.config.RGBClientConfig;

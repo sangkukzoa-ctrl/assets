@@ -1,5 +1,7 @@
 package com.rgbblocks.client.lighting;
 
+import com.rgbblocks.runtime.RGBRuntime;
+
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.HashSet;
@@ -34,7 +36,7 @@ public final class RGBLightEngine {
    private RGBLightEngine() {
    }
 
-   public static void invalidateAll() {
+   public static synchronized void invalidateAll() {
       STORAGE.clear();
       READY_SECTIONS.clear();
       RETRY_AFTER_NANOS.clear();
@@ -43,12 +45,12 @@ public final class RGBLightEngine {
       RGBSourceIndex.clear();
    }
 
-   public static void onClientDisconnect() {
+   public static synchronized void onClientDisconnect() {
       CLIENT_DISCONNECTING = true;
       invalidateAll();
    }
 
-   static Map<Long, byte[]> snapshotPersistedSections() {
+   static synchronized Map<Long, byte[]> snapshotPersistedSections() {
       return STORAGE.snapshotActiveSections();
    }
 
@@ -56,7 +58,7 @@ public final class RGBLightEngine {
       return STORAGE.activeSectionCount();
    }
 
-   static void restorePersistedSections(Map<Long, byte[]> sections) {
+   static synchronized void restorePersistedSections(Map<Long, byte[]> sections) {
       STORAGE.restoreActiveSections(sections);
       READY_SECTIONS.clear();
       if (sections != null) {
@@ -79,7 +81,10 @@ public final class RGBLightEngine {
       }
    }
 
-   public static void invalidateAround(BlockAndTintGetter level, BlockPos pos) {
+   // Serialize storage writers: a queued chunk worker may otherwise max-merge
+   // OLD color after the client thread cleared the affected cube. Keep READY
+   // flags and repropagation in the same transaction; readers remain lock-free.
+   public static synchronized void invalidateAround(BlockAndTintGetter level, BlockPos pos) {
       if (RGBRealLightEngine.enabled() && level != null && pos != null) {
          rememberLevel(level);
          if (!CLIENT_DISCONNECTING) {
@@ -106,7 +111,7 @@ public final class RGBLightEngine {
       }
    }
 
-   public static void invalidateChunk(BlockAndTintGetter level, int chunkX, int chunkZ) {
+   public static synchronized void invalidateChunk(BlockAndTintGetter level, int chunkX, int chunkZ) {
       if (RGBRealLightEngine.enabled() && level != null) {
          rememberLevel(level);
          if (!CLIENT_DISCONNECTING) {
@@ -210,7 +215,7 @@ public final class RGBLightEngine {
       }
    }
 
-   public static void ensureBootstrapped(BlockAndTintGetter level, BlockPos pos) {
+   public static synchronized void ensureBootstrapped(BlockAndTintGetter level, BlockPos pos) {
       if (RGBRealLightEngine.bootstrapAllowedAt(pos)) {
          if (RGBRealLightEngine.enabled() && level != null && pos != null) {
             rememberLevel(level);
@@ -241,7 +246,7 @@ public final class RGBLightEngine {
       }
    }
 
-   static void processPendingBootstrap(BlockAndTintGetter level, int budget) {
+   static synchronized void processPendingBootstrap(BlockAndTintGetter level, int budget) {
       if (level != null && budget > 0 && !CLIENT_DISCONNECTING) {
          rememberLevel(level);
          if (!CLIENT_DISCONNECTING) {
@@ -254,7 +259,7 @@ public final class RGBLightEngine {
       return !SOURCE_BOOTSTRAP_QUEUE.isEmpty() || !REFRESH_QUEUE.isEmpty();
    }
 
-   static void clearPendingBootstrapWork() {
+   static synchronized void clearPendingBootstrapWork() {
       RETRY_AFTER_NANOS.clear();
       REFRESH_QUEUE.clear();
       SOURCE_BOOTSTRAP_QUEUE.clear();
@@ -354,8 +359,23 @@ public final class RGBLightEngine {
    private static boolean refreshAround(BlockAndTintGetter level, BlockPos center, int scanRadius, boolean allowFallbackScan) {
       boolean[] indexedFound = new boolean[]{false};
       RGBSourceIndex.forEachSourceAround(center, scanRadius, (sourcePosx, sourceColor) -> {
-         indexedFound[0] = true;
-         propagateFrom(level, sourcePosx, sourceColor, scanRadius, center);
+         // The index can outlive a C&B color edit. A render worker must
+         // not restore obsolete BLUE into max-merged storage after GREEN
+         // was committed. Re-read the live source in the same serialized
+         // propagation transaction, rather than trusting a captured index
+         // entry. For unloaded sources retain the baked/indexed snapshot.
+         RGBLightColor4 current = sourceColor;
+         try {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc != null && mc.level != null && mc.level.isLoaded(sourcePosx)
+                && RGBRuntime.clientTargetAuto()) {
+               current = RGBRealLightEngine.sourceColorAt(mc.level, sourcePosx);
+            }
+         } catch (Throwable ignored) {}
+         if (current != null && current.active()) {
+            indexedFound[0] = true;
+            propagateFrom(level, sourcePosx, current, scanRadius, center);
+         }
       });
       if (indexedFound[0]) {
          return true;
