@@ -219,6 +219,12 @@ public final class RGBCnbGeometryBakeDebouncer {
          } else {
             entry.lastRequestMillis = now;
             entry.lastAllowedBakeMillis = now;
+            // The scheduler future may have already completed by handing
+            // its Runnable to Minecraft.execute(). cancel(false) cannot
+            // remove that Runnable from the game thread's queue. Even when
+            // the 350ms payload window expired, this authoritative immediate
+            // rebuild must invalidate the captured serial before cancelling.
+            entry.requestSerial.incrementAndGet();
             cancelTrailingBake(entry);
             return false;
          }
