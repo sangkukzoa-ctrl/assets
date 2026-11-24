@@ -89,16 +89,22 @@ def _single_pass_text_and_tsv(image, executable, tessdata, lang, psm):
         if run.returncode!=0:
             raise RuntimeError("Bundled Tesseract failed (%d): %s" %
                                (run.returncode,run.stderr.decode("utf-8","replace")[:240]))
-        native=Path(str(target)+".txt").read_text(encoding="utf-8-sig").strip()
-        tsv=Path(str(target)+".tsv").read_text(encoding="utf-8-sig")
-        return native,tsv
+        def read_sidecar(suffix):
+            try:
+                return Path(str(target)+suffix).read_text(encoding="utf-8-sig")
+            except (OSError, UnicodeError):
+                return None
+        native=read_sidecar(".txt")
+        tsv=read_sidecar(".tsv")
+        if native is None and tsv is None:
+            raise RuntimeError("Tesseract produced no readable output")
+        return (native or "").strip(),tsv or ""
 
 
 def read(image,mode,language,psm=None,tess_lang=None):
     """Return native text and per-word boxes from ONE Tesseract invocation."""
     try:
-        import csv
-        import io
+        import math
         from collections import defaultdict
         exe,data=resolve_tesseract_paths()
         if not exe or not data:return "",[],0.
@@ -108,18 +114,38 @@ def read(image,mode,language,psm=None,tess_lang=None):
         native,tsv=_single_pass_text_and_tsv(image,exe,data,lang,psm)
         groups=defaultdict(list)
         parts=[];confs=[]
-        for d in csv.DictReader(io.StringIO(tsv),delimiter="\t"):
-            t=(d.get("text") or "").strip()
+        # Native TSV is not CSV: quotes are literal OCR glyphs. Split only
+        # the 11 structural separators, preserving the final text field.
+        # A malformed geometry row must not discard other valid rows or
+        # the independently produced native text.
+        lines=tsv.replace("\r\n","\n").split("\n")
+        expected="level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext"
+        if not lines or lines[0].lstrip("\ufeff")!=expected:
+            return native,[],0.
+        for line in lines[1:]:
+            fields=line.split("\t",11)
+            if len(fields)!=12:continue
+            t=fields[11].strip()
             if not t:continue
-            confidence=float(int(float(d["conf"])))
-            if confidence<=0:continue
-            key=tuple(int(d[k]) for k in ("block_num","par_num","line_num"))
-            x,y,w,h=(int(d[z]) for z in ("left","top","width","height"))
+            try:
+                if int(fields[0])!=5:continue
+                raw_conf=float(fields[10])
+                if not math.isfinite(raw_conf) or not 0<raw_conf<=100:continue
+                confidence=float(int(raw_conf))
+                if confidence<=0:continue
+                key=tuple(int(fields[k]) for k in (1,2,3,4))
+                x,y,w,h=(int(fields[k]) for k in (6,7,8,9))
+                if x<0 or y<0 or w<=0 or h<=0:continue
+            except (ValueError,OverflowError):
+                continue
             item={"text":t,"score":confidence/100,"box":(x,y,x+w,y+h)}
             groups[key].append(item)
             parts.append(item)
             confs.append(confidence)
-        lines=sorted(groups.values(),key=lambda a:min(t["box"][1] for t in a))
+        # Tesseract's hierarchy encodes reading order. Global y sorting
+        # interleaves separate columns and can reverse adjacent lines.
+        # Native text remains authoritative; raw token order is unchanged.
+        lines=[groups[key] for key in sorted(groups)]
         reconstructed="\n".join(_assemble(row) for row in lines)
         return native if native else reconstructed,parts,sum(confs)/max(1,len(confs))
     except Exception:

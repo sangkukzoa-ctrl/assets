@@ -8,6 +8,8 @@ left to the existing path until an independent value recognizer is verified.
 """
 from collections import Counter
 import hashlib
+import math
+import unicodedata
 import cv2
 import numpy as np
 from PIL import Image
@@ -63,6 +65,33 @@ def pixel_control_rows(image):
     return rows
 
 
+def _remove_border_pipe(text, items, size):
+    """Drop only a separately localized full-height edge stroke.
+
+    A literal pipe inside a control, or a standalone symbol, is retained.
+    Do not infer any replacement text from labels or dictionaries.
+    """
+    if not isinstance(items,(list,tuple)) or not any(c.isalnum() for c in text):
+        return text,items
+    w,h=size
+    rejected=set(); left=False; right=False
+    for i,item in enumerate(items):
+        try:
+            if item.get('text')!='|':continue
+            a,b,c,d=map(float,item['box'])
+            if not all(math.isfinite(v) for v in (a,b,c,d)):continue
+            if d-b<h*.90 or c-a>max(2,w*.08):continue
+            if b>h*.05 or d<h*.95:continue
+            if a<=w*.03 and c<=w*.10 and text.startswith('| '):
+                left=True;rejected.add(i)
+            elif c>=w*.97 and a>=w*.90 and text.endswith(' |'):
+                right=True;rejected.add(i)
+        except (TypeError,ValueError,KeyError,AttributeError):continue
+    if left:text=text[2:]
+    if right:text=text[:-2]
+    return text,[item for i,item in enumerate(items) if i not in rejected]
+
+
 def _read_roi(roi,kind,reader,cache,language):
     if roi.width<20 or roi.height<12:return None,[],0.,False,1
     if kind=='button':
@@ -73,16 +102,34 @@ def _read_roi(roi,kind,reader,cache,language):
     else:
         glyph=roi.convert('L')
         variants=[(1,7),(1,8),(3,7),(3,8),(2,8)]
-    cache_key=(kind,hashlib.sha256(glyph.tobytes()).hexdigest(),language)
+    # Raw bytes alone do not encode image dimensions: differently shaped
+    # ROIs can have identical byte streams but distinct glyph geometry.
+    cache_key=(kind,glyph.size,hashlib.sha256(glyph.tobytes()).hexdigest(),language)
     if cache_key in cache:return cache[cache_key]
     candidates=[]
     for factor,psm in variants:
         target=(glyph.resize((glyph.width*factor,glyph.height*factor),
                             Image.Resampling.NEAREST) if factor>1 else glyph)
-        text,items,confidence=reader(target,'범용',language,psm=psm,tess_lang='eng')
-        text=' '.join(str(text).strip().strip('|').split())
-        if not text or not any(c.isalnum() for c in text):continue
-        candidates.append((text,items,float(confidence),factor,psm))
+        try:
+            text,items,confidence=reader(target,'범용',language,psm=psm,tess_lang='eng')
+        except Exception:
+            # An isolated backend failure is a missing vote, not a reason
+            # to discard other scales or the whole screen.
+            continue
+        # Literal punctuation belongs to the OCR result; a pipe is not a
+        # structural delimiter here. Reject invalid backend values per variant.
+        if not isinstance(text,str):continue
+        text=' '.join(text.split())
+        if not text:continue
+        text,items=_remove_border_pipe(text,items,target.size)
+        if not text:continue
+        try:confidence=float(confidence)
+        except (TypeError,ValueError,OverflowError):continue
+        if not math.isfinite(confidence) or not 0<confidence<=100:continue
+        # Symbol-only controls exist, but weak one-off artifacts are not text.
+        if not any(c.isalnum() for c in text):
+            if confidence<80 or not all(unicodedata.category(c)[0] in 'PS' or c.isspace() for c in text):continue
+        candidates.append((text,items,confidence,factor,psm))
     if not candidates:
         result=(None,[],0.,False,1)
     elif kind=='label':
@@ -92,7 +139,7 @@ def _read_roi(roi,kind,reader,cache,language):
         enlarged=next((v for v in candidates if v[3]==3 and v[4]==7),None)
         if native and enlarged:
             if native[0]==enlarged[0]:
-                chosen=max((native,enlarged),key=lambda v:v[2]);agreed=True
+                chosen=max((native,enlarged),key=lambda v:v[2]);agreed=min(native[2],enlarged[2])>=40
             elif (len(native[0])==len(enlarged[0]) and
                   sum(a!=b for a,b in zip(native[0],enlarged[0]))==1 and
                   native[2]>=35):
@@ -125,7 +172,9 @@ def _read_roi(roi,kind,reader,cache,language):
             # Preserve the earliest literal OCR candidate on a tie;
             # alphabetical order is NOT a quality measure.
             chosen=next(x for x in candidates if scores[x[0]]==count)
-            result=(chosen[0],chosen[1],chosen[2],True,chosen[3])
+            # Keep the existing literal candidate, but a split vote is not
+            # agreement. Mark it for review unless a strict majority agrees.
+            result=(chosen[0],chosen[1],chosen[2],count*2>len(variants) and chosen[2]>=40,chosen[3])
         else:
             # Never insert low-confidence novel letters from an unmatched
             # one-off read. A human can review the original box instead.
@@ -136,6 +185,36 @@ def _read_roi(roi,kind,reader,cache,language):
             else:result=(None,[],0.,False,1)
     cache[cache_key]=result
     return result
+
+
+
+def _project_parts(parts, roi_box, factor):
+    """Project half-open OCR boxes back into the source ROI.
+
+    Round the start down and end up so a narrow glyph never collapses.
+    Invalid boxes do not invalidate the independently recognized text.
+    Return a review flag when geometry is incomplete or clipped.
+    """
+    if not isinstance(parts,(list,tuple)) or not parts:
+        return [],True
+    x,y,right,bottom=roi_box
+    out=[];needs_review=False
+    for item in parts:
+        try:
+            a,b,c,d=map(float,item['box'])
+            if not all(math.isfinite(v) for v in (a,b,c,d)) or c<=a or d<=b:
+                raise ValueError('invalid OCR box')
+            original=(x+math.floor(a/factor),y+math.floor(b/factor),
+                      x+math.ceil(c/factor),y+math.ceil(d/factor))
+            clipped=(max(x,original[0]),max(y,original[1]),
+                     min(right,original[2]),min(bottom,original[3]))
+            if clipped[2]<=clipped[0] or clipped[3]<=clipped[1]:
+                raise ValueError('OCR box outside ROI')
+            out.append({**item,'box':clipped})
+            needs_review |= clipped!=original
+        except (TypeError,ValueError,KeyError,OverflowError):
+            needs_review=True
+    return out,needs_review
 
 
 def analyze(image,language='한국어',precise=True,reader=None):
@@ -173,25 +252,23 @@ def analyze(image,language='한국어',precise=True,reader=None):
                     value,parts,confidence,agreed,factor=_read_roi(
                         roi,'label',reader,cache,language)
                     pieces.append(value if value else UNREADABLE_MARKER)
-                    for item in parts:
-                        a,b,c,d=item['box']
-                        raw.append({**item,'box':(int(a/factor)+label_box[0],int(b/factor)+label_box[1],int(c/factor)+label_box[0],int(d/factor)+label_box[1])})
+                    projected,geometry_review=_project_parts(parts,label_box,factor)
+                    raw.extend(projected)
                     confirmed+=int(bool(value));failed+=int(not value)
                     metadata.append({'type':'pixel_ui_label','box':label_box,
                                      'confidence':confidence/100,
-                                     'needs_review':not agreed,
+                                     'needs_review':not agreed or geometry_review,
                                      'human_verified':False})
             button_box=(x+4,y+4,x+w-4,y+h-4)
             value,parts,confidence,agreed,factor=_read_roi(
                 image.crop(button_box),'button',reader,cache,language)
             pieces.append(value if value else UNREADABLE_MARKER)
-            for item in parts:
-                a,b,c,d=item['box']
-                raw.append({**item,'box':(int(a/factor)+button_box[0],int(b/factor)+button_box[1],int(c/factor)+button_box[0],int(d/factor)+button_box[1])})
+            projected,geometry_review=_project_parts(parts,button_box,factor)
+            raw.extend(projected)
             confirmed+=int(bool(value));failed+=int(not value)
             metadata.append({'type':'pixel_ui_button','box':button_box,
                              'confidence':confidence/100,
-                             'needs_review':not agreed,
+                             'needs_review':not agreed or geometry_review,
                              'human_verified':False})
             left=x+w
         if pieces:results.append('\t'.join(pieces))

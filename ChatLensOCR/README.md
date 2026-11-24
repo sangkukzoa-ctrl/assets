@@ -4,6 +4,14 @@
 
 [Privacy](PRIVACY.md) · [Third-party notices](NOTICE.md)
 
+## Development build v0.4.25 — OCR result preservation and precise UI robustness
+
+- Preserve literal TSV quotes and internal tabs; isolate damaged rows and independently recover TXT/TSV sidecars.
+- Restore hierarchical reading order in TSV fallback; keep native text authoritative.
+- Correct ROI cache geometry, candidate consensus, source-coordinate projection, and isolated recognition failures.
+- Distinguish full-height edge strokes from literal pipe symbols using token geometry; keep unsupported layouts on their existing fallback.
+- Add 67 synthetic engine regressions. Full application real-image CER remains a separate private evaluation; no personal input images or human GT are distributed.
+
 ## Development build v0.4.24 — literal PSM7 labels and clipping prevention
 
 - Refines precise grayscale pixel-button OCR by prioritizing literal native/3x line reads over repeated single-word glyph misreads, with ambiguous output flagged for review.
@@ -25,7 +33,7 @@ The new public synthetic regressions are `test_inflight_result_switch_v0423.py` 
 
 Latest public download: https://github.com/sangkukzoa-ctrl/assets/releases/tag/chatlens-beta
 
-# ChatLens OCR v0.4.24 (무료 공개 테스트판 · Beta)
+# ChatLens OCR v0.4.25 (무료 공개 테스트판 · Beta)
 
 **개발 중이며 문자 인식 오류가 발생할 수 있습니다. 정확도 개선을 지속하고 있습니다.** 추출한 이름·금액·날짜 및 중요한 문장은 원본 이미지와 비교해 주세요.
 
