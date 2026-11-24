@@ -38,6 +38,9 @@ jobs:
       - name: Check source and order invariants
         run: |
           python3 tests/release_source_checks.py
+          bash -n tests/run-cross-app-qa.sh
+          bash -n tests/gradle-with-retry.sh
+          bash tests/gradle-retry-test.sh
           mkdir -p build/testclasses
           javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/SequenceLedger.java tests/SequenceLedgerTest.java
           java -cp build/testclasses SequenceLedgerTest
@@ -52,19 +55,7 @@ jobs:
           javac -d build/testclasses app/src/main/java/com/twobornot/imageorder/SafDocumentIds.java tests/SafDocumentIdsTest.java
           java -cp build/testclasses com.twobornot.imageorder.SafDocumentIdsTest
       - name: Compile unsigned Android release APK
-        run: |
-          set -euo pipefail
-          for attempt in 1 2 3; do
-            if gradle --no-daemon :app:assembleRelease :app:assembleDebug :app:assembleAndroidTest :externalcaller:assembleDebug :externalcaller:assembleAndroidTest --stacktrace 2>&1 | tee /tmp/imageorder-compile.log; then
-              exit 0
-            fi
-            if [ "$attempt" -lt 3 ] && grep -Eqi 'Received status code 429|Too Many Requests|HTTP 429' /tmp/imageorder-compile.log; then
-              echo "::warning::Maven HTTP 429 while compiling; attempt ${attempt}/3"
-              sleep "$((attempt*15))"
-            else
-              exit 1
-            fi
-          done
+        run: bash tests/gradle-with-retry.sh compile --no-daemon :app:assembleRelease :app:assembleDebug :app:assembleAndroidTest :externalcaller:assembleDebug :externalcaller:assembleAndroidTest
       - name: Validate APK metadata and debug signature
         run: |
           set -euo pipefail

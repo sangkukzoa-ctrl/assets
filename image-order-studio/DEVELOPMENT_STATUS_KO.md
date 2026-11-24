@@ -144,3 +144,9 @@
 - Android 15/16에서 OS의 선택 순서가 보장된 `ClipData` 형태를 모사해 NativeGalleryActivity의 실제 `onActivityResult` 처리 경로에 전달한 뒤, 첨부 요청자가 PNG/JPEG/WebP 원본 파일 3개를 3→1→2 순서로 받는지 검증하는 단말 계측 테스트 추가. 이 테스트는 플랫폼 Photo Picker UI 직접 조작 테스트와 구별.
 - GitHub E2E에서 Maven Central 429일 때만 재시도하고, 실제 계측 테스트 실패에서는 즉시 실패하도록 제한. Gradle 빌드에도 동일한 다운로드 일시제한 복구 적용. 동시 에뮬레이터 다운로드 수를 2로 제한.
 - 공개 v0.5.4 유지, v0.5.5 기능 테스트 및 실제 OEM 갤러리 호환 시험 계속.
+
+## 2026-11-24 밤 — 에뮬레이터 CI 실행 스크립트 수정
+- `24cec387` 개발 CI 성공(45333739018). 교차 앱 QA 45333739057의 네 환경은 테스트 전에 /usr/bin/sh의 함수 구문 오류로 종료됨. 앱 기능 실패와 구분.
+- android-emulator-runner의 script 각 행을 독립 셸 명령으로 실행하는 방식에 맞추어 Bash 파일 `tests/run-cross-app-qa.sh` 단일 호출로 변경.
+- Maven 재시도 공통 helper `tests/gradle-with-retry.sh`와 모의 Gradle 테스트 `tests/gradle-retry-test.sh` 추가. 성공/일시 429/지속 429/계측 실패/혼합 실패/컴파일 실패 여섯 시나리오를 네트워크 없이 확인.
+- 앱 소스와 기존 계측 테스트 자체는 그대로 유지. 신규 커밋에서 네 Android 버전을 재검증한다.

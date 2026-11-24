@@ -39,6 +39,11 @@ jobs:
       - name: Install Android SDK API 36
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-36' 'build-tools;35.0.0'
+      - name: Verify QA shell scripts before emulator startup
+        run: |
+          bash -n image-order-studio/tests/gradle-with-retry.sh
+          bash -n image-order-studio/tests/run-cross-app-qa.sh
+          bash image-order-studio/tests/gradle-retry-test.sh
       - name: Enable KVM for Android emulator
         run: |
           test -e /dev/kvm
@@ -53,30 +58,8 @@ jobs:
           profile: pixel_5
           emulator-boot-timeout: 480
           emulator-options: '-no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect'
-          script: |
-            set -euo pipefail
-            # Retry only transient Maven HTTP 429; never conceal Android assertion failures.
-            gradle_with_rate_limit_retry() {
-              local label="$1"; shift
-              local log="/tmp/imageorder-gradle-${label}.log"
-              local attempt
-              for attempt in 1 2 3; do
-                if gradle -p image-order-studio --no-daemon "$@" --stacktrace 2>&1 | tee "$log"; then
-                  return 0
-                fi
-                if [ "$attempt" -lt 3 ] && grep -Eqi 'Received status code 429|Too Many Requests|HTTP 429' "$log"; then
-                  echo "::warning::Maven repository throttled; retry ${attempt}/3 for ${label}"
-                  sleep "$((attempt*15))"
-                else
-                  return 1
-                fi
-              done
-            }
-            gradle_with_rate_limit_retry app :app:connectedDebugAndroidTest
-            adb install -r image-order-studio/app/build/outputs/apk/debug/app-debug.apk
-            adb shell pm grant com.twobornot.imageorder android.permission.READ_MEDIA_IMAGES
-            gradle_with_rate_limit_retry external :externalcaller:connectedDebugAndroidTest || { adb logcat -d -v time > image-order-studio/android-e2e-logcat.txt 2>&1 || true; adb shell dumpsys activity activities > image-order-studio/android-e2e-activities.txt 2>&1 || true; mkdir -p image-order-studio/crossuid-diagnostics; adb pull /sdcard/Download/. image-order-studio/crossuid-diagnostics/ || true; exit 1; }
-            adb logcat -d -s AndroidRuntime:E > image-order-studio/android-e2e-crashes.log
+          # A single command: the runner executes separate script lines independently.
+          script: bash image-order-studio/tests/run-cross-app-qa.sh
       - name: Keep full Android test XML/reports on failures
         if: always()
         uses: actions/upload-artifact@v4
