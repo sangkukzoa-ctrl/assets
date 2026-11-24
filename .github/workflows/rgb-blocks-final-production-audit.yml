@@ -5,6 +5,8 @@ on:
     branches: [rgb-blocks-legacy-compat-audit]
     paths:
       - '.github/workflows/rgb-blocks-final-production-audit.yml'
+      - 'rgb-blocks-compat/validate_full_parity.py'
+      - 'rgb-blocks-compat/assemble_legacy_release_candidate.py'
 permissions:
   contents: write
 jobs:
@@ -18,7 +20,7 @@ jobs:
         with: {persist-credentials: false}
       - name: Preflight packaging and build scripts
         run: |
-          python3 -m py_compile rgb-blocks-compat/assemble_legacy_release_candidate.py rgb-blocks-compat/package_ecosystem.py rgb-blocks-compat/build_mc1211_fabric.py rgb-blocks-compat/build_mc1211_neoforge.py
+          python3 -m py_compile rgb-blocks-compat/validate_full_parity.py rgb-blocks-compat/assemble_legacy_release_candidate.py rgb-blocks-compat/package_ecosystem.py rgb-blocks-compat/build_mc1211_fabric.py rgb-blocks-compat/build_mc1211_neoforge.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -66,7 +68,7 @@ jobs:
         with: {persist-credentials: false}
       - name: Preflight packaging and build scripts
         run: |
-          python3 -m py_compile rgb-blocks-compat/assemble_legacy_release_candidate.py rgb-blocks-compat/package_ecosystem.py rgb-blocks-compat/build_mc1211_fabric.py rgb-blocks-compat/build_mc1201_forge.py
+          python3 -m py_compile rgb-blocks-compat/validate_full_parity.py rgb-blocks-compat/assemble_legacy_release_candidate.py rgb-blocks-compat/package_ecosystem.py rgb-blocks-compat/build_mc1211_fabric.py rgb-blocks-compat/build_mc1201_forge.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

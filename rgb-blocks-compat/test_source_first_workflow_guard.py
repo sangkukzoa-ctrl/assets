@@ -3,7 +3,7 @@
 
 Owner requires no Modrinth RGB Blocks JAR fetching, no unbounded repeated
 game builds, and no silent reuse of decompiled source. This audit checks the
-actual 31 native GitHub workflow definitions, not a synthetic single sample.
+actual 32 native GitHub workflow definitions, not a synthetic single sample.
 """
 from pathlib import Path
 import re, json
@@ -48,9 +48,22 @@ for file in sorted(folder.glob("rgb-blocks-*.yml")):
     audited.append({"workflow":file.name,"jobs":names,"runtime_builds":actual_calls,
                     "source_stages":stage_calls,"mode":"CORE" if file.name in core else "FULL_MATRIX"})
 
-assert len(audited)==31,("Expected exact 2 core + 29 legacy native workflows",len(audited))
+assert len(audited)==32,("Expected exact 2 core + 30 legacy native workflows",len(audited))
 assert sum(x["mode"]=="CORE" for x in audited)==2
-assert sum(x["mode"]=="FULL_MATRIX" for x in audited)==29
+assert sum(x["mode"]=="FULL_MATRIX" for x in audited)==30
+# The new production audit may create private packages in runner workspace,
+# but the public repository must receive ONLY hashes and parity reports.
+final_wf=(folder/"rgb-blocks-final-production-audit.yml").read_text("utf-8")
+assert "contents: write" in final_wf and final_wf.count("persist-credentials: false")==2
+assert final_wf.count("assemble_legacy_release_candidate.py ")>=2
+assert "inject_ci_" not in final_wf
+uploads=final_wf.split("uses: actions/upload-artifact@v4")[1:]
+assert len(uploads)==2
+for section,target in zip(uploads,("neoforge1211","forge1201")):
+    block=section.split("\n  forge1201:",1)[0]
+    assert f"release-stage/{target}/SHA256SUMS.txt" in block
+    assert f"release-stage/{target}/parity-{target}.json" in block
+    assert not re.search(r"(?m)^\s*release-stage/.*(?:\.zip|\.jar|\.mrpack|/\s*$)",block)
 # Hostile testing is a RELEASE GATE, not a decorative CI job. Ensure
 # a future cleanup cannot silently remove the user's genuine two-player
 # Unbound shader, C&B geometry, no-ghost-light, or peer-restart tests.
@@ -118,7 +131,7 @@ for loader in ("1201_forge","1211_neoforge"):
 print("RGB_OWNER_CI_WORKFLOW_SOURCE_FIRST_PASS",
       json.dumps({"workflows":len(audited),
                   "core_autorun_on_source_ready":2,
-                  "legacy_bounded_full_matrix":29,
+                  "legacy_bounded_full_matrix":30,
                   "public_rgb_mod_downloads":0,
                   "private_author_source_required":True,
                   "true_dual_client_unbound_chaos_preserved":True,

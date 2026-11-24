@@ -27,7 +27,10 @@ assert provenance["modrinth_original_download_count"]==0
 original_root=OUT/"shared/resources"
 originals={p.relative_to(original_root).as_posix() for p in original_root.rglob("*") if p.is_file()}
 new=zipfile.ZipFile(port)
-modified=set(new.namelist())
+# Zip directory entries (notably assets/rgbblocks/lang/) are not files.
+# Match the original filesystem's file-only inventory; never ignore a real
+# extra PNG, language file or palette. Include names in failure diagnostics.
+modified={entry.filename for entry in new.infolist() if not entry.is_dir()}
 print("PORT",mc,port,port.stat().st_size,"files",len(modified),flush=True)
 assert "pack.mcmeta" in modified,"Mod cannot mount graphical resources: missing pack.mcmeta"
 pack=json.loads(new.read("pack.mcmeta"))
@@ -79,7 +82,11 @@ original_safe={p for p in originals if p.endswith(".png") or
 new_safe={p for p in modified if p.endswith(".png") or
           p.startswith("assets/rgbblocks/lang/") or
           p=="assets/rgbblocks/palette.json"}
-assert original_safe==new_safe,(len(original_safe-new_safe),len(new_safe-original_safe))
+assert original_safe==new_safe,(
+    "Original resource file set differs",
+    "missing",len(original_safe-new_safe),sorted(original_safe-new_safe)[:20],
+    "extra",len(new_safe-original_safe),sorted(new_safe-original_safe)[:20])
+print("RGB_OWNER_ASSET_FILE_SET_MATCH",len(original_safe),flush=True)
 bad_hash=[]
 for path in original_safe:
     if hashlib.sha256(new.read(path)).digest()!=hashlib.sha256((original_root/path).read_bytes()).digest():
