@@ -133,7 +133,12 @@ public final class RGBCnbGeometryBakeDebouncer {
       static final Minecraft INSTANCE=new Minecraft();
       volatile Level level;
       static Minecraft getInstance(){return INSTANCE;}
-      void execute(Runnable task){task.run();}
+      volatile boolean holdClientTasks;
+      final BlockingQueue<Runnable> clientTasks=new LinkedBlockingQueue<>();
+      void execute(Runnable task){
+         if(holdClientTasks)clientTasks.add(task);
+         else task.run();
+      }
    }
 
    /* PRODUCTION_METHODS */
@@ -156,7 +161,82 @@ public final class RGBCnbGeometryBakeDebouncer {
       require(TRAILING_BAKES.getQueue().isEmpty(),
         "Superseded C&B mesh futures retained in scheduler after reset");
    }
+   static Runnable awaitDispatched(BlockEntity tile)throws Exception{
+      burst(tile,390);
+      Runnable dispatched=Minecraft.getInstance().clientTasks.poll(3,TimeUnit.SECONDS);
+      require(dispatched!=null,"Trailing future never reached client executor");
+      return dispatched;
+   }
+   static void expiredPayloadHandoff()throws Exception{
+      newWorld(new Level());
+      Minecraft client=Minecraft.getInstance();
+      Level busy=client.level;
+      BlockEntity tile=busy.tile(new BlockPos(818,70,818));
+      client.holdClientTasks=true;
+      try{
+         Runnable dispatched=awaitDispatched(tile);
+         Entry entry=ENTRIES.get(key(tile.getBlockPos()));
+         // The scheduler has already submitted to Minecraft.execute; the
+         // render/client executor has not drained its Runnable. Force the
+         // original production clock into the expired-payload state without
+         // relying on a sleep to cross exactly 350ms.
+         entry.lastPayloadMillis=System.currentTimeMillis()-PAYLOAD_ACTIVE_WINDOW_MS-100;
+         require(!shouldDelayModelBake(tile,false),"Expired-payload request was delayed");
+         tile.updateModelData(); // authoritative immediate native call
+         dispatched.run();       // execute the obsolete Minecraft queue item
+         require(tile.refreshes.get()==1 && busy.notifications.get()==0,
+           "EXPIRED_PAYLOAD_HANDOFF duplicated obsolete mesh rebuild");
+      }finally{
+         client.holdClientTasks=false;
+         client.clientTasks.clear();
+         reset();
+      }
+   }
+   static void otherDispatchedGuards()throws Exception{
+      Minecraft client=Minecraft.getInstance();
+      for(int scenario=0;scenario<5;scenario++){
+         newWorld(new Level());
+         Level world=client.level;
+         BlockEntity tile=world.tile(new BlockPos(820+scenario,71,822));
+         client.holdClientTasks=true;
+         try{
+            Runnable queued=awaitDispatched(tile);
+            int expected=0;
+            if(scenario==0){
+               require(!shouldDelayModelBake(tile,true),"Force was delayed");
+               tile.updateModelData();
+               expected=1;
+            }else if(scenario==1){
+               runUndebounced(()->{
+                  require(!shouldDelayModelBake(tile,false),"Bypass was delayed");
+                  tile.updateModelData();
+               });
+               expected=1;
+            }else if(scenario==2){
+               reset();
+            }else if(scenario==3){
+               tile.removed=true;
+               world.tile(tile.getBlockPos());
+            }else{
+               client.level=new Level();
+            }
+            queued.run();
+            require(tile.refreshes.get()==expected && world.notifications.get()==0,
+               "Dispatched stale C&B callback survived scenario "+scenario);
+         }finally{
+            client.holdClientTasks=false;
+            client.clientTasks.clear();
+            reset();
+         }
+      }
+   }
    public static void main(String[] args)throws Exception {
+      expiredPayloadHandoff();
+      if(args.length>0 && args[0].equals("expired-handoff-only")){
+         TRAILING_BAKES.shutdownNow();
+         return;
+      }
+      otherDispatchedGuards();
       Level world=new Level();newWorld(world);
       BlockPos one=new BlockPos(10,67,10);
       BlockEntity a=world.tile(one);
@@ -449,6 +529,8 @@ public final class RGBCnbGeometryBakeDebouncer {
         " idle_4230_records_pruned=true"+
         " live_future_survives_idle_prune=true"+
         " concurrent_bin_entry_lock_order=true"+
+        " expired_payload_dispatched_callback_invalidated=true"+
+        " dispatched_force_bypass_reset_aba_world_guard=true"+
         " removed_tile_request_ignored=true"+
         " disconnect_cancels_queue=true aba_no_stale_tile=true"+
         " world_guard=true last_model_update_once=true");
@@ -479,3 +561,24 @@ with tempfile.TemporaryDirectory(prefix="rgb-cnb-scheduled-coalesce-") as td:
               " regression failed:\n"+result.stdout[-5000:]+result.stderr[-8000:])
         assert "RGB_PORT_CNB_SCHEDULED_COALESCING_REAL_JAVAC_PASS" in result.stdout
         print("JAVA "+version+" "+result.stdout.strip(),flush=True)
+
+    # Negative control: remove ONLY the newly introduced serial invalidation.
+    # The same executable handoff test must fail for the previous behavior.
+    fixed = """            // The scheduler future may have already completed by handing
+            // its Runnable to Minecraft.execute(). cancel(false) cannot
+            // remove that Runnable from the game thread's queue. Even when
+            // the 350ms payload window expired, this authoritative immediate
+            // rebuild must invalidate the captured serial before cancelling.
+            entry.requestSerial.incrementAndGet();"""
+    assert java.count(fixed)==1, "Missing exact expired-payload fix for negative control"
+    file.write_text(java.replace(fixed,"",1),encoding="utf-8")
+    mutant=root/"mutant"
+    mutant.mkdir()
+    subprocess.run(["javac","--release","17","-encoding","UTF-8","-d",
+                    str(mutant),str(file)],check=True,timeout=50)
+    failure=subprocess.run(["java","-cp",str(mutant),"RGBCnbGeometryBakeDebouncer",
+                            "expired-handoff-only"],capture_output=True,text=True,timeout=15)
+    assert failure.returncode!=0 and "EXPIRED_PAYLOAD_HANDOFF duplicated obsolete mesh rebuild" in failure.stderr, (
+        "Old implementation unexpectedly survived exact handoff negative control",
+        failure.returncode,failure.stdout,failure.stderr)
+    print("RGB_PORT_CNB_EXPIRED_PAYLOAD_HANDOFF_NEGATIVE_CONTROL_PASS old_behavior_reproduces_duplicate=true",flush=True)
