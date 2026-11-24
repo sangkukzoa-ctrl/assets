@@ -10,14 +10,16 @@ on:
       - '.github/workflows/rgb-blocks-1211-neoforge-world-restart.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  # Required to read the verified private draft owner-source archive.
+  contents: write
 jobs:
   real-neoforge-server-world-restart:
-    if: github.event_name == 'workflow_dispatch' || (vars.RGB_OWNER_SOURCE_READY == 'true' && vars.RGB_FULL_MATRIX == 'true')
+    if: github.event_name == 'workflow_dispatch' || (vars.RGB_OWNER_SOURCE_READY == 'true' && vars.RGB_FULL_MATRIX == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[rgb-final-ci]'))
     runs-on: ubuntu-latest
     timeout-minutes: 95
     steps:
       - uses: actions/checkout@v4
+        with: {persist-credentials: false}
       - name: Validate all CI Python before Gradle
         run: |
           python3 -m py_compile rgb-blocks-compat/inject_ci_mixed_cnb_probe.py rgb-blocks-compat/inject_ci_neoforge_two_client_probe.py rgb-blocks-compat/inject_ci_only_light_probe.py rgb-blocks-compat/test_mc1211_neoforge_two_clients.py

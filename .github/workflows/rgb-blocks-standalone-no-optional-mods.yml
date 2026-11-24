@@ -11,15 +11,17 @@ on:
       - 'rgb-blocks-compat/build_mc1201_forge.py'
       - 'rgb-blocks-compat/recovered/neoforge/com/rgbblocks/mixin/RGBBlocksMixinPlugin.java'
 permissions:
-  contents: read
+  # Required to read the verified private draft owner-source archive.
+  contents: write
 jobs:
   no-cnb-neoforge1211:
-    if: github.event_name == 'workflow_dispatch' || (vars.RGB_OWNER_SOURCE_READY == 'true' && vars.RGB_FULL_MATRIX == 'true')
+    if: github.event_name == 'workflow_dispatch' || (vars.RGB_OWNER_SOURCE_READY == 'true' && vars.RGB_FULL_MATRIX == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[rgb-final-ci]'))
     name: Actual NeoForge server ONE RGB JAR only, all RGB blocks and persistent commands
     runs-on: ubuntu-latest
     timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
+        with: {persist-credentials: false}
       - name: Standalone server runner syntax
         run: python3 -m py_compile rgb-blocks-compat/test_mc1211_neoforge_server.py
       - uses: actions/setup-java@v4
@@ -50,12 +52,13 @@ jobs:
             mc1211-neoforge-runtime/result.json
           retention-days: 30
   no-cnb-forge1201:
-    if: github.event_name == 'workflow_dispatch' || (vars.RGB_OWNER_SOURCE_READY == 'true' && vars.RGB_FULL_MATRIX == 'true')
+    if: github.event_name == 'workflow_dispatch' || (vars.RGB_OWNER_SOURCE_READY == 'true' && vars.RGB_FULL_MATRIX == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[rgb-final-ci]'))
     name: Actual Forge server ONE RGB JAR only, all RGB blocks and persistent commands
     runs-on: ubuntu-latest
     timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
+        with: {persist-credentials: false}
       - name: Standalone server runner syntax
         run: python3 -m py_compile rgb-blocks-compat/test_mc1201_forge_server.py
       - uses: actions/setup-java@v4

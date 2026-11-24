@@ -6,7 +6,7 @@ Tests original artist assets copied byte-exact and 50,061 blocks are never
 silently dropped; tests migrated models have target-old valid semantic shape.
 Renderer/complementary shader correctness requires separate live tests.
 """
-import hashlib,io,json,pathlib,sys,urllib.request,zipfile
+import hashlib,json,pathlib,sys,zipfile
 from collections import Counter
 from pathlib import Path
 
@@ -17,12 +17,17 @@ base=Path({"fabric1211":"port-work/mc1211-fabric","neoforge1211":"port-work/mc12
 ports=[p for p in (base/"build/libs").glob("*.jar") if "-sources" not in p.name and "-dev" not in p.name]
 assert ports, "No actual port JAR to verify"
 port=max(ports,key=lambda p:p.stat().st_size)
-source_url="https://cdn.modrinth.com/data/A48MxLWx/versions/HsQZbhRf/RgbBlocksmod-26.1.2-1.3.1F.jar"
-with urllib.request.urlopen(urllib.request.Request(source_url,headers={"User-Agent":"RGBBlocks-Port-Parity/1.0"}),timeout=180) as r:
-    source=r.read()
-source_jar=zipfile.ZipFile(io.BytesIO(source))
+# The hash-verified owner source archive, not a public Modrinth download,
+# is the parity authority. The stage gate rejects incomplete resource trees.
+from stage_owner_original import OUT, verified_stage_cache
+assert verified_stage_cache(False), "Full verified owner-original resources required"
+provenance=json.loads((OUT/"source-provenance.json").read_text(encoding="utf-8"))
+assert provenance["kind"]=="author-original-sources" and provenance["resources_extracted"]
+assert provenance["modrinth_original_download_count"]==0
+original_root=OUT/"shared/resources"
+originals={p.relative_to(original_root).as_posix() for p in original_root.rglob("*") if p.is_file()}
 new=zipfile.ZipFile(port)
-originals=set(source_jar.namelist());modified=set(new.namelist())
+modified=set(new.namelist())
 print("PORT",mc,port,port.stat().st_size,"files",len(modified),flush=True)
 assert "pack.mcmeta" in modified,"Mod cannot mount graphical resources: missing pack.mcmeta"
 pack=json.loads(new.read("pack.mcmeta"))
@@ -30,7 +35,7 @@ expected_pack_format=15 if target=="forge1201" else 34
 assert pack["pack"]["pack_format"]==expected_pack_format,pack
 pal=json.loads(new.read("assets/rgbblocks/palette.json"))
 assert len(pal)==16687, len(pal)
-assert new.read("assets/rgbblocks/palette.json")==source_jar.read("assets/rgbblocks/palette.json")
+assert new.read("assets/rgbblocks/palette.json")==(original_root/"assets/rgbblocks/palette.json").read_bytes()
 names=set()
 missing=[]
 bad=[]
@@ -77,11 +82,11 @@ new_safe={p for p in modified if p.endswith(".png") or
 assert original_safe==new_safe,(len(original_safe-new_safe),len(new_safe-original_safe))
 bad_hash=[]
 for path in original_safe:
-    if hashlib.sha256(new.read(path)).digest()!=hashlib.sha256(source_jar.read(path)).digest():
+    if hashlib.sha256(new.read(path)).digest()!=hashlib.sha256((original_root/path).read_bytes()).digest():
         bad_hash.append(path)
 assert not bad_hash,(len(bad_hash),bad_hash[:5])
 
-source_java=Path("rgb-blocks-compat/recovered/neoforge/com") if target=="neoforge1211" else Path("rgb-blocks-compat/recovered/fabric/com")
+source_java=OUT/("neoforge" if target=="neoforge1211" else "fabric")/"com"
 dest_java=base/"src/main/java/com"
 missing_classes=[]
 for p in source_java.rglob("*.java"):
@@ -100,7 +105,9 @@ if target=="forge1201":
 metadata={"fabric1211":"fabric.mod.json","neoforge1211":"META-INF/neoforge.mods.toml","forge1201":"META-INF/mods.toml"}[target]
 assert metadata in modified,(metadata,"missing")
 report={"minecraft":mc,"loader":target,"port":str(port),
- "original_source_jar_sha256":hashlib.sha256(source).hexdigest(),
+ "original_owner_fabric_sha256":provenance["owner_fabric_sha256"],
+ "original_owner_neo_sha256":provenance["owner_neo_core_sha256"],
+ "modrinth_original_download_count":0,
  "ported_jar_sha256":hashlib.sha256(port.read_bytes()).hexdigest(),
  "old_class_paths_preserved":len(list(source_java.rglob("*.java"))),
  "rgb_color_count":len(pal),"registered_rgb_block_model_pairs":len(names),
