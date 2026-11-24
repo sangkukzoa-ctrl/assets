@@ -151,7 +151,8 @@ code=r'''
        }else if(ticks%120==0){
          System.out.println("RGB_PORT_BAKE_STRESS_MESH_MISSING region="+(isFar?"FAR":"NEAR")
              +" bits="+total+" modelLayers="+nonempty+" quads="+quads
-             +" rgb="+rgb+" ticks="+ticks);
+             +" rgb="+rgb+" ticks="+ticks+" player="+mc.player.blockPosition()
+             +" manual="+com.rgbblocks.runtime.RGBRuntime.clientTargetManual());
        }
      }
    }catch(Throwable err){

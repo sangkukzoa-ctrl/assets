@@ -81,7 +81,34 @@ public final class RGBRealLightEngine {
    // command, not permission to silently drop work at the other location.
    private static final ArrayDeque<QueuedManualBake> QUEUED_MANUAL_BAKES = new ArrayDeque<>();
    private static long manualBakeClock;
-   private record QueuedManualBake(boolean all, int radius, BlockPos center, long receivedTick) {}
+   private static final int MANUAL_SCOPE_SETTLE_TICKS = 40;
+   private static final int MANUAL_SCOPE_MAX_TICKS = 600;
+   private static final int MANUAL_SCOPE_CHUNKS_PER_TICK = 16;
+   private static final class QueuedManualBake {
+      final boolean all;
+      final int radius;
+      final BlockPos center;
+      final long receivedTick;
+      int scanCursor;
+      boolean scanComplete;
+      boolean centerLoaded;
+      QueuedManualBake(boolean all, int radius, BlockPos center, long receivedTick) {
+         this.all=all;
+         this.radius=radius;
+         this.center=center;
+         this.receivedTick=receivedTick;
+      }
+      boolean all() { return all; }
+      int radius() { return radius; }
+      BlockPos center() { return center; }
+      long receivedTick() { return receivedTick; }
+      boolean contains(BlockPos pos) {
+         long dx=(long)pos.getX()-center.getX();
+         long dy=(long)pos.getY()-center.getY();
+         long dz=(long)pos.getZ()-center.getZ();
+         return all || dx*dx+dy*dy+dz*dz <= (long)radius*radius;
+      }
+   }
    private static long DIRTY_GENERATION;
    private static int BATCH_PROCESSED;
    private static int BATCH_FAILED;
@@ -1007,8 +1034,7 @@ public final class RGBRealLightEngine {
       }
       if (request != null) {
          Minecraft minecraft = Minecraft.getInstance();
-         BlockPos center = request.all() ? BlockPos.ZERO :
-             minecraft != null && minecraft.player != null
+         BlockPos center = minecraft != null && minecraft.player != null
              ? minecraft.player.blockPosition().immutable() : BlockPos.ZERO;
          int radius = clampInt(request.radius(), 4, 256);
          // Coalesce repeated commands at one location, never replace a
@@ -1022,22 +1048,91 @@ public final class RGBRealLightEngine {
          QUEUED_MANUAL_BAKES.addLast(new QueuedManualBake(request.all(), radius, center, manualBakeClock));
       }
       if (EFFECTIVE_MODE != RGBRealLightEngine.EffectiveMode.MANUAL_IDLE || !ACTIVE_BATCH.isEmpty()) return;
-      // Keep a recently requested unloaded scope briefly while its chunk
-      // packets arrive. It must not block an independently loaded scope.
+      // Do not consume a whole scope when only one loaded dirty entry
+      // was selected. A following teleport can unload the selected tile
+      // before processBatchEntry runs. Keep unresolved work authorized
+      // until this explicit Bake completes or reaches the bounded timeout.
+      int scanBudget = MANUAL_SCOPE_CHUNKS_PER_TICK;
       Iterator<QueuedManualBake> pending = QUEUED_MANUAL_BAKES.iterator();
       while (pending.hasNext()) {
          QueuedManualBake scope = pending.next();
          long age = manualBakeClock - scope.receivedTick();
+         if (age >= MANUAL_SCOPE_MAX_TICKS) {
+            pending.remove();
+            continue; // unresolved positions remain dirty
+         }
+         if (scanBudget > 0) {
+            scanBudget -= discoverManualBakeScope(scope, scanBudget);
+         }
          int availability = manualBakeScopeAvailability(scope);
          if (availability == 2) {
-            pending.remove();
             startManualBake(scope.all(), scope.radius(), scope.center());
-            return;
+            return; // scope stays queued for unloaded/late dirty entries
          }
-         if (age >= 600 || (availability == 0 && age >= 20)) {
-            pending.remove(); // unapplied unloaded positions stay dirty
+         if (availability == 0 && age >= MANUAL_SCOPE_SETTLE_TICKS
+             && scope.scanComplete && scope.centerLoaded) {
+            pending.remove();
          }
       }
+   }
+
+   // Chunk-load and C&B model hooks can both miss initial source
+   // registration while a MANUAL user travels. Inspect only already-loaded
+   // tile entities inside an explicitly requested Bake scope; never create
+   // chunks or enable the AUTO discovery path while MANUAL is frozen.
+   private static int discoverManualBakeScope(QueuedManualBake scope, int budget) {
+      Minecraft mc = Minecraft.getInstance();
+      if (mc == null || mc.level == null || mc.player == null) return 0;
+      int cx=scope.center().getX() >> 4;
+      int cz=scope.center().getZ() >> 4;
+      if (mc.level.getChunkSource().getChunk(cx, cz, false) == null) {
+         scope.centerLoaded=false;
+         scope.scanCursor=0;
+         scope.scanComplete=false;
+         return 0;
+      }
+      if (!scope.centerLoaded) {
+         scope.centerLoaded=true;
+         scope.scanCursor=0;
+         scope.scanComplete=false;
+      }
+      // Radius 256 covers at most 33x33 chunks; ALL examines the loaded
+      // view around the requesting player, in addition to its dirty ledger.
+      int reach=scope.all() ? CNB_DISCOVERY_RADIUS_CHUNKS :
+            Math.min(CNB_DISCOVERY_RADIUS_CHUNKS+1,(scope.radius()+15)/16);
+      int side=reach*2+1;
+      int total=side*side;
+      int visited=0;
+      while (visited < budget && scope.scanCursor < total) {
+         int n=scope.scanCursor++;
+         int x=cx+n%side-reach;
+         int z=cz+n/side-reach;
+         ++visited;
+         LevelChunk chunk=mc.level.getChunkSource().getChunk(x,z,false);
+         if (chunk == null) continue;
+         for (BlockEntity tile : chunk.getBlockEntities().values()) {
+            if (tile == null || tile.isRemoved()
+                || !tile.getClass().getName().contains("chiselsandbits")) continue;
+            BlockPos pos=tile.getBlockPos();
+            if (pos == null || !scope.contains(pos) || !isStillChiseledBlock(pos)) continue;
+            long key=cnbKey(pos);
+            if (CNB_CACHE.containsKey(key)) continue;
+            // Actual missing committed RGB, not a general automatic Bake.
+            RGBRealLightEngine.CnbSource actual=computeCnbSourceFromAccessor(tile);
+            if (!actual.active()) continue;
+            MANUAL_CNB_SHADOW.put(key,actual);
+            Map<Long,Long> dirty=DIRTY_LEDGER.get(currentDimensionKey());
+            if (dirty == null || !dirty.containsKey(key)) {
+               markDirty(pos);
+               System.out.println("[RGB Blocks] Explicit MANUAL Bake discovered missing C&B RGB source at "+pos);
+            }
+         }
+      }
+      if (scope.scanCursor >= total) {
+         scope.scanComplete=true;
+         scope.scanCursor=0; // repeat within the bounded arrival window
+      }
+      return visited;
    }
 
    // 0=no matching dirty position, 1=only unloaded, 2=at least one loaded.
@@ -1045,13 +1140,9 @@ public final class RGBRealLightEngine {
       Map<Long,Long> dirty = DIRTY_LEDGER.get(currentDimensionKey());
       if (dirty == null) return 0;
       int found = 0;
-      long radiusSq = (long)scope.radius() * scope.radius();
       for (Long packed : dirty.keySet()) {
          BlockPos pos = BlockPos.of(packed);
-         long dx = (long)pos.getX() - scope.center().getX();
-         long dy = (long)pos.getY() - scope.center().getY();
-         long dz = (long)pos.getZ() - scope.center().getZ();
-         if (!scope.all() && dx*dx + dy*dy + dz*dz > radiusSq) continue;
+         if (!scope.contains(pos)) continue;
          if (isPositionLoaded(pos)) return 2;
          found = 1;
       }
@@ -1060,7 +1151,7 @@ public final class RGBRealLightEngine {
 
    private static void startManualBake(boolean all, int radius, BlockPos center) {
       if (EFFECTIVE_MODE == RGBRealLightEngine.EffectiveMode.MANUAL_IDLE && ACTIVE_BATCH.isEmpty()) {
-         if (!buildFixedBatch(all, radius, center, false)) {
+         if (!buildFixedBatch(all, radius, center, true)) {
             System.out.println("[RGB Blocks] Bake skipped: no dirty positions in scope.");
          } else {
             EFFECTIVE_MODE = RGBRealLightEngine.EffectiveMode.MANUAL_BAKING;
@@ -1598,6 +1689,18 @@ public final class RGBRealLightEngine {
 
       if (chiseled) {
          RGBRealLightEngine.CnbSource desired = MANUAL_CNB_SHADOW.containsKey(key) ? MANUAL_CNB_SHADOW.get(key) : CNB_CACHE.get(key);
+         if (EFFECTIVE_MODE == RGBRealLightEngine.EffectiveMode.MANUAL_BAKING) {
+            // Only this explicitly selected dirty position is authorized.
+            // A late C&B payload can arrive after the shadow refresh has
+            // exhausted its retries. Read the live tile before committing
+            // an empty/stale snapshot and clearing the dirty generation.
+            Object liveTile=currentBlockEntity(pos);
+            RGBRealLightEngine.CnbSource live=computeCnbSourceFromAccessor(liveTile);
+            if (live.active()) {
+               desired=live;
+               MANUAL_CNB_SHADOW.put(key,live);
+            }
+         }
          if (desired != null && desired.active()) {
             CNB_CACHE.put(key, desired);
          } else {

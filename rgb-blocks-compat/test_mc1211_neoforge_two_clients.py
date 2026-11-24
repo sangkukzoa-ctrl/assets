@@ -490,7 +490,7 @@ try:
         far_a=await_line(clog,"RGB_PORT_BAKE_STRESS_FAR_MESH_PASS",client,170)
         far_b=await_line(peerlog,"RGB_PORT_BAKE_STRESS_FAR_MESH_PASS",peer,170)
         result["bake_stress_far_both_models_visible"]=far_a and far_b
-        assert result["bake_stress_far_both_models_visible"],"C&B far-region sculpture geometry became transparent after repeated manual bakes while light remained"
+        assert result["bake_stress_far_both_models_visible"],"C&B far-region actual voxel, baked mesh or RGB source failed after repeated manual bakes"
         image=EVIDENCE/"neo-far-cnb-real-baked-mesh-after-16-remote-manual-bakes.png"
         snap=subprocess.run(["scrot",str(image.resolve())],env=env,
                             stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=40)
