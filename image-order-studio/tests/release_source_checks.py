@@ -133,3 +133,6 @@ assert 'Actual server SHA-256' in webtest
 
 assert 'Image Order (Files)' in (src/'OrderedDocumentsProvider.java').read_text()
 assert 'selectRealSystemGallery' in webtest and 'Resolver candidates:' in webtest
+
+assert 'Open Image Order (Files)' in webtest
+assert 'selectProviderOriginal' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/SafExternalCallerTest.java').read_text()

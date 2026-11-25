@@ -197,3 +197,9 @@
 - Android 공식 GET_CONTENT takeover 및 Browse→DocumentsUI 전달 경로를 확인. 비고정 테스트는 실제 chooser/Photo Picker Browse/파일 선택기 앱 목록을 탐색하며 native gallery 진입을 반드시 검증. 패키지 강제 지정이나 시스템 설정 변경 없음.
 - DocumentsProvider 제목을 Image Order (Files)로 변경하여 native gallery 앱 선택 항목 Image Order와 구별. SAF 테스트는 일반 Recents에서 동명 원본을 먼저 선택하지 않도록 공급자 루트를 먼저 탐색. URI authority 및 SHA-256 검증 유지.
 - 후보 ResolveInfo 및 실패 UI hierarchy를 CI 콘솔/아티팩트에 저장. API27은 x86 이미지로 시도(아직 설치 가능 여부 미확정). 신규 테스트 결과 미확정. 공개판 변경 없음.
+
+## 2026-11-26 — DocumentsUI 통합 항목의 앱 실행 버튼 확인
+- a0d6f82e CI 45613841179 성공, E2E 45613841232에서 API26/27/28 전체 성공. API29~36 시스템 chooser 실패, 일부 최신 SAF 탐색 회귀. API27 x86 설치 및 테스트 성공.
+- resolver 후보: Image Order priority 0, Files 100, 최신 시스템 Photo Picker 101~110. AOSP RootsFragment는 같은 package의 root와 activity를 RootAndAppItem으로 통합한다. API34 실제 hierarchy에 별도 content-desc 'Open Image Order (Files)' 확인. 제목을 누르면 파일 공급자, 별도 버튼은 앱 실행 경로. https://android.googlesource.com/platform/packages/apps/DocumentsUI/+/265ccf6333c739b7a020478f6bf5eca2a8accf30/src/com/android/documentsui/sidebar/RootsFragment.java
+- 실제 UI 버튼을 우선 탐색/클릭하도록 개선. Android16 Photo Picker의 More 메뉴 지원, 무조건 Back/화면 스와이프 제거, 스크롤 가능한 항목만 조작. SAF는 provider All photos 폴더를 명시적으로 탐색하고 stale node 재탐색, 파일명 content-desc도 지원.
+- 제품 SAF 안내문 변경: 순서 지정은 앱 실행을 통해 사용한다는 의미를 명시. 파일 원본/권한/패키지/서명 변경 없음. 신규 실제 UI 검증 결과 미확정. 시스템 Photo Picker 직접 호출을 대체한 것은 아님.

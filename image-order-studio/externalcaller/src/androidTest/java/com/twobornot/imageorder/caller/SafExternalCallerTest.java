@@ -68,56 +68,9 @@ public final class SafExternalCallerTest {
             assertUnreadable(cr,other);
             assertFalse("Direct MediaStore URI remains inaccessible before user selection",
                 AttachmentCallerActivity.hadAccessBeforeUserSelection);
-            // INITIAL_URI can be ignored by a DocumentsUI implementation. Navigate
-            // through the visible provider root if that happens, never forge a grant.
-            // A matching filename in Recents/Images is NOT proof of our provider.
-            // Oreo/Pie can ignore EXTRA_INITIAL_URI and show the same fixture there.
-            UiObject2 photo=null;
-            {
-                UiObject2 all=device.findObject(By.textStartsWith("All photos"));
-                if(all==null){
-                    UiObject2 root=device.findObject(By.text("Image Order (Files)"));
-                    if(root==null){
-                        UiObject2 drawer=device.findObject(By.descContains("Show roots"));
-                        if(drawer==null)drawer=device.findObject(By.descContains("Open navigation drawer"));
-                        if(drawer==null)drawer=device.findObject(By.descContains("Show navigation"));
-                        assertNotNull("System DocumentsUI navigation drawer must be available",drawer);
-                        drawer.click();
-                        root=device.wait(Until.findObject(By.text("Image Order (Files)")),15000);
-                    }
-                    assertNotNull("Image Order DocumentsProvider must appear in system roots",root);
-                    root.click();
-                    all=device.wait(Until.findObject(By.textStartsWith("All photos")),15000);
-                }
-                assertNotNull("Image Order provider root must expose All photos",all);
-                all.click();
-                device.waitForIdle(5000);
-                photo=device.wait(Until.findObject(By.text(name)),3000);
-                if(photo==null){
-                    // DocumentsUI may present image-only grid tiles without visible
-                    // text labels. Use its actual List view control, not guessed taps.
-                    UiObject2 list=device.findObject(By.res(java.util.regex.Pattern.compile(
-                        ".*:id/(option_menu_list|menu_list)")));
-                    if(list==null)list=device.findObject(By.desc("List view"));
-                    if(list==null)list=device.findObject(By.text("List view"));
-                    if(list!=null){
-                        list.click();
-                        device.waitForIdle(5000);
-                    }
-                    photo=device.wait(Until.findObject(By.text(name)),8000);
-                }
-                if(photo==null){
-                    // In list mode a fixture may be outside the visible viewport.
-                    for(int scroll=0;scroll<5 && photo==null;scroll++){
-                        device.swipe(device.getDisplayWidth()/2,device.getDisplayHeight()*3/4,
-                            device.getDisplayWidth()/2,device.getDisplayHeight()/3,24);
-                        device.waitForIdle(3000);
-                        photo=device.findObject(By.text(name));
-                    }
-                }
-            }
-            assertNotNull("DocumentsUI must display the real fixture filename: "+name,photo);
-            photo.click();
+            // Navigate via the actual provider root; a matching file in Recents
+            // is not sufficient. Wait for asynchronous DocumentsUI initialization.
+            selectProviderOriginal(device,name);
             assertTrue("Real system picker must return to requesting external UID",
                 AttachmentCallerActivity.done.await(20,TimeUnit.SECONDS));
             assertNull(AttachmentCallerActivity.error);
@@ -188,6 +141,48 @@ public final class SafExternalCallerTest {
             }
             device.pressBack();device.pressHome();
         }
+    }
+    private static void selectProviderOriginal(UiDevice device,String name) throws Exception {
+        long deadline=android.os.SystemClock.uptimeMillis()+45000;
+        boolean openedAll=false;
+        int rootClicks=0,drawerClicks=0,listClicks=0,scrolls=0;
+        while(android.os.SystemClock.uptimeMillis()<deadline){
+            try{
+                // Only accept a file after explicit traversal into our All photos folder.
+                if(openedAll){
+                    UiObject2 photo=device.findObject(By.text(name));
+                    if(photo==null)photo=device.findObject(By.descStartsWith(name+","));
+                    if(photo!=null){photo.click();return;}
+                    UiObject2 list=device.findObject(By.desc("List view"));
+                    if(list==null)list=device.findObject(By.text("List view"));
+                    if(list!=null && listClicks<2){list.click();listClicks++;Thread.sleep(650);continue;}
+                    if(scrolls<5){
+                        UiObject2 scroll=device.findObject(By.scrollable(true));
+                        if(scroll!=null){
+                            android.graphics.Rect r=scroll.getVisibleBounds();
+                            if(r.height()>100){device.swipe(r.centerX(),r.bottom-r.height()/5,
+                                r.centerX(),r.top+r.height()/5,25);scrolls++;}
+                        }
+                    }
+                }else{
+                    UiObject2 all=device.findObject(By.textStartsWith("All photos"));
+                    if(all!=null){all.click();openedAll=true;Thread.sleep(650);continue;}
+                    UiObject2 root=device.findObject(By.text("Image Order (Files)"));
+                    if(root==null)root=device.findObject(By.desc("Image Order (Files)"));
+                    if(root!=null && rootClicks<4){
+                        root.click();rootClicks++;Thread.sleep(650);continue;
+                    }
+                    UiObject2 drawer=device.findObject(By.descContains("Show roots"));
+                    if(drawer==null)drawer=device.findObject(By.descContains("Open navigation drawer"));
+                    if(drawer==null)drawer=device.findObject(By.descContains("Show navigation"));
+                    if(drawer!=null && drawerClicks<4){
+                        drawer.click();drawerClicks++;Thread.sleep(650);continue;
+                    }
+                }
+            }catch(androidx.test.uiautomator.StaleObjectException ignored){}
+            Thread.sleep(350);
+        }
+        fail("DocumentsUI must expose provider original: "+name);
     }
     private static void assertUnreadable(ContentResolver cr,Uri uri) throws Exception {
         try(InputStream in=cr.openInputStream(uri)){

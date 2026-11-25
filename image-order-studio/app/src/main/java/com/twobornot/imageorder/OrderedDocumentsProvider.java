@@ -51,7 +51,7 @@ public final class OrderedDocumentsProvider extends DocumentsProvider {
         MatrixCursor out=new MatrixCursor(projection==null?ROOT_COLUMNS:projection);
         String[] keys=ROOT_COLUMNS;
         Object[] vals={"images",SafDocumentIds.ROOT,"Image Order (Files)",
-            "Original photos · use app to grant photo access",
+            "Original photos · open app for ordered selection",
             DocumentsContract.Root.FLAG_LOCAL_ONLY|DocumentsContract.Root.FLAG_SUPPORTS_RECENTS|DocumentsContract.Root.FLAG_SUPPORTS_SEARCH,
             "image/*",R.drawable.ic_launcher};
         addRow(out,keys,vals);

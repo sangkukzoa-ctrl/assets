@@ -173,44 +173,67 @@ public final class WebUploadCallerTest {
         }
     }
     private static void selectRealSystemGallery(UiDevice device) throws Exception {
-        long deadline=android.os.SystemClock.uptimeMillis()+35000;
-        boolean browsed=false,drawerOpened=false;
-        int scrolls=0,clicks=0;
+        long deadline=android.os.SystemClock.uptimeMillis()+60000;
+        int clicks=0,drawerAttempts=0,menuAttempts=0,scrolls=0;
         while(android.os.SystemClock.uptimeMillis()<deadline){
             if(device.hasObject(By.desc("imageorder.photos")))return;
             try{
+                // The merged RootAndAppItem has a separate app-launch action.
+                // Clicking its title opens SAF instead, which cannot guarantee tap order.
+                UiObject2 open=device.findObject(By.desc("Open Image Order (Files)"));
+                if(open==null)open=device.findObject(By.desc("Open Image Order"));
+                if(open!=null && clicks<5){
+                    android.util.Log.i("ImageOrderResolver","Opening merged RootAndAppItem app action");
+                    open.click();clicks++;Thread.sleep(900);continue;
+                }
                 UiObject2 once=device.findObject(By.text(java.util.regex.Pattern.compile("(?i)just once|only once")));
                 if(once!=null){once.click();Thread.sleep(500);continue;}
-                // Exact app label, not the similarly branded read-only DocumentsProvider.
                 UiObject2 option=device.findObject(By.text("Image Order"));
                 if(option==null)option=device.findObject(By.desc("Image Order"));
-                if(option!=null && clicks<3){
-                    clicks++;
-                    UiObject2 target=option;
-                    for(int up=0;up<4 && !target.isClickable() && target.getParent()!=null;up++)
-                        target=target.getParent();
-                    target.click();
-                    Thread.sleep(750);
-                    continue;
+                if(option!=null && clicks<5){
+                    android.util.Log.i("ImageOrderResolver","Opening standalone Image Order option");
+                    option.click();clicks++;Thread.sleep(900);continue;
                 }
-                // GET_CONTENT takeover can forward into DocumentsUI through Browse.
                 UiObject2 browse=device.findObject(By.text(java.util.regex.Pattern.compile("(?i)browse(?: files)?(?:\\.\\.\\.|…)?")));
-                if(browse!=null&&!browsed){browse.click();browsed=true;Thread.sleep(650);continue;}
-                UiObject2 more=device.findObject(By.descContains("More options"));
-                if(more!=null&&!browsed){
-                    more.click();Thread.sleep(400);
-                    browse=device.findObject(By.text(java.util.regex.Pattern.compile("(?i)browse(?: files)?(?:\\.\\.\\.|…)?")));
-                    if(browse!=null){browse.click();browsed=true;Thread.sleep(650);continue;}
-                    device.pressBack();
+                if(browse!=null){
+                    android.util.Log.i("ImageOrderResolver","Selecting Photo Picker Browse");
+                    browse.click();Thread.sleep(900);continue;
                 }
-                UiObject2 drawer=device.findObject(By.descContains("Show roots"));
-                if(drawer==null)drawer=device.findObject(By.descContains("Open navigation drawer"));
-                if(drawer==null)drawer=device.findObject(By.descContains("Show navigation"));
-                if(drawer!=null&&!drawerOpened){drawer.click();drawerOpened=true;Thread.sleep(650);continue;}
-                if(scrolls<4){
-                    device.swipe(device.getDisplayWidth()/2,device.getDisplayHeight()*4/5,
-                        device.getDisplayWidth()/2,device.getDisplayHeight()/3,25);
-                    scrolls++;
+                String current=device.getCurrentPackageName();
+                boolean systemPicker=current!=null &&
+                    (current.contains("photopicker")||current.contains("providers.media"));
+                if(systemPicker && menuAttempts<4){
+                    UiObject2 more=device.findObject(By.desc("More"));
+                    if(more==null)more=device.findObject(By.desc("More options"));
+                    if(more!=null){
+                        more.click();menuAttempts++;
+                        Thread.sleep(500);continue;
+                    }
+                }
+                boolean documents=current!=null && current.contains("documentsui");
+                boolean drawerVisible=device.hasObject(By.text("Open from"));
+                if(documents && !drawerVisible && drawerAttempts<5){
+                    UiObject2 drawer=device.findObject(By.descContains("Show roots"));
+                    if(drawer==null)drawer=device.findObject(By.descContains("Open navigation drawer"));
+                    if(drawer==null)drawer=device.findObject(By.descContains("Show navigation"));
+                    if(drawer!=null){
+                        drawer.click();drawerAttempts++;
+                        Thread.sleep(650);continue;
+                    }
+                }
+                // Scroll only actual scrollable chooser/drawer nodes. Never swipe the
+                // navigation bar or dismiss an unknown window.
+                if((drawerVisible||(!documents&&!systemPicker)) && scrolls<8){
+                    UiObject2 list=device.findObject(By.scrollable(true));
+                    if(list!=null){
+                        android.graphics.Rect bounds=list.getVisibleBounds();
+                        int x=bounds.centerX();
+                        if(bounds.height()>100){
+                            device.swipe(x,bounds.bottom-bounds.height()/5,
+                                x,bounds.top+bounds.height()/5,25);
+                            scrolls++;
+                        }
+                    }
                 }
             }catch(androidx.test.uiautomator.StaleObjectException ignored){}
             Thread.sleep(400);
