@@ -1,0 +1,60 @@
+name: Image Order - Real Chrome Upload QA
+on:
+  push:
+    branches: ['image-order/chrome-qa']
+    paths:
+      - 'image-order-studio/**'
+      - '.github/workflows/image-order-chrome-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  chrome:
+    name: Installed Chrome on Android API ${{ matrix.api-level }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        api-level: [34, 35]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: SDK and shell validation
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-36' 'build-tools;35.0.0'
+          bash -n image-order-studio/tests/run-chrome-qa.sh
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Real Chrome APK, no browser modifications
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis_playstore
+          arch: x86_64
+          profile: pixel_5
+          emulator-boot-timeout: 480
+          emulator-options: '-no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect'
+          script: bash image-order-studio/tests/run-chrome-qa.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ImageOrder-real-Chrome-api${{ matrix.api-level }}
+          path: |
+            image-order-studio/externalcaller/build/outputs/androidTest-results/connected/
+            image-order-studio/externalcaller/build/reports/androidTests/connected/
+            image-order-studio/chrome-qa-logcat.txt
+            image-order-studio/chrome-qa-activities.txt
+            image-order-studio/chrome-qa-diagnostics/
+          if-no-files-found: warn
+          retention-days: 14

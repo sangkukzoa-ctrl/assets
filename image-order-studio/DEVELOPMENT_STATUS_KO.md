@@ -203,3 +203,8 @@
 - resolver 후보: Image Order priority 0, Files 100, 최신 시스템 Photo Picker 101~110. AOSP RootsFragment는 같은 package의 root와 activity를 RootAndAppItem으로 통합한다. API34 실제 hierarchy에 별도 content-desc 'Open Image Order (Files)' 확인. 제목을 누르면 파일 공급자, 별도 버튼은 앱 실행 경로. https://android.googlesource.com/platform/packages/apps/DocumentsUI/+/265ccf6333c739b7a020478f6bf5eca2a8accf30/src/com/android/documentsui/sidebar/RootsFragment.java
 - 실제 UI 버튼을 우선 탐색/클릭하도록 개선. Android16 Photo Picker의 More 메뉴 지원, 무조건 Back/화면 스와이프 제거, 스크롤 가능한 항목만 조작. SAF는 provider All photos 폴더를 명시적으로 탐색하고 stale node 재탐색, 파일명 content-desc도 지원.
 - 제품 SAF 안내문 변경: 순서 지정은 앱 실행을 통해 사용한다는 의미를 명시. 파일 원본/권한/패키지/서명 변경 없음. 신규 실제 UI 검증 결과 미확정. 시스템 Photo Picker 직접 호출을 대체한 것은 아님.
+
+## 2026-11-26 — 실제 Chrome 검증 별도 브랜치
+- 기존 847b928c API26~36 CI 45655161207 진행 중이므로 독립 image-order/chrome-qa 브랜치에서 병행. 제품 본체 변경 없음.
+- 실제 설치 Chrome(com.android.chrome)에서 image/* 및 generic HTML multiple 파일 입력, 자체 갤러리 실제 진입, 5개 선택, 실제 multipart 서버의 순서/파일명/MIME/SHA-256 검증. WebView 대체 없음. Browser UA 및 APK 버전 기록.
+- API34/35 Play Store emulator 이미지 사용. 초기 온보딩만 테스트 플래그로 생략 시도, picker feature flag 변경 없음. Chrome 미설치/온보딩/선택창 장애는 실패로 기록. 실제 CI 결과 미확정. 통과 후 개발 브랜치 병합 검토.

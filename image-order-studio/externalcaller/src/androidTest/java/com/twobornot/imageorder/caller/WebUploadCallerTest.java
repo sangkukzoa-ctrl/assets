@@ -172,7 +172,7 @@ public final class WebUploadCallerTest {
             device.pressBack();device.pressHome();
         }
     }
-    private static void selectRealSystemGallery(UiDevice device) throws Exception {
+    static void selectRealSystemGallery(UiDevice device) throws Exception {
         long deadline=android.os.SystemClock.uptimeMillis()+60000;
         int clicks=0,drawerAttempts=0,menuAttempts=0,scrolls=0;
         while(android.os.SystemClock.uptimeMillis()<deadline){
@@ -200,9 +200,10 @@ public final class WebUploadCallerTest {
                     browse.click();Thread.sleep(900);continue;
                 }
                 String current=device.getCurrentPackageName();
+                boolean chrome="com.android.chrome".equals(current);
                 boolean systemPicker=current!=null &&
                     (current.contains("photopicker")||current.contains("providers.media"));
-                if(systemPicker && menuAttempts<4){
+                if((systemPicker||chrome) && menuAttempts<4){
                     UiObject2 more=device.findObject(By.desc("More"));
                     if(more==null)more=device.findObject(By.desc("More options"));
                     if(more!=null){
@@ -240,7 +241,7 @@ public final class WebUploadCallerTest {
         }
         fail("System chooser did not open Image Order native gallery; candidates: "+WebUploadCallerActivity.resolverDiagnostics);
     }
-    private static void clickPhotoAndWaitForCount(UiDevice device,String desc,int expected) throws Exception {
+    static void clickPhotoAndWaitForCount(UiDevice device,String desc,int expected) throws Exception {
         for(int retry=0;retry<3;retry++){
             clickFresh(device,desc);
             long deadline=android.os.SystemClock.uptimeMillis()+3500;
