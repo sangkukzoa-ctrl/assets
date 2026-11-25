@@ -214,3 +214,8 @@
 - Chrome QA 45655688471: API34 Chrome 113.0.5672.136 실제 페이지 GET 성공, 알림 온보딩 화면으로 파일 입력 가시성 실패. API35는 Maven Central HTTP429로 APK 빌드 실패, 브라우저 미실행.
 - 실제 Chrome 알림 안내의 No thanks 버튼만 UI로 처리. 파일 입력 자체를 접근성 라벨을 갖춘 가시적 HTML 기본 컨트롤로 개선, 업로드 전 5개 선택 DOM 표시 검증 추가. 브라우저 picker 플래그/반환 방식 변경 없음.
 - 에뮬레이터 기동 전 APK·계측 APK 빌드 및 캐시 확보 후 기동 단계 offline 빌드 사용. HTTP429 자체의 근본 해결은 아님. Chrome 최신 버전 실기기 검증 별도 필요. 제품 본체 변경 없음, 신규 결과 미확정.
+
+## 2026-11-26 — Chrome 테스트 실행기에서 UTP 의존성 제거
+- Chrome run 45663873549: API34 Chrome 113.0.5672.136, API35 Chrome 124.0.6367.219. 두 환경 모두 host APK prebuild 성공, 오프라인 AGP connectedDebugAndroidTest 단계에서 android-test-plugin-host-additional-test-output:31.9.2 미캐시로 중단. 신규 Chrome UI 테스트 자체는 미실행.
+- prebuild된 제품 debug/독립 caller/AndroidJUnitRunner APK를 그대로 adb install하고 실제 am instrument -w -r 실행으로 전환. UTP host plugin 경로 제거. 실행 결과는 stdout raw transcript 및 로그 보존. 두 지정 테스트의 시작/성공 각각 1회, JUnit OK (2 tests), 종료 코드 -1 및 skip/failure 없음까지 강제 검증. 가짜 transcript self-test 추가.
+- 기존 dev-v2 ade9799d 개발 CI 45664554543 성공, 11종 E2E 45664554476 실행 중. Chrome 브랜치만 변경, 본체/공개판 변경 없음. 신규 실행 결과 미확정.

@@ -16,10 +16,23 @@ adb shell dumpsys package com.android.chrome | grep -m1 versionName || true
 adb shell am set-debug-app --persistent com.android.chrome
 adb shell 'printf "%s\n" "_ --no-first-run --disable-fre --no-default-browser-check" > /data/local/tmp/chrome-command-line'
 adb shell am force-stop com.android.chrome
-# Build dependencies on the host before emulator startup, then reuse the exact APKs/cache.
-gradle -p "$project" --offline --no-daemon :app:assembleDebug :externalcaller:assembleDebug :externalcaller:assembleDebugAndroidTest
-adb install -r "$project/app/build/outputs/apk/debug/app-debug.apk"
+# The host already built all three APKs. Run the exact same AndroidJUnitRunner
+# directly: AGP's connectedDebugAndroidTest otherwise downloads extra host UTP
+# plugins even though the instrumentation APK is complete.
+target="$project/app/build/outputs/apk/debug/app-debug.apk"
+caller="$project/externalcaller/build/outputs/apk/debug/externalcaller-debug.apk"
+instrumentation="$project/externalcaller/build/outputs/apk/androidTest/debug/externalcaller-debug-androidTest.apk"
+for apk in "$target" "$caller" "$instrumentation"; do
+  test -s "$apk" || { echo "Missing prebuilt APK: $apk" >&2; exit 1; }
+  sha256sum "$apk"
+  adb install -r -t "$apk"
+done
 adb shell pm grant com.twobornot.imageorder android.permission.READ_MEDIA_IMAGES
-gradle -p "$project" --offline --no-daemon :externalcaller:connectedDebugAndroidTest \
-  -Pandroid.testInstrumentationRunnerArguments.class=com.twobornot.imageorder.caller.ChromeUploadTest \
-  -Pandroid.testInstrumentationRunnerArguments.chromeQa=true
+runner="com.twobornot.imageorder.caller.test/androidx.test.runner.AndroidJUnitRunner"
+adb shell pm list instrumentation | tr -d '\r' | grep -F "$runner"
+result="$project/chrome-qa-instrumentation.txt"
+# Android shell exit status alone is NOT proof that a JUnit run passed.
+timeout 12m adb shell am instrument -w -r \
+  -e class com.twobornot.imageorder.caller.ChromeUploadTest \
+  -e chromeQa true "$runner" | tee "$result"
+python3 "$script_dir/check-chrome-instrumentation.py" "$result"

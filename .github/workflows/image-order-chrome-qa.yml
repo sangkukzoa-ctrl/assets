@@ -34,6 +34,7 @@ jobs:
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-36' 'build-tools;35.0.0'
           bash -n image-order-studio/tests/run-chrome-qa.sh
+          python3 image-order-studio/tests/check-chrome-instrumentation.py --self-test
           test -e /dev/kvm
           sudo chmod 666 /dev/kvm
       - name: Warm APK and instrumentation dependency cache before emulator startup
@@ -56,6 +57,7 @@ jobs:
           path: |
             image-order-studio/externalcaller/build/outputs/androidTest-results/connected/
             image-order-studio/externalcaller/build/reports/androidTests/connected/
+            image-order-studio/chrome-qa-instrumentation.txt
             image-order-studio/chrome-qa-logcat.txt
             image-order-studio/chrome-qa-activities.txt
             image-order-studio/chrome-qa-diagnostics/
