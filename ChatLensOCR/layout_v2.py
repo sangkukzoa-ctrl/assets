@@ -604,6 +604,15 @@ def generic(img,language,precise):
 
 
 def analyze(img,mode,language,precise,world,icons,progress=None):
+    # Focused, dimmed tooltip panels use a conservative pixel-only detector.
+    # Explicit chat, explorer and catalog modes are not intercepted.
+    if mode in ("자동","범용"):
+        from focused_tooltip_v050 import analyze as focus_read
+        focused=focus_read(img,language,precise)
+        if focused is not None:
+            detected,output,hits,metadata,items=focused
+            from app import merge_rows
+            return detected,output,hits,metadata,merge_rows(items),items
     # Screenshot of a viewer displaying the game: isolate the actual game
     # pixels before any OCR. This prevents titlebar/neighboring app text from
     # contaminating the same FFXIV chat rows; overlay coordinates are restored.
