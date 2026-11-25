@@ -40,16 +40,21 @@ public final class WebUploadCallerActivity extends Activity {
     public static volatile CountDownLatch finished=new CountDownLatch(1);
     private ValueCallback<Uri[]> chooser;
     private WebView web;
+    private LoopbackUploadServer server;
+    private boolean httpUpload,implicitChooser;
+    public static volatile LoopbackUploadServer uploadServer;
 
     public static void reset(){
         names=null;uriStrings=null;hashes=null;mimes=null;
         parsedUris=null;frameworkParsedUris=null;rawResult=null;rawCode=RESULT_CANCELED;
-        domFilesJson=null;error=null;tapX=0;tapY=0;
+        domFilesJson=null;error=null;tapX=0;tapY=0;uploadServer=null;
         ready=new CountDownLatch(1);
         finished=new CountDownLatch(1);
     }
     @Override public void onCreate(Bundle savedState){
         super.onCreate(savedState);
+        httpUpload=getIntent().getBooleanExtra("httpUpload",false);
+        implicitChooser=getIntent().getBooleanExtra("implicitChooser",false);
         Intent seed=new Intent().setComponent(new ComponentName(TARGET,FIXTURE));
         seed.putExtra("test_count",5);
         seed.putExtra("test_mixed",true);
@@ -119,12 +124,12 @@ public final class WebUploadCallerActivity extends Activity {
                         request.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,false);
                     }
                     // The package restriction only isolates the test's target picker.
-                    request.setPackage(TARGET);
+                    if(!implicitChooser)request.setPackage(TARGET);
                     Log.i("ImageOrderWeb","HTML chooser action="+request.getAction()
                         +" type="+request.getType()+" mode="+mode
                         +" generatedMultiple="+originalMultiple
                         +" forwardedMultiple="+request.getBooleanExtra(Intent.EXTRA_ALLOW_MULTIPLE,false));
-                    startActivityForResult(request,PICK);
+                    startActivityForResult(implicitChooser?Intent.createChooser(request,"Choose image provider"):request,PICK);
                     return true;
                 }catch(Exception ex){
                     error="HTML chooser launch: "+ex;
@@ -155,15 +160,29 @@ public final class WebUploadCallerActivity extends Activity {
             "<label id='open' for='images' aria-label='imageorder.web-upload' "+
             "style='display:block;margin:24px;padding:24px;background:#cce4f8;width:240px;height:70px'>"+
             "Choose photos to upload</label>"+
-            "<input id='images' type='file' accept='image/*' multiple style='display:none'>"+
+            "<form id='form' enctype='multipart/form-data'><input id='images' name='photos' type='file' accept='image/*' multiple style='display:none'></form>"+
             "<script>document.getElementById('images').addEventListener('change',function(){"+
             "var a=Array.from(this.files).map(function(f){return {name:f.name,type:f.type,size:f.size};});"+
-            "ImageOrderTestBridge.report(JSON.stringify(a));});</script></body></html>";
-        web.loadDataWithBaseURL("https://imageorder-local.invalid/",html,"text/html","UTF-8",null);
+            "ImageOrderTestBridge.report(JSON.stringify(a));"+
+            (httpUpload?"var x=new XMLHttpRequest();x.open('POST','/upload');"+
+                "x.onerror=function(){ImageOrderTestBridge.uploadFailed('HTTP network error');};"+
+                "x.onload=function(){if(x.status!==200)ImageOrderTestBridge.uploadFailed('HTTP '+x.status);};"+
+                "x.send(new FormData(document.getElementById('form')));":"")+
+            "});</script></body></html>";
+        if(httpUpload){
+            try{
+                server=new LoopbackUploadServer(html);
+                uploadServer=server;
+                web.loadUrl(server.url());
+            }catch(java.io.IOException ex){
+                error="Loopback server: "+ex;ready.countDown();finished.countDown();
+            }
+        }else web.loadDataWithBaseURL("https://imageorder-local.invalid/",html,"text/html","UTF-8",null);
     }
     public static final class Bridge{
         private final WebUploadCallerActivity parent;
         Bridge(WebUploadCallerActivity parent){this.parent=parent;}
+        @JavascriptInterface public void uploadFailed(String message){error=message;}
         @JavascriptInterface public void report(String files){
             domFilesJson=files;
             Log.i("ImageOrderWeb","HTML FileList after selection="+files);
@@ -175,6 +194,7 @@ public final class WebUploadCallerActivity extends Activity {
             if(chooser!=null){chooser.onReceiveValue(null);chooser=null;}
             web.destroy();
         }
+        if(server!=null)server.close();
         super.onDestroy();
     }
 }

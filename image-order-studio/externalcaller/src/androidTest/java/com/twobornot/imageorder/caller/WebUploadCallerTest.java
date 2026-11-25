@@ -32,6 +32,15 @@ public final class WebUploadCallerTest {
     private static final String TARGET="com.twobornot.imageorder";
     private static final int[] ORDER={4,1,3,0,2};
     @Test public void localHtmlMultiUploadPreservesOriginalFilesAndTapOrder() throws Exception {
+        verifyUpload(false,false);
+    }
+    @Test public void actualHttpMultipartPreservesOriginalFilesAndTapOrder() throws Exception {
+        verifyUpload(true,false);
+    }
+    @Test public void systemChooserCanSelectImageOrderAndUploadOriginals() throws Exception {
+        verifyUpload(true,true);
+    }
+    private void verifyUpload(boolean http,boolean implicit) throws Exception {
         Instrumentation inst=InstrumentationRegistry.getInstrumentation();
         Context ctx=inst.getTargetContext();
         PackageManager pm=ctx.getPackageManager();
@@ -42,6 +51,8 @@ public final class WebUploadCallerTest {
         TestMediaPermissions.grant(inst);
         WebUploadCallerActivity.reset();
         Intent launch=new Intent(ctx,WebUploadCallerActivity.class);
+        launch.putExtra("httpUpload",http);
+        launch.putExtra("implicitChooser",implicit);
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);
         ctx.startActivity(launch);
         UiDevice device=UiDevice.getInstance(inst);
@@ -56,6 +67,15 @@ public final class WebUploadCallerTest {
                     && WebUploadCallerActivity.tapY>0);
                 assertTrue("Inject real touch onto HTML label",device.click(
                     WebUploadCallerActivity.tapX,WebUploadCallerActivity.tapY));
+            }
+            if(implicit){
+                // Do not force the picker package. Choose its real OS resolver entry.
+                UiObject2 option=device.wait(Until.findObject(By.text("Image Order")),15000);
+                if(option==null)option=device.findObject(By.desc("Image Order"));
+                assertNotNull("Image Order must be available in the real system chooser",option);
+                option.click();
+                UiObject2 once=device.wait(Until.findObject(By.text("Just once")),1500);
+                if(once!=null)once.click();
             }
             UiObject2 photos=device.wait(Until.findObject(By.desc("imageorder.photos")),30000);
             assertNotNull("The actual WebView HTML file input must launch Image Order",photos);
@@ -113,6 +133,24 @@ public final class WebUploadCallerTest {
                 assertEquals(size,f.getLong("size"));
                 assertEquals(WebUploadCallerActivity.hashes[originalIndex],sha256(cr,uri));
             }
+            if(http){
+                LoopbackUploadServer server=WebUploadCallerActivity.uploadServer;
+                assertNotNull("Real HTTP receiver",server);
+                assertTrue("Server did not receive multipart POST: "+server.error,
+                    server.received.await(30,TimeUnit.SECONDS));
+                assertNull("HTTP receiver error",server.error);
+                assertNotNull(server.parts);
+                assertEquals("Actual received multipart part count",ORDER.length,server.parts.size());
+                for(int position=0;position<ORDER.length;position++){
+                    int source=ORDER[position];
+                    LoopbackUploadServer.Part part=server.parts.get(position);
+                    assertEquals("Multipart field","photos",part.field);
+                    assertEquals("Actual server filename/order",WebUploadCallerActivity.names[source],part.filename);
+                    assertEquals("Actual server MIME",WebUploadCallerActivity.mimes[source],part.mime);
+                    assertEquals("Actual server size",html.getJSONObject(position).getLong("size"),part.bytes.length);
+                    assertEquals("Actual server SHA-256",WebUploadCallerActivity.hashes[source],sha256(part.bytes));
+                }
+            }
         }finally{
             if(WebUploadCallerActivity.uriStrings!=null){
                 Intent cleanup=new Intent().setComponent(new ComponentName(
@@ -151,6 +189,12 @@ public final class WebUploadCallerTest {
             }
         }
         fail("Visible image tile not clickable: "+desc);
+    }
+    private static String sha256(byte[] bytes) throws Exception{
+        StringBuilder out=new StringBuilder();
+        for(byte b:MessageDigest.getInstance("SHA-256").digest(bytes))
+            out.append(String.format(java.util.Locale.ROOT,"%02x",b&255));
+        return out.toString();
     }
     private static String sha256(ContentResolver cr,Uri uri) throws Exception{
         MessageDigest md=MessageDigest.getInstance("SHA-256");

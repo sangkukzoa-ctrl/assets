@@ -119,3 +119,14 @@ for tree in (p/'app/src/androidTest',external/'src/androidTest'):
     assert 'com.twobornot.imageorder' in grants and 'pm grant' in grants
 assert 'TestMediaFixture.insert' in (p/'app/src/androidTest/java/com/twobornot/imageorder/OrderedAttachmentInstrumentedTest.java').read_text()
 assert 'TestMediaFixture.insert' in (p/'app/src/debug/java/com/twobornot/imageorder/CrossAppMediaFixtureActivity.java').read_text()
+
+# Actual HTTP receiver is test-only and never exposes a network listener externally.
+receiver=(external/'src/main/java/com/twobornot/imageorder/caller/LoopbackUploadServer.java').read_text()
+assert 'InetAddress.getByName("127.0.0.1")' in receiver and 'multipart/form-data' in receiver
+assert 'new FormData(document.getElementById' in html_host and 'Intent.createChooser(request' in html_host
+assert 'if(!implicitChooser)request.setPackage(TARGET)' in html_host
+assert not (src/'LoopbackUploadServer.java').exists()
+webtest=(external/'src/androidTest/java/com/twobornot/imageorder/caller/WebUploadCallerTest.java').read_text()
+assert 'actualHttpMultipartPreservesOriginalFilesAndTapOrder' in webtest
+assert 'systemChooserCanSelectImageOrderAndUploadOriginals' in webtest
+assert 'Actual server SHA-256' in webtest

@@ -186,3 +186,8 @@
 - API26~28의 테스트 원본 생성은 실제 공개 Pictures 파일과 legacy MediaStore DATA 등록을 사용하고 API29+의 scoped storage 경로는 유지. 내부/외부 계측 테스트는 동일 원본 fixture helper 사용.
 - API26~27에서 UiAutomation.grantRuntimePermission 대신 테스트 셸 pm grant 사용. API26~28의 쓰기 권한은 테스트 대상 APK에만 부여. 독립 호출자는 기존처럼 저장소 권한 없음.
 - QA 매트릭스 API26~36 전수 확대. 앱 본체/공개 APK/서명/기존 원본 검증 조건 변경 없음. 신규 CI 결과는 미확정.
+
+## 2026-11-25 — 핵심 기능 우선: 실제 HTTP 업로드 / 비고정 시스템 선택창
+- 8971bcf2 개발 CI 45605657883 성공. E2E 45605657945의 API26/28은 내부 13개 및 외부 10/11 성공, SAF 테스트에서 Image Order 대신 Android 기본 MediaDocumentsProvider를 선택하여 URI authority 불일치. API27은 google_apis x86_64 시스템 이미지 SDK 설치 실패. API29/30/32 전체 성공 확인, 나머지 실행 상태는 CI 기록 참조.
+- 독립 WebView 호스트 기존 FileList 검증 유지. 추가로 루프백 HTTP 서버에서 실제 HTML FormData multipart POST 수신 후 파일 순서, 이름, MIME, 크기, SHA-256 검증. 별도 테스트에서 package 지정 없이 Android 시스템 chooser를 열고 Image Order를 선택하여 동일 HTTP 전송 검사.
+- HTTP 권한과 서버는 externalcaller 테스트 APK에만 포함, 127.0.0.1 바인딩. Image Order 본체/공개 APK/서명 변경 없음. 실제 Chrome/삼성 인터넷 및 강제 시스템 Photo Picker 대체는 아직 미완료. 새 테스트는 CI 검증 전이며 실패 시 로그 기반 수정.

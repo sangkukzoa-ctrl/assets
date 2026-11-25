@@ -1,7 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Intentionally no READ_MEDIA_IMAGES / storage permission. The picker MUST grant access. -->
+    <!-- Local HTTP test receiver only; never included in Image Order APK. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <queries><package android:name="com.twobornot.imageorder" /></queries>
-    <application android:label="External Picker Caller Test" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false">
+    <application android:label="External Picker Caller Test" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:usesCleartextTraffic="true">
         <activity android:name=".AttachmentCallerActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
