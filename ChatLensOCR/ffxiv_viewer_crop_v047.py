@@ -69,7 +69,12 @@ def restore_coordinates(result,box):
         if not isinstance(item,dict):
             corrected_meta.append(item);continue
         copy=dict(item)
-        if "box" in copy:copy["box"]=shift(copy["box"])
+        for key in ("box","left_box","right_box","name_box","body_box","server_box"):
+            if key in copy and copy[key] is not None:copy[key]=shift(copy[key])
+        if "semantic_regions" in copy:
+            copy["semantic_regions"]=[{**region,"box":shift(region["box"])}
+                                      if "box" in region else dict(region)
+                                      for region in copy["semantic_regions"]]
         if "y" in copy:copy["y"]=copy["y"]+yoffset
         corrected_meta.append(copy)
     return detected,output,corrected_hits,corrected_meta,merge_rows(shifted),shifted

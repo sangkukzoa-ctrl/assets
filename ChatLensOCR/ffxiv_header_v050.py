@@ -83,15 +83,21 @@ def _valid_name(value):
     return (0<len(value)<=64 and any(c.isalnum() for c in value)
             and all(c.isalnum() or c in " _-'." for c in value))
 
-def transcribe_header(image, source, top, language, world, icons, reader, geometry):
+def transcribe_header(image, source, top, language, world, icons, reader, geometry, body_reader=None):
     """Read each evidenced region once; unknown geometry/readings fall back."""
     def read_zone(box):
         raw, _, conf=reader(image,box[0],box[1],language)
         return raw.strip(),float(conf)
 
     nickname,nconf=read_zone(geometry.name)
-    message,mconf=read_zone(geometry.body)
-    if not _valid_name(nickname) or not message or nconf<35 or mconf<30:
+    if not _valid_name(nickname) or nconf<35:
+        return None
+    if body_reader is None:
+        message,mconf=read_zone(geometry.body)
+    else:
+        message,_,mconf=body_reader(image,*geometry.body,language)
+        message=message.strip();mconf=float(mconf)
+    if not message or mconf<30:
         return None
     server="";sconf=None
     if geometry.server is not None:
