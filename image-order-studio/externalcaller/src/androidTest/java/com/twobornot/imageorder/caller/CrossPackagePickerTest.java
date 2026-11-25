@@ -55,6 +55,9 @@ public final class CrossPackagePickerTest {
         // This invokes an independent application UID, not a same-process picker test.
         verifyCrossUidRoundTrip("image/png",true,3,false,Intent.ACTION_GET_CONTENT,false,true);
     }
+    @Test public void duplicateNamesAcrossAlbumsAndReselectionPreserveOriginalIdentity() throws Exception {
+        verifyCrossUidRoundTrip("image/png",true,3,false,Intent.ACTION_GET_CONTENT,false,false,true);
+    }
     @Test public void actionPickWithMediaStoreUriAndMimeReturnsOneOriginal() throws Exception {
         verifyCrossUidRoundTrip("image/*",false,3,false,Intent.ACTION_PICK,false);
     }
@@ -76,6 +79,10 @@ public final class CrossPackagePickerTest {
     }
     private void verifyCrossUidRoundTrip(String requestedMime,boolean allowMultiple,int fixtureCount,boolean mixed,
             String pickerAction,boolean uriOnlyPick,boolean rotateMidSelection) throws Exception {
+        verifyCrossUidRoundTrip(requestedMime,allowMultiple,fixtureCount,mixed,pickerAction,uriOnlyPick,rotateMidSelection,false);
+    }
+    private void verifyCrossUidRoundTrip(String requestedMime,boolean allowMultiple,int fixtureCount,boolean mixed,
+            String pickerAction,boolean uriOnlyPick,boolean rotateMidSelection,boolean duplicateNames) throws Exception {
         Instrumentation instrumentation=InstrumentationRegistry.getInstrumentation();
         Context context=instrumentation.getTargetContext();
         PackageManager pm=context.getPackageManager();
@@ -92,6 +99,7 @@ public final class CrossPackagePickerTest {
         start.putExtra("allowMultiple",allowMultiple);
         start.putExtra("testCount",fixtureCount);
         start.putExtra("testMixed",mixed);
+        start.putExtra("testDuplicateNames",duplicateNames);
         start.putExtra("pickerAction",pickerAction);
         start.putExtra("uriOnlyPick",uriOnlyPick);
         // Every case must start a clean caller task. In API 34 a prior failed case can
@@ -129,9 +137,23 @@ public final class CrossPackagePickerTest {
             assertEquals(fixtureCount,AttachmentCallerActivity.mimes.length);
             assertFalse("Before user selection caller must NOT be able to open target-owned files",
                 AttachmentCallerActivity.hadAccessBeforeUserSelection);
-            int[] selectedOrder=!allowMultiple?new int[]{TAP_ORDER[0]}:fixtureCount==5?FIVE_ORDER:TAP_ORDER;
+            int[] selectedOrder=duplicateNames?new int[]{2,1,0}:!allowMultiple?new int[]{TAP_ORDER[0]}:fixtureCount==5?FIVE_ORDER:TAP_ORDER;
             int expectedCount=0;
-            for(int index:selectedOrder) {
+            if(duplicateNames){
+                assertEquals(names[0],names[1]);assertEquals(names[1],names[2]);
+                assertNotEquals(AttachmentCallerActivity.hashes[0],AttachmentCallerActivity.hashes[1]);
+                assertNotEquals(AttachmentCallerActivity.hashes[1],AttachmentCallerActivity.hashes[2]);
+                // Every album contains one uniquely identified original with the SAME name.
+                // Select 3,1,2, remove 1, then reselect 1. The final order must be 3,2,1.
+                int[] taps={2,0,1,0,0};
+                int[] counts={1,2,3,2,3};
+                String prefix=names[0].replace("imageorder_crossuid_","").replace("_same.png","");
+                for(int k=0;k<taps.length;k++){
+                    clickFresh(device,"imageorder.albums",15000);
+                    clickFresh(device,"imageorder.album:IO_"+prefix+"_"+taps[k],30000);
+                    clickPhotoAndWaitForCount(device,"imageorder.photo:"+names[taps[k]],counts[k]);
+                }
+            }else for(int index:selectedOrder) {
                 String desc="imageorder.photo:"+names[index];
                 if(allowMultiple)clickPhotoAndWaitForCount(device,desc,++expectedCount);
                 else clickFresh(device,desc,30000);

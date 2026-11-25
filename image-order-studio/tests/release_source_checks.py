@@ -101,3 +101,5 @@ assert 'OrderedOutbox' not in (src/'OrderedDocumentsProvider.java').read_text()
 assert 'queryRecentDocuments(' in (src/'OrderedDocumentsProvider.java').read_text()
 assert 'querySearchDocuments(' in (src/'OrderedDocumentsProvider.java').read_text()
 print('v0.5.5 original-byte SAF and independent cross-UID grant coverage: PASS')
+
+assert 'duplicateNamesAcrossAlbumsAndReselectionPreserveOriginalIdentity' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()

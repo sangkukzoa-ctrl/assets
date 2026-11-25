@@ -36,6 +36,7 @@ public final class AttachmentCallerActivity extends Activity {
         Intent seed=new Intent();seed.setComponent(new ComponentName(TARGET,FIXTURE));
         seed.putExtra("test_count",getIntent().getIntExtra("testCount",3));
         seed.putExtra("test_mixed",getIntent().getBooleanExtra("testMixed",false));
+        seed.putExtra("test_duplicate_names",getIntent().getBooleanExtra("testDuplicateNames",false));
         try{startActivityForResult(seed,SEED);}
         catch(Exception ex){error="Fixture start: "+ex;done.countDown();}
     }
