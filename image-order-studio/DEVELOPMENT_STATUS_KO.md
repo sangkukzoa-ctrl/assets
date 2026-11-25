@@ -208,3 +208,9 @@
 - 기존 847b928c API26~36 CI 45655161207 진행 중이므로 독립 image-order/chrome-qa 브랜치에서 병행. 제품 본체 변경 없음.
 - 실제 설치 Chrome(com.android.chrome)에서 image/* 및 generic HTML multiple 파일 입력, 자체 갤러리 실제 진입, 5개 선택, 실제 multipart 서버의 순서/파일명/MIME/SHA-256 검증. WebView 대체 없음. Browser UA 및 APK 버전 기록.
 - API34/35 Play Store emulator 이미지 사용. 초기 온보딩만 테스트 플래그로 생략 시도, picker feature flag 변경 없음. Chrome 미설치/온보딩/선택창 장애는 실패로 기록. 실제 CI 결과 미확정. 통과 후 개발 브랜치 병합 검토.
+
+## 2026-11-26 — Chrome 1차 검증 결과와 환경 개선
+- 847b928c 개발 CI 45655160628 성공. E2E 45655161207에서 API26/27/28/29/30/33/34 전부 성공(비고정 시스템 chooser 및 실제 HTTP 포함). API31은 SAF 원본 탐색, API32는 화면 회전 landscape 확인만 실패; 두 환경의 비고정 chooser 통과. API35/36 실행 중 확인.
+- Chrome QA 45655688471: API34 Chrome 113.0.5672.136 실제 페이지 GET 성공, 알림 온보딩 화면으로 파일 입력 가시성 실패. API35는 Maven Central HTTP429로 APK 빌드 실패, 브라우저 미실행.
+- 실제 Chrome 알림 안내의 No thanks 버튼만 UI로 처리. 파일 입력 자체를 접근성 라벨을 갖춘 가시적 HTML 기본 컨트롤로 개선, 업로드 전 5개 선택 DOM 표시 검증 추가. 브라우저 picker 플래그/반환 방식 변경 없음.
+- 에뮬레이터 기동 전 APK·계측 APK 빌드 및 캐시 확보 후 기동 단계 offline 빌드 사용. HTTP429 자체의 근본 해결은 아님. Chrome 최신 버전 실기기 검증 별도 필요. 제품 본체 변경 없음, 신규 결과 미확정.

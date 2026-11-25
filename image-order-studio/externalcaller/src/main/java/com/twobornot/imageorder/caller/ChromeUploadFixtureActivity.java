@@ -34,8 +34,8 @@ public final class ChromeUploadFixtureActivity extends Activity {
             String accept=getIntent().getBooleanExtra("generic",false)?"":" accept='image/*'";
             String html="<!doctype html><meta name='viewport' content='width=device-width, initial-scale=1'>"+
                 "<title>Image Order Chrome QA</title><form id='upload' action='/upload' method='post' enctype='multipart/form-data'>"+
-                "<label for='images' style='display:block;padding:32px;font-size:24px'>Choose originals for Chrome test</label>"+
-                "<input id='images' name='photos' type='file' multiple"+accept+" style='position:absolute;left:0;top:0;opacity:0;width:100%;height:120px'>"+
+                "<label for='images' style='display:block;padding:20px;font-size:24px'>Choose originals for Chrome test</label>"+
+                "<input id='images' aria-label='Choose originals for Chrome test' name='photos' type='file' multiple"+accept+" style='display:block;font-size:18px;margin:16px 0 24px'>"+
                 "<button type='submit' style='padding:24px'>Upload originals</button></form>"+
                 "<p id='count'>No files selected</p><script>document.getElementById('images').onchange=function(){"+
                 "document.getElementById('count').textContent=this.files.length+' originals selected';};</script>";

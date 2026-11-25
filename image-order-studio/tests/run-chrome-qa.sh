@@ -16,9 +16,10 @@ adb shell dumpsys package com.android.chrome | grep -m1 versionName || true
 adb shell am set-debug-app --persistent com.android.chrome
 adb shell 'printf "%s\n" "_ --no-first-run --disable-fre --no-default-browser-check" > /data/local/tmp/chrome-command-line'
 adb shell am force-stop com.android.chrome
-bash "$script_dir/gradle-with-retry.sh" chrome-target -p "$project" --no-daemon :app:assembleDebug
+# Build dependencies on the host before emulator startup, then reuse the exact APKs/cache.
+gradle -p "$project" --offline --no-daemon :app:assembleDebug :externalcaller:assembleDebug :externalcaller:assembleDebugAndroidTest
 adb install -r "$project/app/build/outputs/apk/debug/app-debug.apk"
 adb shell pm grant com.twobornot.imageorder android.permission.READ_MEDIA_IMAGES
-bash "$script_dir/gradle-with-retry.sh" chrome-caller -p "$project" --no-daemon :externalcaller:connectedDebugAndroidTest \
+gradle -p "$project" --offline --no-daemon :externalcaller:connectedDebugAndroidTest \
   -Pandroid.testInstrumentationRunnerArguments.class=com.twobornot.imageorder.caller.ChromeUploadTest \
   -Pandroid.testInstrumentationRunnerArguments.chromeQa=true

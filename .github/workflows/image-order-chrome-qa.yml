@@ -36,6 +36,9 @@ jobs:
           bash -n image-order-studio/tests/run-chrome-qa.sh
           test -e /dev/kvm
           sudo chmod 666 /dev/kvm
+      - name: Warm APK and instrumentation dependency cache before emulator startup
+        run: |
+          bash image-order-studio/tests/gradle-with-retry.sh chrome-prebuild -p image-order-studio --no-daemon :app:assembleDebug :externalcaller:assembleDebug :externalcaller:assembleDebugAndroidTest
       - name: Real Chrome APK, no browser modifications
         uses: reactivecircus/android-emulator-runner@v2
         with:

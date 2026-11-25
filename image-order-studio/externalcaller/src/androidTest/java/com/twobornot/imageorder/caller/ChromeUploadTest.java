@@ -28,6 +28,32 @@ public final class ChromeUploadTest {
     private static final int[] ORDER={4,1,3,0,2};
     @Test public void chromeImageInputUploadsOriginalsInTapOrder() throws Exception {verify(false);}
     @Test public void chromeGenericInputUploadsOriginalsInTapOrder() throws Exception {verify(true);}
+    /** Dismiss only the known browser onboarding prompts through the real UI. */
+    private static void clickRealFileInput(UiDevice device) throws Exception {
+        long deadline=android.os.SystemClock.uptimeMillis()+60000;
+        while(android.os.SystemClock.uptimeMillis()<deadline){
+            try{
+                if(CHROME.equals(device.getCurrentPackageName())){
+                    UiObject2 notification=device.findObject(By.textContains("Chrome notifications make things easier"));
+                    if(notification!=null){
+                        UiObject2 decline=device.findObject(By.text("No thanks"));
+                        if(decline!=null){
+                            android.util.Log.i("ImageOrderChrome","Dismissing Chrome notification onboarding");
+                            decline.click();Thread.sleep(800);continue;
+                        }
+                    }
+                    UiObject2 input=device.findObject(By.text("Choose originals for Chrome test"));
+                    if(input==null)input=device.findObject(By.desc("Choose originals for Chrome test"));
+                    if(input!=null){
+                        input.click();
+                        return;
+                    }
+                }
+            }catch(androidx.test.uiautomator.StaleObjectException ignored){}
+            Thread.sleep(450);
+        }
+        fail("Real Chrome file input not visible after onboarding; foreground="+device.getCurrentPackageName());
+    }
     private void verify(boolean generic) throws Exception {
         Assume.assumeTrue("Dedicated real-browser CI only",
             "true".equals(InstrumentationRegistry.getArguments().getString("chromeQa")));
@@ -50,11 +76,7 @@ public final class ChromeUploadTest {
             LoopbackUploadServer server=ChromeUploadFixtureActivity.server;
             assertNotNull(server);
             assertTrue("Chrome did not load the real test page",server.pageServed.await(45,TimeUnit.SECONDS));
-            UiObject2 input=device.wait(Until.findObject(By.text("Choose originals for Chrome test")),20000);
-            if(input==null)input=device.findObject(By.desc("Choose originals for Chrome test"));
-            assertNotNull("Real Chrome file input must be visible",input);
-            assertEquals("Actual installed Chrome UI",CHROME,device.getCurrentPackageName());
-            input.click();
+            clickRealFileInput(device);
             WebUploadCallerTest.selectRealSystemGallery(device);
             UiObject2 photos=device.wait(Until.findObject(By.desc("imageorder.photos")),15000);
             assertNotNull("Image Order native gallery must open from Chrome",photos);
@@ -64,7 +86,9 @@ public final class ChromeUploadTest {
                 "imageorder.photo:"+ChromeUploadFixtureActivity.names[source],++count);
             UiObject2 done=device.wait(Until.findObject(By.desc("imageorder.confirm")),15000);
             assertNotNull(done);done.click();
-            UiObject2 submit=device.wait(Until.findObject(By.text("Upload originals")),30000);
+            assertNotNull("Chrome must show all five files before submission",
+                device.wait(Until.findObject(By.textContains("5 originals selected")),30000));
+            UiObject2 submit=device.wait(Until.findObject(By.text("Upload originals")),15000);
             assertNotNull("Chrome must return to the upload page",submit);
             assertEquals(CHROME,device.getCurrentPackageName());
             submit.click();
