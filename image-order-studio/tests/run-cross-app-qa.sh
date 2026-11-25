@@ -6,6 +6,8 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project="$(cd "$script_dir/.." && pwd)"
 collect_diagnostics() {
   adb logcat -d -v time > "$project/android-e2e-logcat.txt" 2>&1 || true
+  # Preserve targeted resolver evidence directly in the CI console, not just ZIP artifacts.
+  adb logcat -d -v brief -s ImageOrderResolver:I ImageOrderWeb:I ImageOrderSAF:E || true
   adb shell dumpsys activity activities > "$project/android-e2e-activities.txt" 2>&1 || true
   mkdir -p "$project/crossuid-diagnostics"
   adb pull /sdcard/Download/. "$project/crossuid-diagnostics/" || true

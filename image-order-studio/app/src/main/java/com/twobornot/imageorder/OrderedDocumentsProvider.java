@@ -50,7 +50,7 @@ public final class OrderedDocumentsProvider extends DocumentsProvider {
     @Override public Cursor queryRoots(String[] projection) {
         MatrixCursor out=new MatrixCursor(projection==null?ROOT_COLUMNS:projection);
         String[] keys=ROOT_COLUMNS;
-        Object[] vals={"images",SafDocumentIds.ROOT,"Image Order",
+        Object[] vals={"images",SafDocumentIds.ROOT,"Image Order (Files)",
             "Original photos · use app to grant photo access",
             DocumentsContract.Root.FLAG_LOCAL_ONLY|DocumentsContract.Root.FLAG_SUPPORTS_RECENTS|DocumentsContract.Root.FLAG_SUPPORTS_SEARCH,
             "image/*",R.drawable.ic_launcher};
@@ -59,7 +59,7 @@ public final class OrderedDocumentsProvider extends DocumentsProvider {
     }
     @Override public Cursor queryDocument(String documentId,String[] projection) throws FileNotFoundException {
         MatrixCursor out=new MatrixCursor(projection==null?DOC_COLUMNS:projection);
-        if(SafDocumentIds.ROOT.equals(documentId))folder(out,documentId,"Image Order");
+        if(SafDocumentIds.ROOT.equals(documentId))folder(out,documentId,"Image Order (Files)");
         else if(SafDocumentIds.ALL.equals(documentId))folder(out,documentId,"All photos · 전체 사진");
         else if(SafDocumentIds.isAlbum(documentId)){
             final String bucket;

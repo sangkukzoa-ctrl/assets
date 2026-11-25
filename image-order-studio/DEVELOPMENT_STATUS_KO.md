@@ -191,3 +191,9 @@
 - 8971bcf2 개발 CI 45605657883 성공. E2E 45605657945의 API26/28은 내부 13개 및 외부 10/11 성공, SAF 테스트에서 Image Order 대신 Android 기본 MediaDocumentsProvider를 선택하여 URI authority 불일치. API27은 google_apis x86_64 시스템 이미지 SDK 설치 실패. API29/30/32 전체 성공 확인, 나머지 실행 상태는 CI 기록 참조.
 - 독립 WebView 호스트 기존 FileList 검증 유지. 추가로 루프백 HTTP 서버에서 실제 HTML FormData multipart POST 수신 후 파일 순서, 이름, MIME, 크기, SHA-256 검증. 별도 테스트에서 package 지정 없이 Android 시스템 chooser를 열고 Image Order를 선택하여 동일 HTTP 전송 검사.
 - HTTP 권한과 서버는 externalcaller 테스트 APK에만 포함, 127.0.0.1 바인딩. Image Order 본체/공개 APK/서명 변경 없음. 실제 Chrome/삼성 인터넷 및 강제 시스템 Photo Picker 대체는 아직 미완료. 새 테스트는 CI 검증 전이며 실패 시 로그 기반 수정.
+
+## 2026-11-25 — 실제 HTTP 전송 통과 / 시스템 호출 분기 진단
+- c684e5da E2E 45609253157에서 API26/28/29/30/32의 패키지 지정 HTML multipart HTTP 원본·순서 검증 실패 없음. 비고정 시스템 chooser만 실패(API26/28/29: 항목 탐색, API30/32: 클릭 후 갤러리 미진입). API32 회전 회귀 1개 실패도 별도 확인. API27 시스템 이미지 설치 실패 지속.
+- Android 공식 GET_CONTENT takeover 및 Browse→DocumentsUI 전달 경로를 확인. 비고정 테스트는 실제 chooser/Photo Picker Browse/파일 선택기 앱 목록을 탐색하며 native gallery 진입을 반드시 검증. 패키지 강제 지정이나 시스템 설정 변경 없음.
+- DocumentsProvider 제목을 Image Order (Files)로 변경하여 native gallery 앱 선택 항목 Image Order와 구별. SAF 테스트는 일반 Recents에서 동명 원본을 먼저 선택하지 않도록 공급자 루트를 먼저 탐색. URI authority 및 SHA-256 검증 유지.
+- 후보 ResolveInfo 및 실패 UI hierarchy를 CI 콘솔/아티팩트에 저장. API27은 x86 이미지로 시도(아직 설치 가능 여부 미확정). 신규 테스트 결과 미확정. 공개판 변경 없음.

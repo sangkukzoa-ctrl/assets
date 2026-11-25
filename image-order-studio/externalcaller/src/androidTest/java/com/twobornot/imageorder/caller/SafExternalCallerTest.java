@@ -70,18 +70,20 @@ public final class SafExternalCallerTest {
                 AttachmentCallerActivity.hadAccessBeforeUserSelection);
             // INITIAL_URI can be ignored by a DocumentsUI implementation. Navigate
             // through the visible provider root if that happens, never forge a grant.
-            UiObject2 photo=device.wait(Until.findObject(By.text(name)),8000);
-            if(photo==null){
+            // A matching filename in Recents/Images is NOT proof of our provider.
+            // Oreo/Pie can ignore EXTRA_INITIAL_URI and show the same fixture there.
+            UiObject2 photo=null;
+            {
                 UiObject2 all=device.findObject(By.textStartsWith("All photos"));
                 if(all==null){
-                    UiObject2 root=device.findObject(By.text("Image Order"));
+                    UiObject2 root=device.findObject(By.text("Image Order (Files)"));
                     if(root==null){
                         UiObject2 drawer=device.findObject(By.descContains("Show roots"));
                         if(drawer==null)drawer=device.findObject(By.descContains("Open navigation drawer"));
                         if(drawer==null)drawer=device.findObject(By.descContains("Show navigation"));
                         assertNotNull("System DocumentsUI navigation drawer must be available",drawer);
                         drawer.click();
-                        root=device.wait(Until.findObject(By.text("Image Order")),15000);
+                        root=device.wait(Until.findObject(By.text("Image Order (Files)")),15000);
                     }
                     assertNotNull("Image Order DocumentsProvider must appear in system roots",root);
                     root.click();

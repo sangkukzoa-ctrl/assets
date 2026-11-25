@@ -69,13 +69,8 @@ public final class WebUploadCallerTest {
                     WebUploadCallerActivity.tapX,WebUploadCallerActivity.tapY));
             }
             if(implicit){
-                // Do not force the picker package. Choose its real OS resolver entry.
-                UiObject2 option=device.wait(Until.findObject(By.text("Image Order")),15000);
-                if(option==null)option=device.findObject(By.desc("Image Order"));
-                assertNotNull("Image Order must be available in the real system chooser",option);
-                option.click();
-                UiObject2 once=device.wait(Until.findObject(By.text("Just once")),1500);
-                if(once!=null)once.click();
+                // No package pinning, no forced component, no system-setting changes.
+                selectRealSystemGallery(device);
             }
             UiObject2 photos=device.wait(Until.findObject(By.desc("imageorder.photos")),30000);
             assertNotNull("The actual WebView HTML file input must launch Image Order",photos);
@@ -151,6 +146,21 @@ public final class WebUploadCallerTest {
                     assertEquals("Actual server SHA-256",WebUploadCallerActivity.hashes[source],sha256(part.bytes));
                 }
             }
+        }catch(Throwable failure){
+            if(implicit){
+                try{
+                    java.io.ByteArrayOutputStream xml=new java.io.ByteArrayOutputStream();
+                    device.dumpWindowHierarchy(xml);
+                    android.util.Log.e("ImageOrderResolver","Final hierarchy: "+xml.toString("UTF-8"));
+                }catch(Exception ignored){}
+                android.util.Log.e("ImageOrderResolver","Resolver candidates: "+WebUploadCallerActivity.resolverDiagnostics);
+                try(android.os.ParcelFileDescriptor shell=inst.getUiAutomation().executeShellCommand(
+                        "screencap -p /sdcard/Download/imageorder-chooser-failure.png");
+                    InputStream out=new android.os.ParcelFileDescriptor.AutoCloseInputStream(shell)){
+                    byte[] b=new byte[256];while(out.read(b)!=-1){}
+                }catch(Exception ignored){}
+            }
+            throw failure;
         }finally{
             if(WebUploadCallerActivity.uriStrings!=null){
                 Intent cleanup=new Intent().setComponent(new ComponentName(
@@ -161,6 +171,51 @@ public final class WebUploadCallerTest {
             }
             device.pressBack();device.pressHome();
         }
+    }
+    private static void selectRealSystemGallery(UiDevice device) throws Exception {
+        long deadline=android.os.SystemClock.uptimeMillis()+35000;
+        boolean browsed=false,drawerOpened=false;
+        int scrolls=0,clicks=0;
+        while(android.os.SystemClock.uptimeMillis()<deadline){
+            if(device.hasObject(By.desc("imageorder.photos")))return;
+            try{
+                UiObject2 once=device.findObject(By.text(java.util.regex.Pattern.compile("(?i)just once|only once")));
+                if(once!=null){once.click();Thread.sleep(500);continue;}
+                // Exact app label, not the similarly branded read-only DocumentsProvider.
+                UiObject2 option=device.findObject(By.text("Image Order"));
+                if(option==null)option=device.findObject(By.desc("Image Order"));
+                if(option!=null && clicks<3){
+                    clicks++;
+                    UiObject2 target=option;
+                    for(int up=0;up<4 && !target.isClickable() && target.getParent()!=null;up++)
+                        target=target.getParent();
+                    target.click();
+                    Thread.sleep(750);
+                    continue;
+                }
+                // GET_CONTENT takeover can forward into DocumentsUI through Browse.
+                UiObject2 browse=device.findObject(By.text(java.util.regex.Pattern.compile("(?i)browse(?: files)?(?:\\.\\.\\.|…)?")));
+                if(browse!=null&&!browsed){browse.click();browsed=true;Thread.sleep(650);continue;}
+                UiObject2 more=device.findObject(By.descContains("More options"));
+                if(more!=null&&!browsed){
+                    more.click();Thread.sleep(400);
+                    browse=device.findObject(By.text(java.util.regex.Pattern.compile("(?i)browse(?: files)?(?:\\.\\.\\.|…)?")));
+                    if(browse!=null){browse.click();browsed=true;Thread.sleep(650);continue;}
+                    device.pressBack();
+                }
+                UiObject2 drawer=device.findObject(By.descContains("Show roots"));
+                if(drawer==null)drawer=device.findObject(By.descContains("Open navigation drawer"));
+                if(drawer==null)drawer=device.findObject(By.descContains("Show navigation"));
+                if(drawer!=null&&!drawerOpened){drawer.click();drawerOpened=true;Thread.sleep(650);continue;}
+                if(scrolls<4){
+                    device.swipe(device.getDisplayWidth()/2,device.getDisplayHeight()*4/5,
+                        device.getDisplayWidth()/2,device.getDisplayHeight()/3,25);
+                    scrolls++;
+                }
+            }catch(androidx.test.uiautomator.StaleObjectException ignored){}
+            Thread.sleep(400);
+        }
+        fail("System chooser did not open Image Order native gallery; candidates: "+WebUploadCallerActivity.resolverDiagnostics);
     }
     private static void clickPhotoAndWaitForCount(UiDevice device,String desc,int expected) throws Exception {
         for(int retry=0;retry<3;retry++){

@@ -124,9 +124,12 @@ assert 'TestMediaFixture.insert' in (p/'app/src/debug/java/com/twobornot/imageor
 receiver=(external/'src/main/java/com/twobornot/imageorder/caller/LoopbackUploadServer.java').read_text()
 assert 'InetAddress.getByName("127.0.0.1")' in receiver and 'multipart/form-data' in receiver
 assert 'new FormData(document.getElementById' in html_host and 'Intent.createChooser(request' in html_host
-assert 'if(!implicitChooser)request.setPackage(TARGET)' in html_host
+assert 'else request.setPackage(TARGET)' in html_host and 'queryIntentActivities(request' in html_host
 assert not (src/'LoopbackUploadServer.java').exists()
 webtest=(external/'src/androidTest/java/com/twobornot/imageorder/caller/WebUploadCallerTest.java').read_text()
 assert 'actualHttpMultipartPreservesOriginalFilesAndTapOrder' in webtest
 assert 'systemChooserCanSelectImageOrderAndUploadOriginals' in webtest
 assert 'Actual server SHA-256' in webtest
+
+assert 'Image Order (Files)' in (src/'OrderedDocumentsProvider.java').read_text()
+assert 'selectRealSystemGallery' in webtest and 'Resolver candidates:' in webtest

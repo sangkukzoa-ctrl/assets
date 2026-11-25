@@ -43,11 +43,12 @@ public final class WebUploadCallerActivity extends Activity {
     private LoopbackUploadServer server;
     private boolean httpUpload,implicitChooser;
     public static volatile LoopbackUploadServer uploadServer;
+    public static volatile String resolverDiagnostics;
 
     public static void reset(){
         names=null;uriStrings=null;hashes=null;mimes=null;
         parsedUris=null;frameworkParsedUris=null;rawResult=null;rawCode=RESULT_CANCELED;
-        domFilesJson=null;error=null;tapX=0;tapY=0;uploadServer=null;
+        domFilesJson=null;error=null;tapX=0;tapY=0;uploadServer=null;resolverDiagnostics=null;
         ready=new CountDownLatch(1);
         finished=new CountDownLatch(1);
     }
@@ -124,7 +125,18 @@ public final class WebUploadCallerActivity extends Activity {
                         request.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,false);
                     }
                     // The package restriction only isolates the test's target picker.
-                    if(!implicitChooser)request.setPackage(TARGET);
+                    if(implicitChooser){
+                        android.content.pm.PackageManager pm=getPackageManager();
+                        StringBuilder report=new StringBuilder(request.toUri(0));
+                        for(android.content.pm.ResolveInfo candidate:pm.queryIntentActivities(request,
+                                android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)){
+                            report.append("\n").append(candidate.activityInfo.packageName).append("/")
+                                .append(candidate.activityInfo.name).append(" label=").append(candidate.loadLabel(pm))
+                                .append(" priority=").append(candidate.priority);
+                        }
+                        resolverDiagnostics=report.toString();
+                        Log.i("ImageOrderResolver",resolverDiagnostics);
+                    }else request.setPackage(TARGET);
                     Log.i("ImageOrderWeb","HTML chooser action="+request.getAction()
                         +" type="+request.getType()+" mode="+mode
                         +" generatedMultiple="+originalMultiple
