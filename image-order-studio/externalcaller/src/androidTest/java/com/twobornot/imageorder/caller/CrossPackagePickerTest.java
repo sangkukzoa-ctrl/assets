@@ -160,16 +160,12 @@ public final class CrossPackagePickerTest {
                 if(rotateMidSelection && expectedCount==2) {
                     // The native picker has no configChanges override, so this exercises
                     // real Android Activity save/restore while the caller remains pending.
-                    device.setOrientationLeft();
-                    device.waitForIdle(10000);
-                    assertTrue("Rotation must place the device in landscape",
-                        device.getDisplayWidth()>device.getDisplayHeight());
+                    rotateAndAwait(instrumentation,device,true);
                     assertTrue("Two ordered selections must survive landscape recreation",
-                        waitForSelectionCount(device,2,12000));
-                    device.setOrientationNatural();
-                    device.waitForIdle(10000);
+                        waitForSelectionCount(device,2,18000));
+                    rotateAndAwait(instrumentation,device,false);
                     assertTrue("Two selections must survive portrait recreation",
-                        waitForSelectionCount(device,2,12000));
+                        waitForSelectionCount(device,2,18000));
                 }
             }
             boolean returned;
@@ -252,7 +248,15 @@ public final class CrossPackagePickerTest {
         }finally{
             // Restore emulator state so that subsequent cross-UID tests are independent.
             if(rotateMidSelection) {
-                try{device.setOrientationNatural();}catch(Exception ignored){}
+                try{
+                    device.setOrientationNatural();
+                    try(android.os.ParcelFileDescriptor fd=instrumentation.getUiAutomation().executeShellCommand(
+                        "wm user-rotation free");
+                        java.io.InputStream in=new android.os.ParcelFileDescriptor.AutoCloseInputStream(fd)){
+                        byte[] buf=new byte[256];while(in.read(buf)!=-1){}
+                    }
+                    device.unfreezeRotation();
+                }catch(Exception ignored){}
             }
             String[] saved=AttachmentCallerActivity.uriStrings;
             if(saved!=null) {
@@ -279,6 +283,30 @@ public final class CrossPackagePickerTest {
                 "Expected selected count "+expected+" after "+desc+"; resync attempt="+attempt);
         }
         fail("Gallery did not commit user tap #"+expected+" for "+desc);
+    }
+    private static void rotateAndAwait(Instrumentation inst,UiDevice device,boolean landscape) throws Exception {
+        if(landscape)device.setOrientationLeft();else device.setOrientationNatural();
+        if(awaitOrientation(device,landscape,12000))return;
+        // Android 12L emulator may not report a completed rotation after UiAutomation's
+        // request. Use the shell's WindowManager rotation command on this test device.
+        int rotation=landscape?1:0;
+        try(android.os.ParcelFileDescriptor fd=inst.getUiAutomation().executeShellCommand(
+                "wm user-rotation lock "+rotation);
+            java.io.InputStream in=new android.os.ParcelFileDescriptor.AutoCloseInputStream(fd)){
+            byte[] buf=new byte[256];while(in.read(buf)!=-1){}
+        }
+        assertTrue("Rotation must place the device in "+(landscape?"landscape":"portrait")
+            +"; display="+device.getDisplayWidth()+"x"+device.getDisplayHeight(),
+            awaitOrientation(device,landscape,18000));
+    }
+    private static boolean awaitOrientation(UiDevice d,boolean landscape,long timeout) throws Exception {
+        long end=android.os.SystemClock.uptimeMillis()+timeout;
+        while(android.os.SystemClock.uptimeMillis()<end){
+            int w=d.getDisplayWidth(),h=d.getDisplayHeight();
+            if((landscape?w>h:h>w) && d.hasObject(By.desc("imageorder.confirm")))return true;
+            Thread.sleep(350);
+        }
+        return false;
     }
     private static boolean waitForSelectionCount(UiDevice device,int expected,long millis) throws Exception {
         long end=android.os.SystemClock.uptimeMillis()+millis;

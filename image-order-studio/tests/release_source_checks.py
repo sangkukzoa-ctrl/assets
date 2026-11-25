@@ -136,3 +136,6 @@ assert 'selectRealSystemGallery' in webtest and 'Resolver candidates:' in webtes
 
 assert 'Open Image Order (Files)' in webtest
 assert 'selectProviderOriginal' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/SafExternalCallerTest.java').read_text()
+
+assert 'isInNavigationDrawer' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/SafExternalCallerTest.java').read_text()
+assert 'rotateAndAwait' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()

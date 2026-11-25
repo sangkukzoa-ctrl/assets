@@ -142,47 +142,133 @@ public final class SafExternalCallerTest {
             device.pressBack();device.pressHome();
         }
     }
+    private static final String ROOT_LABEL="Image Order (Files)";
+    private static final String ALL_LABEL="All photos · 전체 사진";
+
+    // Read actual DocumentsUI state on each iteration instead of assuming that a
+    // click changed folders. Match navigation controls, not toolbar lookalikes.
     private static void selectProviderOriginal(UiDevice device,String name) throws Exception {
-        long deadline=android.os.SystemClock.uptimeMillis()+45000;
-        boolean openedAll=false;
-        int rootClicks=0,drawerClicks=0,listClicks=0,scrolls=0;
+        long deadline=android.os.SystemClock.uptimeMillis()+65000;
+        int scrolls=0;
+        long lastAction=0;
         while(android.os.SystemClock.uptimeMillis()<deadline){
             try{
-                // Only accept a file after explicit traversal into our All photos folder.
-                if(openedAll){
-                    UiObject2 photo=device.findObject(By.text(name));
-                    if(photo==null)photo=device.findObject(By.descStartsWith(name+","));
-                    if(photo!=null){photo.click();return;}
-                    UiObject2 list=device.findObject(By.desc("List view"));
-                    if(list==null)list=device.findObject(By.text("List view"));
-                    if(list!=null && listClicks<2){list.click();listClicks++;Thread.sleep(650);continue;}
-                    if(scrolls<5){
-                        UiObject2 scroll=device.findObject(By.scrollable(true));
-                        if(scroll!=null){
-                            android.graphics.Rect r=scroll.getVisibleBounds();
-                            if(r.height()>100){device.swipe(r.centerX(),r.bottom-r.height()/5,
-                                r.centerX(),r.top+r.height()/5,25);scrolls++;}
+                String foreground=device.getCurrentPackageName();
+                if(foreground==null||!foreground.contains("documentsui")){
+                    Thread.sleep(400);continue;
+                }
+                long now=android.os.SystemClock.uptimeMillis();
+                if(now-lastAction<850){Thread.sleep(250);continue;}
+                boolean drawerVisible=device.hasObject(By.text("Open from"));
+                if(drawerVisible){
+                    // Select the provider's drawer row, never a matching breadcrumb
+                    // or the separate Open app button in a merged RootAndAppItem.
+                    UiObject2 root=null;
+                    for(UiObject2 n:device.findObjects(By.text(ROOT_LABEL))){
+                        if(n.getVisibleBounds().centerX()>device.getDisplayWidth()*4/5)continue;
+                        if(isInNavigationDrawer(n)||isDrawerTitle(n)){root=n;break;}
+                    }
+                    if(root==null){
+                        for(UiObject2 n:device.findObjects(By.desc(ROOT_LABEL))){
+                            if(isInNavigationDrawer(n)){root=n;break;}
                         }
                     }
-                }else{
-                    UiObject2 all=device.findObject(By.textStartsWith("All photos"));
-                    if(all!=null){all.click();openedAll=true;Thread.sleep(650);continue;}
-                    UiObject2 root=device.findObject(By.text("Image Order (Files)"));
-                    if(root==null)root=device.findObject(By.desc("Image Order (Files)"));
-                    if(root!=null && rootClicks<4){
-                        root.click();rootClicks++;Thread.sleep(650);continue;
+                    if(root!=null){
+                        tapVisible(device,root,"provider drawer row");lastAction=now;continue;
                     }
+                    UiObject2 scroll=device.findObject(By.scrollable(true));
+                    if(scroll!=null && scrolls<8){
+                        android.graphics.Rect r=scroll.getVisibleBounds();
+                        if(r.height()>100){
+                            device.swipe(r.centerX(),r.bottom-r.height()/5,r.centerX(),r.top+r.height()/5,25);
+                            scrolls++;lastAction=now;continue;
+                        }
+                    }
+                    Thread.sleep(300);continue;
+                }
+
+                // The root contains the All photos folder. It remains visible if
+                // the prior click did not navigate, so retry the real folder row.
+                // Use the filename/thumbnail listing only after the root breadcrumb
+                // identifies this provider. The returned authority is checked again.
+                boolean providerVisible=device.hasObject(By.text(ROOT_LABEL)) ||
+                    device.hasObject(By.textContains("Images from "+ROOT_LABEL));
+                UiObject2 folder=null;
+                for(UiObject2 node:device.findObjects(By.text(ALL_LABEL))){
+                    if(isFileListRow(node)){folder=node;break;}
+                }
+                if(providerVisible && folder!=null){
+                    tapVisible(device,folder,"All photos folder");lastAction=now;continue;
+                }
+
+                boolean insideAll=providerVisible&&device.hasObject(By.text(ALL_LABEL));
+                // Some versions display only the current folder in the toolbar,
+                // but it is unique to our provider; authority remains mandatory.
+                if(!insideAll&&device.hasObject(By.text(ALL_LABEL))&&folder==null)insideAll=true;
+                if(insideAll){
+                    UiObject2 photo=device.findObject(By.text(name));
+                    if(photo==null)photo=device.findObject(By.descStartsWith(name+","));
+                    if(photo!=null){
+                        tapVisible(device,photo,"original "+name);return;
+                    }
+                    UiObject2 list=device.findObject(By.desc("List view"));
+                    if(list==null)list=device.findObject(By.text("List view"));
+                    if(list!=null){
+                        tapVisible(device,list,"List view");lastAction=now;continue;
+                    }
+                    UiObject2 scroll=device.findObject(By.scrollable(true));
+                    if(scroll!=null&&scrolls<12){
+                        android.graphics.Rect r=scroll.getVisibleBounds();
+                        if(r.height()>100){
+                            device.swipe(r.centerX(),r.bottom-r.height()/5,r.centerX(),r.top+r.height()/5,25);
+                            scrolls++;lastAction=now;continue;
+                        }
+                    }
+                }
+                if(!insideAll){
                     UiObject2 drawer=device.findObject(By.descContains("Show roots"));
                     if(drawer==null)drawer=device.findObject(By.descContains("Open navigation drawer"));
                     if(drawer==null)drawer=device.findObject(By.descContains("Show navigation"));
-                    if(drawer!=null && drawerClicks<4){
-                        drawer.click();drawerClicks++;Thread.sleep(650);continue;
+                    if(drawer!=null){
+                        tapVisible(device,drawer,"Open from drawer");lastAction=now;continue;
                     }
                 }
             }catch(androidx.test.uiautomator.StaleObjectException ignored){}
             Thread.sleep(350);
         }
         fail("DocumentsUI must expose provider original: "+name);
+    }
+    private static boolean isInNavigationDrawer(UiObject2 n){
+        for(int depth=0;n!=null&&depth<12;depth++,n=n.getParent()){
+            String id=n.getResourceName();
+            if(id!=null&&(id.contains("roots_list")||id.contains("roots_fragment")||
+                id.contains("drawer_roots")||id.endsWith(":id/roots")||id.contains("drawer_list")))return true;
+            // A drawer row generally has a visible Open from ancestor/section.
+            if(id!=null&&(id.contains("toolbar")||id.contains("breadcrumb")))return false;
+        }
+        return false;
+    }
+    private static boolean isDrawerTitle(UiObject2 n){
+        String id=n.getResourceName();
+        return id!=null&&(id.endsWith(":id/title")||id.endsWith(":id/root_title")) &&
+            !n.getVisibleBounds().isEmpty();
+    }
+    private static boolean isFileListRow(UiObject2 n){
+        for(int depth=0;n!=null&&depth<12;depth++,n=n.getParent()){
+            String id=n.getResourceName();
+            if(id!=null&&(id.contains("breadcrumb")||id.contains("toolbar")))return false;
+            if(id!=null&&(id.contains("dir_list")||id.contains("directory_list")||
+                id.contains("document_list")||id.contains("item_root")||
+                id.endsWith(":id/dir_list")||id.contains("recycler_view")))return true;
+            if(n.isScrollable())return true;
+        }
+        return false;
+    }
+    private static void tapVisible(UiDevice d,UiObject2 node,String label){
+        android.graphics.Rect r=node.getVisibleBounds();
+        android.util.Log.i("ImageOrderSAF","Tap "+label+" "+r+" id="+node.getResourceName());
+        assertTrue("Visible touch target "+label,r.width()>0&&r.height()>0);
+        assertTrue("Inject touch "+label,d.click(r.centerX(),r.centerY()));
     }
     private static void assertUnreadable(ContentResolver cr,Uri uri) throws Exception {
         try(InputStream in=cr.openInputStream(uri)){

@@ -203,3 +203,9 @@
 - resolver 후보: Image Order priority 0, Files 100, 최신 시스템 Photo Picker 101~110. AOSP RootsFragment는 같은 package의 root와 activity를 RootAndAppItem으로 통합한다. API34 실제 hierarchy에 별도 content-desc 'Open Image Order (Files)' 확인. 제목을 누르면 파일 공급자, 별도 버튼은 앱 실행 경로. https://android.googlesource.com/platform/packages/apps/DocumentsUI/+/265ccf6333c739b7a020478f6bf5eca2a8accf30/src/com/android/documentsui/sidebar/RootsFragment.java
 - 실제 UI 버튼을 우선 탐색/클릭하도록 개선. Android16 Photo Picker의 More 메뉴 지원, 무조건 Back/화면 스와이프 제거, 스크롤 가능한 항목만 조작. SAF는 provider All photos 폴더를 명시적으로 탐색하고 stale node 재탐색, 파일명 content-desc도 지원.
 - 제품 SAF 안내문 변경: 순서 지정은 앱 실행을 통해 사용한다는 의미를 명시. 파일 원본/권한/패키지/서명 변경 없음. 신규 실제 UI 검증 결과 미확정. 시스템 Photo Picker 직접 호출을 대체한 것은 아님.
+
+## 2026-11-26 — API26~36 핵심 비고정 호출·HTTP 전체 통과
+- 847b928c CI 45655160628 성공, 45655161207 종료. API26/27/28/29/30/33/34/36 전체 통과, API31/35 SAF UI 탐색만 실패, API32 회전 전환만 실패. 따라서 비고정 시스템 chooser→native gallery→HTTP 원본 순서 검증은 11/11 환경 성공. 상용 Chrome과 직접 ACTION_PICK_IMAGES 대체는 별도 미완료.
+- SAF 탐색을 클릭 성공 여부가 아니라 실제 UI 상태 기반으로 재작성. Open from drawer 내 공급자 행, All photos 실제 파일 목록 행, 현재 폴더/파일을 구분하고 좌표 터치 및 단계 로그 추가. 원본 authority/doc ID/권한/크기/hash 검증 유지.
+- 회전 검증은 실제 display 가로·세로 변경과 confirm UI 복귀를 각각 기다리고, UiAutomation 전환 실패 시 테스트 에뮬레이터 WindowManager 명령으로 재시도. 선택 수와 최종 원본 순서 검증 유지. 테스트 종료 후 회전 잠금 해제.
+- Chrome 독립 브랜치 942d9b21, run 45663873549 API34 실행 중 / API35 대기. 본체·공개판 변경 없음, 신규 회귀 결과 미확정.
