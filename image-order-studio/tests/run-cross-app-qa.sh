@@ -15,7 +15,12 @@ bash "$script_dir/gradle-with-retry.sh" app -p "$project" --no-daemon :app:conne
   exit 1
 }
 adb install -r "$project/app/build/outputs/apk/debug/app-debug.apk"
-adb shell pm grant com.twobornot.imageorder android.permission.READ_MEDIA_IMAGES
+api="$(adb shell getprop ro.build.version.sdk | tr -d '\r')"
+if [ "$api" -ge 33 ]; then
+  adb shell pm grant com.twobornot.imageorder android.permission.READ_MEDIA_IMAGES
+else
+  adb shell pm grant com.twobornot.imageorder android.permission.READ_EXTERNAL_STORAGE
+fi
 bash "$script_dir/gradle-with-retry.sh" external -p "$project" --no-daemon :externalcaller:connectedDebugAndroidTest || {
   collect_diagnostics
   exit 1

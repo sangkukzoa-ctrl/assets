@@ -365,10 +365,15 @@ public final class NativeGalleryActivity extends Activity {
         });
     }
     /** AOSP ordered picker is available starting API 35 or Android R Extension 12. */
-    static boolean supportsOrderedSystemPicker(){
-        if(Build.VERSION.SDK_INT>=35)return true;
+    private static int systemPickerExtension(){
         return Build.VERSION.SDK_INT>=30
-            && android.os.ext.SdkExtensions.getExtensionVersion(Build.VERSION_CODES.R)>=12;
+            ? android.os.ext.SdkExtensions.getExtensionVersion(Build.VERSION_CODES.R):0;
+    }
+    static boolean supportsSystemPhotoPicker(){
+        return PickerDecision.supportsPhotoPicker(Build.VERSION.SDK_INT,systemPickerExtension());
+    }
+    static boolean supportsOrderedSystemPicker(){
+        return PickerDecision.supportsOrderedPicker(Build.VERSION.SDK_INT,systemPickerExtension());
     }
     /** System picker contract without any Image Order output-file transformation. */
     static Intent newSystemPickerIntent(int maxSelection){
@@ -383,26 +388,36 @@ public final class NativeGalleryActivity extends Activity {
             picker.putExtra(MediaStore.EXTRA_PICK_IMAGES_IN_ORDER,true);
         return picker;
     }
+    static Intent newLegacyPickerIntent(Context context,int maxSelection,CharSequence title){
+        Intent i=new Intent(Intent.ACTION_GET_CONTENT);i.setType("image/*");
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,maxSelection>1);
+        Intent chooser=Intent.createChooser(i,title);
+        chooser.putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS,new ComponentName[]{
+            new ComponentName(context,NativeGalleryActivity.class),
+            new ComponentName(context,MainActivity.class)
+        });
+        return chooser;
+    }
     /** Denied gallery permission still permits intentional system-photo selection. */
     private void fallbackPicker(){
-        try{
-            Intent i;
-            fallbackOrderedSelectionRequested=false;
-            if(Build.VERSION.SDK_INT>=33) {
-                i=newSystemPickerIntent(maxSelection);
+        fallbackOrderedSelectionRequested=false;
+        if(supportsSystemPhotoPicker()){
+            try{
+                Intent i=newSystemPickerIntent(maxSelection);
                 fallbackOrderedSelectionRequested=i.getBooleanExtra(MediaStore.EXTRA_PICK_IMAGES_IN_ORDER,false);
-            }else{
-                i=new Intent(Intent.ACTION_GET_CONTENT);i.setType("image/*");
-                i.addCategory(Intent.CATEGORY_OPENABLE);
-                i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,maxSelection>1);
-                i=Intent.createChooser(i,t("사진 선택","Select photos"));
-                i.putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS,new ComponentName[]{
-                    new ComponentName(this,NativeGalleryActivity.class),
-                    new ComponentName(this,MainActivity.class)
-                });
+                fallbackPickerPending=true;
+                startActivityForResult(i,FALLBACK);
+                return;
+            }catch(Exception | LinkageError unavailable){
+                fallbackOrderedSelectionRequested=false;
+                fallbackPickerPending=false;
+                android.util.Log.w("ImageOrderFlow","System picker unavailable, opening legacy chooser",unavailable);
             }
+        }
+        try{
             fallbackPickerPending=true;
-            startActivityForResult(i,FALLBACK);
+            startActivityForResult(newLegacyPickerIntent(this,maxSelection,t("사진 선택","Select photos")),FALLBACK);
         }catch(Exception ex){
             fallbackPickerPending=false;
             Toast.makeText(this,t("사진 접근 권한이 필요합니다.","Photo access is required."),Toast.LENGTH_LONG).show();finish();

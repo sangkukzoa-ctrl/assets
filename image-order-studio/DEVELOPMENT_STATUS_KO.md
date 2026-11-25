@@ -173,3 +173,10 @@
 - 101번째 선택 거부, 기존 사진 해제 후 새 원본 마지막 추가, 다시 초과 선택 거부, 100개의 URI·파일명·MIME·원본 바이트·중복 여부 확인.
 - 같은 UID의 디버그 호스트와 GridView 실제 선택 콜백을 사용하므로 대량 물리 터치 또는 대량 교차 UID 전송 시험과 구분. 기존 별도 UID 시험은 유지.
 - 앱 기본 선택 한도(100장)는 변경하지 않음. 정식 배포 보류.
+
+## 2026-11-25 — 100장 스트레스 통과 / Android 10~12L 검증 확대
+- e124b18d 개발 CI 45576569718 및 Android 13~16 QA 45576569662 모두 성공. 실제 MediaStore 102장, 선택 한도 100장, 초과 거부/해제/대체 선택 및 전체 원본/순서 검증 통과(동일 UID 호스트, 외부 UID 시험은 별도 유지).
+- API 33+ READ_MEDIA_IMAGES 테스트 준비를 API 29~32 READ_EXTERNAL_STORAGE로 분기. API 29에서는 테스트 WebP 생성에 구형 WEBP enum 사용. 실제 원본 반환 정책은 동일.
+- NativeGallery의 시스템 Photo Picker fallback을 기존 PickerDecision과 통일하여 R SDK extension 2 이상에서도 지원, 정렬 보장은 extension 12/API35 이상. 플랫폼 선택창 실행 실패 시 자기 Activity를 제외한 legacy chooser로 전환.
+- legacy chooser의 단일/다중 계약 및 자기 자신 제외 계측 검사 추가. Android 10(API29), 11(API30), 12L(API32)과 기존 13~16 전체 회귀 매트릭스 실행 대상으로 확대. API26~28 테스트 fixture는 별도 보강 필요.
+- 신규 검증 결과는 다음 실행에서 확인. 공개판 변경 없음.

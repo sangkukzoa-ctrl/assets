@@ -48,7 +48,8 @@ public final class CrossAppMediaFixtureActivity extends Activity {
                 Bitmap.CompressFormat format=Bitmap.CompressFormat.PNG;
                 String mime="image/png",extension="png";
                 if(mixed && i%3==1){format=Bitmap.CompressFormat.JPEG;mime="image/jpeg";extension="jpg";}
-                if(mixed && i%3==2){format=Bitmap.CompressFormat.WEBP_LOSSLESS;mime="image/webp";extension="webp";}
+                if(mixed && i%3==2){format=android.os.Build.VERSION.SDK_INT>=30
+                    ?Bitmap.CompressFormat.WEBP_LOSSLESS:Bitmap.CompressFormat.WEBP;mime="image/webp";extension="webp";}
                 Bitmap image=Bitmap.createBitmap(19,17,Bitmap.Config.ARGB_8888);
                 image.eraseColor(0xff224466+(i*0x00070b0d));
                 ByteArrayOutputStream data=new ByteArrayOutputStream();

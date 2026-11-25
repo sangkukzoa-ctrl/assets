@@ -88,10 +88,10 @@ public final class CrossPackagePickerTest {
         PackageManager pm=context.getPackageManager();
         assertEquals("Caller must be a different package", "com.twobornot.imageorder.caller",context.getPackageName());
         assertEquals("Caller MUST lack read permission",PackageManager.PERMISSION_DENIED,
-            pm.checkPermission(Manifest.permission.READ_MEDIA_IMAGES,context.getPackageName()));
+            pm.checkPermission((android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE),context.getPackageName()));
         assertNotEquals("Caller and picker must have different UIDs",
             pm.getApplicationInfo(TARGET,0).uid,pm.getApplicationInfo(context.getPackageName(),0).uid);
-        instrumentation.getUiAutomation().grantRuntimePermission(TARGET,Manifest.permission.READ_MEDIA_IMAGES);
+        instrumentation.getUiAutomation().grantRuntimePermission(TARGET,(android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE));
         AttachmentCallerActivity.reset();
         UiDevice device=UiDevice.getInstance(instrumentation);
         Intent start=new Intent(context,AttachmentCallerActivity.class);

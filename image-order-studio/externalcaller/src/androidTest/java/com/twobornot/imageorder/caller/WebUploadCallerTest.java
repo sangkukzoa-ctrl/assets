@@ -38,8 +38,8 @@ public final class WebUploadCallerTest {
         assertNotEquals(pm.getApplicationInfo(TARGET,0).uid,
             pm.getApplicationInfo(ctx.getPackageName(),0).uid);
         assertEquals(PackageManager.PERMISSION_DENIED,
-            pm.checkPermission(Manifest.permission.READ_MEDIA_IMAGES,ctx.getPackageName()));
-        inst.getUiAutomation().grantRuntimePermission(TARGET,Manifest.permission.READ_MEDIA_IMAGES);
+            pm.checkPermission((android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE),ctx.getPackageName()));
+        inst.getUiAutomation().grantRuntimePermission(TARGET,(android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE));
         WebUploadCallerActivity.reset();
         Intent launch=new Intent(ctx,WebUploadCallerActivity.class);
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);

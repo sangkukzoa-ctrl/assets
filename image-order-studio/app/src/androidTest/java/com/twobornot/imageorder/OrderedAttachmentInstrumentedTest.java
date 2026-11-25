@@ -154,7 +154,7 @@ public class OrderedAttachmentInstrumentedTest {
         Instrumentation inst=InstrumentationRegistry.getInstrumentation();
         Context ctx=inst.getTargetContext();
         ContentResolver cr=ctx.getContentResolver();
-        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),Manifest.permission.READ_MEDIA_IMAGES);
+        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),(android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE));
         ArrayList<Uri> inserted=new ArrayList<>();
         ArrayList<byte[]> expected=new ArrayList<>();
         ArrayList<String> names=new ArrayList<>();
@@ -250,7 +250,7 @@ public class OrderedAttachmentInstrumentedTest {
         Instrumentation inst=InstrumentationRegistry.getInstrumentation();
         Context ctx=inst.getTargetContext();
         ContentResolver cr=ctx.getContentResolver();
-        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),Manifest.permission.READ_MEDIA_IMAGES);
+        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),(android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE));
         ArrayList<Uri> sources=new ArrayList<>();
         ArrayList<byte[]> originals=new ArrayList<>();
         ArrayList<String> names=new ArrayList<>();
@@ -371,9 +371,33 @@ public class OrderedAttachmentInstrumentedTest {
         field.setAccessible(true);return field.get(target);
     }
 
+    @Test public void legacyChooserExcludesBothImageOrderActivities(){
+        Context context=InstrumentationRegistry.getInstrumentation().getTargetContext();
+        Intent chooser=NativeGalleryActivity.newLegacyPickerIntent(context,10,"Photos");
+        assertEquals(Intent.ACTION_CHOOSER,chooser.getAction());
+        Intent inner=chooser.getParcelableExtra(Intent.EXTRA_INTENT);
+        assertNotNull(inner);
+        assertEquals(Intent.ACTION_GET_CONTENT,inner.getAction());
+        assertEquals("image/*",inner.getType());
+        assertTrue(inner.hasCategory(Intent.CATEGORY_OPENABLE));
+        assertTrue(inner.getBooleanExtra(Intent.EXTRA_ALLOW_MULTIPLE,false));
+        android.os.Parcelable[] excluded=chooser.getParcelableArrayExtra(Intent.EXTRA_EXCLUDE_COMPONENTS);
+        assertNotNull(excluded);
+        assertTrue(Arrays.asList(excluded).contains(new android.content.ComponentName(context,NativeGalleryActivity.class)));
+        assertTrue(Arrays.asList(excluded).contains(new android.content.ComponentName(context,MainActivity.class)));
+        Intent single=NativeGalleryActivity.newLegacyPickerIntent(context,1,"Photos")
+            .getParcelableExtra(Intent.EXTRA_INTENT);
+        assertNotNull(single);
+        assertFalse(single.getBooleanExtra(Intent.EXTRA_ALLOW_MULTIPLE,false));
+    }
+
     /** The fallback must opt into Android's ordered Photo Picker without re-encoding. */
     @Test public void systemPickerFallbackRequestsOrderedSelectionWhenSupported() {
-        if(android.os.Build.VERSION.SDK_INT<33)return;
+        int api=android.os.Build.VERSION.SDK_INT;
+        int extension=api>=30?android.os.ext.SdkExtensions.getExtensionVersion(android.os.Build.VERSION_CODES.R):0;
+        assertEquals(PickerDecision.supportsPhotoPicker(api,extension),
+            NativeGalleryActivity.supportsSystemPhotoPicker());
+        if(!NativeGalleryActivity.supportsSystemPhotoPicker())return;
         Intent many=NativeGalleryActivity.newSystemPickerIntent(5);
         assertEquals(MediaStore.ACTION_PICK_IMAGES,many.getAction());
         assertEquals("image/*",many.getType());
@@ -395,7 +419,7 @@ public class OrderedAttachmentInstrumentedTest {
         Instrumentation inst=InstrumentationRegistry.getInstrumentation();
         Context ctx=inst.getTargetContext();
         ContentResolver cr=ctx.getContentResolver();
-        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),Manifest.permission.READ_MEDIA_IMAGES);
+        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),(android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE));
         ArrayList<Uri> sources=new ArrayList<>();
         ArrayList<String> names=new ArrayList<>();
         Activity first=null,restored=null;
@@ -494,7 +518,7 @@ public class OrderedAttachmentInstrumentedTest {
     @Test public void fallbackPickerPendingStateSurvivesActivityRecreation() throws Exception {
         Instrumentation inst=InstrumentationRegistry.getInstrumentation();
         Context context=inst.getTargetContext();
-        inst.getUiAutomation().grantRuntimePermission(context.getPackageName(),Manifest.permission.READ_MEDIA_IMAGES);
+        inst.getUiAutomation().grantRuntimePermission(context.getPackageName(),(android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE));
         Intent start=new Intent(context,NativeGalleryActivity.class);
         start.setAction(Intent.ACTION_GET_CONTENT);
         start.setType("image/png");
@@ -548,7 +572,7 @@ public class OrderedAttachmentInstrumentedTest {
         Instrumentation inst=InstrumentationRegistry.getInstrumentation();
         Context ctx=inst.getTargetContext();
         ContentResolver cr=ctx.getContentResolver();
-        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),Manifest.permission.READ_MEDIA_IMAGES);
+        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),(android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE));
         ArrayList<Uri> media=new ArrayList<>();
         ArrayList<byte[]> contents=new ArrayList<>();
         ArrayList<String> names=new ArrayList<>();
@@ -655,7 +679,7 @@ public class OrderedAttachmentInstrumentedTest {
         if(android.os.Build.VERSION.SDK_INT<35)return;
         Instrumentation inst=InstrumentationRegistry.getInstrumentation();
         Context ctx=inst.getTargetContext();
-        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),Manifest.permission.READ_MEDIA_IMAGES);
+        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),(android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE));
         Intent launch=new Intent(ctx,NativeGalleryActivity.class);
         launch.setAction(Intent.ACTION_GET_CONTENT);
         launch.setType("image/png");
