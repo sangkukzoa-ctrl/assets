@@ -238,6 +238,134 @@ public class OrderedAttachmentInstrumentedTest {
             for(Uri uri:inserted)cr.delete(uri,null,null);
         }
     }
+
+    /**
+     * Native GET_CONTENT round trip at the default 100-photo limit.
+     * GridView item callbacks exercise actual selection logic, rather than injecting
+     * a fabricated LinkedHashMap or ClipData. The debug host is same UID; the
+     * smaller independent APK tests separately establish cross-UID grants.
+     */
+    @Test public void hundredOriginalsKeepOrderAtLimitAndAfterReselection() throws Exception {
+        final int total=102,limit=100;
+        Instrumentation inst=InstrumentationRegistry.getInstrumentation();
+        Context ctx=inst.getTargetContext();
+        ContentResolver cr=ctx.getContentResolver();
+        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),Manifest.permission.READ_MEDIA_IMAGES);
+        ArrayList<Uri> sources=new ArrayList<>();
+        ArrayList<byte[]> originals=new ArrayList<>();
+        ArrayList<String> names=new ArrayList<>();
+        Activity gallery=null;
+        long stamp=System.nanoTime();
+        try {
+            for(int i=0;i<total;i++){
+                Bitmap bitmap=Bitmap.createBitmap(9,9,Bitmap.Config.ARGB_8888);
+                bitmap.eraseColor(0xff123400+i);
+                ByteArrayOutputStream bytes=new ByteArrayOutputStream();
+                assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG,100,bytes));bitmap.recycle();
+                byte[] original=bytes.toByteArray();
+                String name="imageorder_batch_"+stamp+"_"+i+".png";
+                ContentValues values=new ContentValues();
+                values.put(MediaStore.Images.Media.DISPLAY_NAME,name);
+                values.put(MediaStore.Images.Media.MIME_TYPE,"image/png");
+                values.put(MediaStore.Images.Media.RELATIVE_PATH,
+                    Environment.DIRECTORY_PICTURES+"/ImageOrderBatchCI");
+                values.put(MediaStore.Images.Media.IS_PENDING,1);
+                Uri uri=cr.insert(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),values);
+                assertNotNull(uri);sources.add(uri);originals.add(original);names.add(name);
+                try(OutputStream out=cr.openOutputStream(uri,"w")){
+                    assertNotNull(out);out.write(original);
+                }
+                ContentValues published=new ContentValues();
+                published.put(MediaStore.Images.Media.IS_PENDING,0);
+                assertEquals(1,cr.update(uri,published,null,null));
+            }
+            PickerHostActivity.receivedCode=Activity.RESULT_CANCELED;
+            PickerHostActivity.receivedIntent=null;
+            PickerHostActivity.completed=new CountDownLatch(1);
+            Instrumentation.ActivityMonitor monitor=inst.addMonitor(NativeGalleryActivity.class.getName(),null,false);
+            Intent host=new Intent(ctx,PickerHostActivity.class);
+            host.putExtra("testNativeGallery",true);
+            host.putExtra("testRequestedMime","image/png");
+            host.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            inst.startActivitySync(host);
+            gallery=inst.waitForMonitorWithTimeout(monitor,20000);
+            assertNotNull("Direct native gallery must open",gallery);
+            final Activity target=gallery;
+            AtomicReference<int[]> found=new AtomicReference<>();
+            for(int retry=0;retry<100 && found.get()==null;retry++){
+                inst.runOnMainSync(()->{
+                    try {
+                        ((TextView)getField(target,"photosTab")).performClick();
+                        ArrayList<?> displayed=(ArrayList<?>)getField(target,"displayed");
+                        int[] positions=new int[total];Arrays.fill(positions,-1);
+                        int matches=0;
+                        for(int p=0;p<displayed.size();p++){
+                            int idx=names.indexOf((String)getField(displayed.get(p),"name"));
+                            if(idx>=0 && positions[idx]<0){positions[idx]=p;matches++;}
+                        }
+                        if(matches==total)found.set(positions);
+                    }catch(Exception ex){throw new RuntimeException(ex);}
+                });
+                if(found.get()==null)Thread.sleep(200);
+            }
+            int[] positions=found.get();assertNotNull("All 102 original fixtures must load",positions);
+            // A non-monotonic permutation of the first hundred sources: gcd(37,100)=1.
+            ArrayList<Integer> expected=new ArrayList<>();
+            for(int i=0;i<limit;i++)expected.add((i*37)%limit);
+            for(int i=0;i<limit;i++){
+                final int pos=positions[expected.get(i)];
+                inst.runOnMainSync(()->{
+                    try{((GridView)getField(target,"grid")).performItemClick(null,pos,pos);}
+                    catch(Exception ex){throw new RuntimeException(ex);}
+                });
+            }
+            final int removed=expected.remove(31);
+            expected.add(100);
+            inst.runOnMainSync(()->{
+                try {
+                    GridView grid=(GridView)getField(target,"grid");
+                    TextView confirm=(TextView)getField(target,"confirm");
+                    assertTrue("Default limit reached",confirm.getText().toString().endsWith(" 100"));
+                    grid.performItemClick(null,positions[100],positions[100]);
+                    assertTrue("101st unique selection must be rejected",confirm.getText().toString().endsWith(" 100"));
+                    grid.performItemClick(null,positions[removed],positions[removed]);
+                    assertTrue("Deselect frees one slot",confirm.getText().toString().endsWith(" 99"));
+                    grid.performItemClick(null,positions[100],positions[100]);
+                    assertTrue("New photo fills the free slot",confirm.getText().toString().endsWith(" 100"));
+                    grid.performItemClick(null,positions[101],positions[101]);
+                    assertTrue("Another overflow must be rejected",confirm.getText().toString().endsWith(" 100"));
+                    confirm.performClick();
+                }catch(Exception ex){throw new RuntimeException(ex);}
+            });
+            assertTrue("Requester must receive full result",PickerHostActivity.completed.await(30,TimeUnit.SECONDS));
+            assertEquals(Activity.RESULT_OK,PickerHostActivity.receivedCode);
+            Intent result=PickerHostActivity.receivedIntent;
+            assertNotNull(result);
+            assertEquals("image/png",result.getType());
+            assertTrue((result.getFlags()&Intent.FLAG_GRANT_READ_URI_PERMISSION)!=0);
+            assertEquals(0,result.getFlags()&Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            ClipData clip=result.getClipData();assertNotNull(clip);assertEquals(limit,clip.getItemCount());
+            java.util.HashSet<Long> seen=new java.util.HashSet<>();
+            for(int i=0;i<limit;i++){
+                int source=expected.get(i);
+                Uri uri=clip.getItemAt(i).getUri();
+                long id=ContentUris.parseId(uri);
+                assertEquals("Original sequence at index "+i,ContentUris.parseId(sources.get(source)),id);
+                assertTrue("No duplicate original in result",seen.add(id));
+                assertEquals("image/png",cr.getType(uri));
+                assertArrayEquals("Untouched original at index "+i,originals.get(source),readAll(cr,uri));
+                try(Cursor c=cr.query(uri,new String[]{OpenableColumns.DISPLAY_NAME},null,null,null)){
+                    assertNotNull(c);assertTrue(c.moveToFirst());assertEquals(names.get(source),c.getString(0));
+                }
+            }
+        }finally{
+            if(gallery!=null && !gallery.isFinishing()){
+                Activity end=gallery;inst.runOnMainSync(end::finish);
+            }
+            for(Uri uri:sources)cr.delete(uri,null,null);
+        }
+    }
+
     private static Object getField(Object target,String name) throws Exception {
         Field field=target.getClass().getDeclaredField(name);
         field.setAccessible(true);return field.get(target);
