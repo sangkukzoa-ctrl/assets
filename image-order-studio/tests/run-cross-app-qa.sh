@@ -20,6 +20,9 @@ if [ "$api" -ge 33 ]; then
   adb shell pm grant com.twobornot.imageorder android.permission.READ_MEDIA_IMAGES
 else
   adb shell pm grant com.twobornot.imageorder android.permission.READ_EXTERNAL_STORAGE
+  if [ "$api" -le 28 ]; then
+    adb shell pm grant com.twobornot.imageorder android.permission.WRITE_EXTERNAL_STORAGE
+  fi
 fi
 bash "$script_dir/gradle-with-retry.sh" external -p "$project" --no-daemon :externalcaller:connectedDebugAndroidTest || {
   collect_diagnostics

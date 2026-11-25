@@ -41,10 +41,12 @@ import static org.junit.Assert.*;
 /** Android-device contract test: real MediaStore streams, original-byte hashes, selection ordering, intent resolution. */
 @RunWith(AndroidJUnit4.class)
 public class OrderedAttachmentInstrumentedTest {
+    @org.junit.Before public void prepareMediaPermissions() throws Exception {
+        TestMediaPermissions.grant(InstrumentationRegistry.getInstrumentation());
+    }
     @Test public void orderedOriginalUrisRetainEveryByteAndImageMime() throws Exception {
         Context ctx=InstrumentationRegistry.getInstrumentation().getTargetContext();
         ContentResolver cr=ctx.getContentResolver();
-        Uri media=MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
         ArrayList<Uri> inserted=new ArrayList<>();
         ArrayList<byte[]> expected=new ArrayList<>();
         try {
@@ -54,16 +56,8 @@ public class OrderedAttachmentInstrumentedTest {
                 ByteArrayOutputStream bytes=new ByteArrayOutputStream();
                 assertTrue(b.compress(Bitmap.CompressFormat.PNG,100,bytes)); b.recycle();
                 byte[] original=bytes.toByteArray();
-                ContentValues v=new ContentValues();
-                v.put(MediaStore.Images.Media.DISPLAY_NAME,"imageorder_ci_"+System.nanoTime()+"_"+i+".png");
-                v.put(MediaStore.Images.Media.MIME_TYPE,"image/png");
-                v.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/ImageOrderCI");
-                v.put(MediaStore.Images.Media.IS_PENDING,1);
-                Uri uri=cr.insert(media,v);
-                assertNotNull(uri);inserted.add(uri);expected.add(original);
-                try(OutputStream out=cr.openOutputStream(uri,"w")){assertNotNull(out);out.write(original);}
-                ContentValues done=new ContentValues();done.put(MediaStore.Images.Media.IS_PENDING,0);
-                assertEquals(1,cr.update(uri,done,null,null));
+                Uri uri=TestMediaFixture.insert(ctx,"imageorder_ci_"+System.nanoTime()+"_"+i+".png","image/png",Environment.DIRECTORY_PICTURES+"/ImageOrderCI",original);
+                inserted.add(uri);expected.add(original);
             }
             ArrayList<Uri> chosen=new ArrayList<>(Arrays.asList(inserted.get(2),inserted.get(0),inserted.get(1)));
             Intent result=MediaIntentResult.forSelection(cr,chosen);
@@ -93,23 +87,14 @@ public class OrderedAttachmentInstrumentedTest {
         Context ctx=InstrumentationRegistry.getInstrumentation().getTargetContext();
         ContentResolver cr=ctx.getContentResolver();
         String authority=ctx.getPackageName()+".documents";
-        Uri mediaRoot=MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
         Bitmap bitmap=Bitmap.createBitmap(11,9,Bitmap.Config.ARGB_8888);
         bitmap.eraseColor(0xff335577);
         ByteArrayOutputStream buffer=new ByteArrayOutputStream();
         assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG,100,buffer));bitmap.recycle();
         byte[] original=buffer.toByteArray();
         String name="saf_original_"+System.nanoTime()+".png";
-        ContentValues cv=new ContentValues();
-        cv.put(MediaStore.Images.Media.DISPLAY_NAME,name);
-        cv.put(MediaStore.Images.Media.MIME_TYPE,"image/png");
-        cv.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/ImageOrderCI");
-        cv.put(MediaStore.Images.Media.IS_PENDING,1);
-        Uri added=cr.insert(mediaRoot,cv);assertNotNull(added);
+        Uri added=TestMediaFixture.insert(ctx,name,"image/png",Environment.DIRECTORY_PICTURES+"/ImageOrderCI",original);
         try {
-            try(OutputStream out=cr.openOutputStream(added,"w")){assertNotNull(out);out.write(original);}
-            ContentValues done=new ContentValues();done.put(MediaStore.Images.Media.IS_PENDING,0);
-            assertEquals(1,cr.update(added,done,null,null));
             try(Cursor roots=cr.query(DocumentsContract.buildRootsUri(authority),null,null,null,null)) {
                 assertNotNull(roots);assertTrue(roots.moveToFirst());
                 assertEquals("images",roots.getString(roots.getColumnIndexOrThrow(DocumentsContract.Root.COLUMN_ROOT_ID)));
@@ -154,7 +139,6 @@ public class OrderedAttachmentInstrumentedTest {
         Instrumentation inst=InstrumentationRegistry.getInstrumentation();
         Context ctx=inst.getTargetContext();
         ContentResolver cr=ctx.getContentResolver();
-        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),(android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE));
         ArrayList<Uri> inserted=new ArrayList<>();
         ArrayList<byte[]> expected=new ArrayList<>();
         ArrayList<String> names=new ArrayList<>();
@@ -167,16 +151,8 @@ public class OrderedAttachmentInstrumentedTest {
                 assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG,100,out));bitmap.recycle();
                 byte[] data=out.toByteArray();
                 String name="e2e_picker_"+System.nanoTime()+"_"+i+".png";
-                ContentValues values=new ContentValues();
-                values.put(MediaStore.Images.Media.DISPLAY_NAME,name);
-                values.put(MediaStore.Images.Media.MIME_TYPE,"image/png");
-                values.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/ImageOrderCI");
-                values.put(MediaStore.Images.Media.IS_PENDING,1);
-                Uri uri=cr.insert(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),values);
-                assertNotNull(uri);inserted.add(uri);expected.add(data);names.add(name);
-                try(OutputStream write=cr.openOutputStream(uri,"w")){assertNotNull(write);write.write(data);}
-                ContentValues published=new ContentValues();published.put(MediaStore.Images.Media.IS_PENDING,0);
-                assertEquals(1,cr.update(uri,published,null,null));
+                Uri uri=TestMediaFixture.insert(ctx,name,"image/png",Environment.DIRECTORY_PICTURES+"/ImageOrderCI",data);
+                inserted.add(uri);expected.add(data);names.add(name);
             }
             PickerHostActivity.receivedCode=Activity.RESULT_CANCELED;
             PickerHostActivity.receivedIntent=null;
@@ -250,7 +226,6 @@ public class OrderedAttachmentInstrumentedTest {
         Instrumentation inst=InstrumentationRegistry.getInstrumentation();
         Context ctx=inst.getTargetContext();
         ContentResolver cr=ctx.getContentResolver();
-        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),(android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE));
         ArrayList<Uri> sources=new ArrayList<>();
         ArrayList<byte[]> originals=new ArrayList<>();
         ArrayList<String> names=new ArrayList<>();
@@ -264,20 +239,8 @@ public class OrderedAttachmentInstrumentedTest {
                 assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG,100,bytes));bitmap.recycle();
                 byte[] original=bytes.toByteArray();
                 String name="imageorder_batch_"+stamp+"_"+i+".png";
-                ContentValues values=new ContentValues();
-                values.put(MediaStore.Images.Media.DISPLAY_NAME,name);
-                values.put(MediaStore.Images.Media.MIME_TYPE,"image/png");
-                values.put(MediaStore.Images.Media.RELATIVE_PATH,
-                    Environment.DIRECTORY_PICTURES+"/ImageOrderBatchCI");
-                values.put(MediaStore.Images.Media.IS_PENDING,1);
-                Uri uri=cr.insert(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),values);
-                assertNotNull(uri);sources.add(uri);originals.add(original);names.add(name);
-                try(OutputStream out=cr.openOutputStream(uri,"w")){
-                    assertNotNull(out);out.write(original);
-                }
-                ContentValues published=new ContentValues();
-                published.put(MediaStore.Images.Media.IS_PENDING,0);
-                assertEquals(1,cr.update(uri,published,null,null));
+                Uri uri=TestMediaFixture.insert(ctx,name,"image/png",Environment.DIRECTORY_PICTURES+"/ImageOrderBatchCI",original);
+                sources.add(uri);originals.add(original);names.add(name);
             }
             PickerHostActivity.receivedCode=Activity.RESULT_CANCELED;
             PickerHostActivity.receivedIntent=null;
@@ -419,7 +382,6 @@ public class OrderedAttachmentInstrumentedTest {
         Instrumentation inst=InstrumentationRegistry.getInstrumentation();
         Context ctx=inst.getTargetContext();
         ContentResolver cr=ctx.getContentResolver();
-        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),(android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE));
         ArrayList<Uri> sources=new ArrayList<>();
         ArrayList<String> names=new ArrayList<>();
         Activity first=null,restored=null;
@@ -430,18 +392,8 @@ public class OrderedAttachmentInstrumentedTest {
                 ByteArrayOutputStream bytes=new ByteArrayOutputStream();
                 assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG,100,bytes));bitmap.recycle();
                 String name="imageorder_recreate_"+System.nanoTime()+"_"+i+".png";
-                ContentValues cv=new ContentValues();
-                cv.put(MediaStore.Images.Media.DISPLAY_NAME,name);
-                cv.put(MediaStore.Images.Media.MIME_TYPE,"image/png");
-                cv.put(MediaStore.Images.Media.RELATIVE_PATH,Environment.DIRECTORY_PICTURES+"/ImageOrderCI");
-                cv.put(MediaStore.Images.Media.IS_PENDING,1);
-                Uri uri=cr.insert(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),cv);
-                assertNotNull(uri);sources.add(uri);names.add(name);
-                try(OutputStream stream=cr.openOutputStream(uri,"w")){
-                    assertNotNull(stream);stream.write(bytes.toByteArray());
-                }
-                ContentValues ready=new ContentValues();ready.put(MediaStore.Images.Media.IS_PENDING,0);
-                assertEquals(1,cr.update(uri,ready,null,null));
+                Uri uri=TestMediaFixture.insert(ctx,name,"image/png",Environment.DIRECTORY_PICTURES+"/ImageOrderCI",bytes.toByteArray());
+                sources.add(uri);names.add(name);
             }
             Intent open=new Intent(ctx,NativeGalleryActivity.class);
             open.setAction(Intent.ACTION_GET_CONTENT);
@@ -518,7 +470,6 @@ public class OrderedAttachmentInstrumentedTest {
     @Test public void fallbackPickerPendingStateSurvivesActivityRecreation() throws Exception {
         Instrumentation inst=InstrumentationRegistry.getInstrumentation();
         Context context=inst.getTargetContext();
-        inst.getUiAutomation().grantRuntimePermission(context.getPackageName(),(android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE));
         Intent start=new Intent(context,NativeGalleryActivity.class);
         start.setAction(Intent.ACTION_GET_CONTENT);
         start.setType("image/png");
@@ -572,7 +523,6 @@ public class OrderedAttachmentInstrumentedTest {
         Instrumentation inst=InstrumentationRegistry.getInstrumentation();
         Context ctx=inst.getTargetContext();
         ContentResolver cr=ctx.getContentResolver();
-        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),(android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE));
         ArrayList<Uri> media=new ArrayList<>();
         ArrayList<byte[]> contents=new ArrayList<>();
         ArrayList<String> names=new ArrayList<>();
@@ -589,20 +539,8 @@ public class OrderedAttachmentInstrumentedTest {
                 ByteArrayOutputStream bytes=new ByteArrayOutputStream();
                 assertTrue(bitmap.compress(formats[i],90,bytes));bitmap.recycle();
                 String name="imageorder_fallback_"+System.nanoTime()+"_"+i+"."+extensions[i];
-                ContentValues values=new ContentValues();
-                values.put(MediaStore.Images.Media.DISPLAY_NAME,name);
-                values.put(MediaStore.Images.Media.MIME_TYPE,mimes[i]);
-                values.put(MediaStore.Images.Media.RELATIVE_PATH,
-                    Environment.DIRECTORY_PICTURES+"/ImageOrderCI");
-                values.put(MediaStore.Images.Media.IS_PENDING,1);
-                Uri uri=cr.insert(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),values);
-                assertNotNull(uri);
+                Uri uri=TestMediaFixture.insert(ctx,name,mimes[i],Environment.DIRECTORY_PICTURES+"/ImageOrderCI",bytes.toByteArray());
                 media.add(uri);contents.add(bytes.toByteArray());names.add(name);
-                try(OutputStream out=cr.openOutputStream(uri,"w")){
-                    assertNotNull(out);out.write(bytes.toByteArray());
-                }
-                ContentValues publish=new ContentValues();publish.put(MediaStore.Images.Media.IS_PENDING,0);
-                assertEquals(1,cr.update(uri,publish,null,null));
             }
             PickerHostActivity.receivedCode=Activity.RESULT_CANCELED;
             PickerHostActivity.receivedIntent=null;
@@ -679,7 +617,6 @@ public class OrderedAttachmentInstrumentedTest {
         if(android.os.Build.VERSION.SDK_INT<35)return;
         Instrumentation inst=InstrumentationRegistry.getInstrumentation();
         Context ctx=inst.getTargetContext();
-        inst.getUiAutomation().grantRuntimePermission(ctx.getPackageName(),(android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE));
         Intent launch=new Intent(ctx,NativeGalleryActivity.class);
         launch.setAction(Intent.ACTION_GET_CONTENT);
         launch.setType("image/png");

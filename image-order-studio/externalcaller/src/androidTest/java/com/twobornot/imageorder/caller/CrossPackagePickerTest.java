@@ -91,7 +91,7 @@ public final class CrossPackagePickerTest {
             pm.checkPermission((android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE),context.getPackageName()));
         assertNotEquals("Caller and picker must have different UIDs",
             pm.getApplicationInfo(TARGET,0).uid,pm.getApplicationInfo(context.getPackageName(),0).uid);
-        instrumentation.getUiAutomation().grantRuntimePermission(TARGET,(android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE));
+        TestMediaPermissions.grant(instrumentation);
         AttachmentCallerActivity.reset();
         UiDevice device=UiDevice.getInstance(instrumentation);
         Intent start=new Intent(context,AttachmentCallerActivity.class);

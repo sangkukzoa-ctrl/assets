@@ -41,7 +41,7 @@ public final class SafExternalCallerTest {
             pm.getApplicationInfo(context.getPackageName(),0).uid);
         assertEquals(PackageManager.PERMISSION_DENIED,pm.checkPermission(
             (android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE),context.getPackageName()));
-        inst.getUiAutomation().grantRuntimePermission(TARGET,(android.os.Build.VERSION.SDK_INT>=33?Manifest.permission.READ_MEDIA_IMAGES:Manifest.permission.READ_EXTERNAL_STORAGE));
+        TestMediaPermissions.grant(inst);
         UiDevice device=UiDevice.getInstance(inst);
         AttachmentCallerActivity.reset();
         Intent launch=new Intent(context,AttachmentCallerActivity.class);

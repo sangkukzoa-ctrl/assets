@@ -180,3 +180,9 @@
 - NativeGallery의 시스템 Photo Picker fallback을 기존 PickerDecision과 통일하여 R SDK extension 2 이상에서도 지원, 정렬 보장은 extension 12/API35 이상. 플랫폼 선택창 실행 실패 시 자기 Activity를 제외한 legacy chooser로 전환.
 - legacy chooser의 단일/다중 계약 및 자기 자신 제외 계측 검사 추가. Android 10(API29), 11(API30), 12L(API32)과 기존 13~16 전체 회귀 매트릭스 실행 대상으로 확대. API26~28 테스트 fixture는 별도 보강 필요.
 - 신규 검증 결과는 다음 실행에서 확인. 공개판 변경 없음.
+
+## 2026-11-25 — Android 10~16 통과 / Android 8~9와 12.0 검증 확대
+- 69062295 개발 CI 45596162686 및 독립 외부 UID E2E 45596162629: API 29/30/32/33/34/35/36 전부 성공. 구형 WebView 요청자의 MODE_OPEN_MULTIPLE을 EXTRA_ALLOW_MULTIPLE에 명시한 수정 포함. 외부 브라우저 자동 교체를 의미하지 않음.
+- API26~28의 테스트 원본 생성은 실제 공개 Pictures 파일과 legacy MediaStore DATA 등록을 사용하고 API29+의 scoped storage 경로는 유지. 내부/외부 계측 테스트는 동일 원본 fixture helper 사용.
+- API26~27에서 UiAutomation.grantRuntimePermission 대신 테스트 셸 pm grant 사용. API26~28의 쓰기 권한은 테스트 대상 APK에만 부여. 독립 호출자는 기존처럼 저장소 권한 없음.
+- QA 매트릭스 API26~36 전수 확대. 앱 본체/공개 APK/서명/기존 원본 검증 조건 변경 없음. 신규 CI 결과는 미확정.

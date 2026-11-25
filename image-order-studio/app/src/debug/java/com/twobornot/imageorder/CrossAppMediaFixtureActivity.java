@@ -42,7 +42,6 @@ public final class CrossAppMediaFixtureActivity extends Activity {
             int count=Math.max(1,Math.min(8,getIntent().getIntExtra("test_count",3)));
             boolean mixed=getIntent().getBooleanExtra("test_mixed",false);
             boolean duplicateNames=getIntent().getBooleanExtra("test_duplicate_names",false);
-            Uri collection=MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
             long runId=System.nanoTime();
             for(int i=0;i<count;i++){
                 Bitmap.CompressFormat format=Bitmap.CompressFormat.PNG;
@@ -56,21 +55,8 @@ public final class CrossAppMediaFixtureActivity extends Activity {
                 if(!image.compress(format,100,data))throw new IllegalStateException("Image fixture "+mime);
                 image.recycle();byte[] bytes=data.toByteArray();
                 String name="imageorder_crossuid_"+runId+"_"+(duplicateNames?"same":i)+"."+extension;
-                ContentValues meta=new ContentValues();
-                meta.put(MediaStore.Images.Media.DISPLAY_NAME,name);
-                meta.put(MediaStore.Images.Media.MIME_TYPE,mime);
-                // Same file name in different albums, without MediaStore auto-renaming collisions.
-                meta.put(MediaStore.Images.Media.RELATIVE_PATH,duplicateNames?PATH+"/IO_"+runId+"_"+i:PATH);
-                meta.put(MediaStore.Images.Media.IS_PENDING,1);
-                Uri uri=getContentResolver().insert(collection,meta);
-                if(uri==null)throw new IllegalStateException("MediaStore insert failed");
+                Uri uri=TestMediaFixture.insert(this,name,mime,duplicateNames?PATH+"/IO_"+runId+"_"+i:PATH,bytes);
                 uris.add(uri.toString()); names.add(name);mimes.add(mime); hashes.add(hex(MessageDigest.getInstance("SHA-256").digest(bytes)));
-                try(OutputStream os=getContentResolver().openOutputStream(uri,"w")){
-                    if(os==null)throw new IllegalStateException("MediaStore stream missing");
-                    os.write(bytes);
-                }
-                ContentValues ready=new ContentValues();ready.put(MediaStore.Images.Media.IS_PENDING,0);
-                if(getContentResolver().update(uri,ready,null,null)!=1)throw new IllegalStateException("MediaStore publish failed");
             }
             Intent result=new Intent();
             result.putExtra(EXTRA_NAMES,names.toArray(new String[0]));

@@ -107,3 +107,15 @@ assert 'hundredOriginalsKeepOrderAtLimitAndAfterReselection' in (p/'app/src/andr
 print('v0.5.5 original-byte SAF and independent cross-UID grant coverage: PASS')
 
 assert 'duplicateNamesAcrossAlbumsAndReselectionPreserveOriginalIdentity' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()
+
+# Legacy fixture and permission helpers must remain test-only.
+fixture=(p/'app/src/debug/java/com/twobornot/imageorder/TestMediaFixture.java').read_text()
+assert 'MediaStore.Images.Media.DATA' in fixture and 'Build.VERSION.SDK_INT>=29' in fixture
+assert not (src/'TestMediaFixture.java').exists()
+assert not (src/'TestMediaPermissions.java').exists()
+for tree in (p/'app/src/androidTest',external/'src/androidTest'):
+    grants=next(tree.rglob('TestMediaPermissions.java')).read_text()
+    assert 'Build.VERSION.SDK_INT>=28' in grants and 'WRITE_EXTERNAL_STORAGE' in grants
+    assert 'com.twobornot.imageorder' in grants and 'pm grant' in grants
+assert 'TestMediaFixture.insert' in (p/'app/src/androidTest/java/com/twobornot/imageorder/OrderedAttachmentInstrumentedTest.java').read_text()
+assert 'TestMediaFixture.insert' in (p/'app/src/debug/java/com/twobornot/imageorder/CrossAppMediaFixtureActivity.java').read_text()
