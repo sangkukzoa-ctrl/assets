@@ -89,7 +89,30 @@ public final class SafExternalCallerTest {
                 }
                 assertNotNull("Image Order provider root must expose All photos",all);
                 all.click();
-                photo=device.wait(Until.findObject(By.text(name)),20000);
+                device.waitForIdle(5000);
+                photo=device.wait(Until.findObject(By.text(name)),3000);
+                if(photo==null){
+                    // DocumentsUI may present image-only grid tiles without visible
+                    // text labels. Use its actual List view control, not guessed taps.
+                    UiObject2 list=device.findObject(By.res(java.util.regex.Pattern.compile(
+                        ".*:id/(option_menu_list|menu_list)")));
+                    if(list==null)list=device.findObject(By.desc("List view"));
+                    if(list==null)list=device.findObject(By.text("List view"));
+                    if(list!=null){
+                        list.click();
+                        device.waitForIdle(5000);
+                    }
+                    photo=device.wait(Until.findObject(By.text(name)),8000);
+                }
+                if(photo==null){
+                    // In list mode a fixture may be outside the visible viewport.
+                    for(int scroll=0;scroll<5 && photo==null;scroll++){
+                        device.swipe(device.getDisplayWidth()/2,device.getDisplayHeight()*3/4,
+                            device.getDisplayWidth()/2,device.getDisplayHeight()/3,24);
+                        device.waitForIdle(3000);
+                        photo=device.findObject(By.text(name));
+                    }
+                }
             }
             assertNotNull("DocumentsUI must display the real fixture filename: "+name,photo);
             photo.click();
@@ -132,8 +155,24 @@ public final class SafExternalCallerTest {
             }
             assertTrue("OPEN_DOCUMENT must permit persistent read grants",granted);
         }catch(Throwable failure){
-            try {device.takeScreenshot(new java.io.File(context.getExternalFilesDir(null),"saf-failure.png"));}catch(Exception ignored){}
-            try {device.dumpWindowHierarchy(new java.io.File(context.getExternalFilesDir(null),"saf-hierarchy.xml"));}catch(Exception ignored){}
+            // Capture into Download via shell so the existing CI diagnostic pull
+            // retains evidence even when the test APK is automatically uninstalled.
+            try {
+                java.io.ByteArrayOutputStream hierarchy=new java.io.ByteArrayOutputStream();
+                device.dumpWindowHierarchy(hierarchy);
+                android.util.Log.e("ImageOrderSAF","DocumentsUI hierarchy: "+
+                    hierarchy.toString("UTF-8"));
+            }catch(Exception ignored){}
+            try(ParcelFileDescriptor shell=inst.getUiAutomation().executeShellCommand(
+                    "screencap -p /sdcard/Download/imageorder-saf-failure.png");
+                InputStream out=new ParcelFileDescriptor.AutoCloseInputStream(shell)){
+                byte[] buf=new byte[256];while(out.read(buf)!=-1){}
+            }catch(Exception ignored){}
+            try(ParcelFileDescriptor shell=inst.getUiAutomation().executeShellCommand(
+                    "uiautomator dump /sdcard/Download/imageorder-saf-hierarchy.xml");
+                InputStream out=new ParcelFileDescriptor.AutoCloseInputStream(shell)){
+                byte[] buf=new byte[256];while(out.read(buf)!=-1){}
+            }catch(Exception ignored){}
             throw failure;
         }finally{
             if(persisted!=null)cr.releasePersistableUriPermission(persisted,Intent.FLAG_GRANT_READ_URI_PERMISSION);

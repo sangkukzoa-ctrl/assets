@@ -157,3 +157,8 @@
 - 별도 UID의 APK에서 실제 ACTION_OPEN_DOCUMENT로 Android DocumentsUI를 열고 Image Order 공급자의 원본 한 장을 선택하는 SafExternalCallerTest 추가.
 - 권한 없는 사전/미선택 URI 접근 거부, 선택한 URI의 이름/MIME/크기/SHA-256, 쓰기 거부, 지속 읽기 권한 확인을 목표로 한다.
 - SAF의 다중 선택 순서는 DocumentsUI가 제어하므로 이 시험은 순서 보장을 주장하지 않는다. 새 테스트의 CI 결과는 미확정.
+
+## 2026-11-25 — SAF DocumentsUI 파일 탐색 회귀 수정
+- 3a1fba35 개발 CI 45411013086 성공. Android 13~16 QA 45411013244에서 외부 테스트 각각 9/10 통과, 신규 SAF 테스트만 WebP 파일명 탐색 단계 실패. 기존 원본 반환 기능은 정상.
+- DocumentsUI 그리드의 파일명 표시 차이 및 목록 스크롤에 대응해 시스템 List view 메뉴와 정확한 파일명 탐색을 추가. 실제 문서 URI와 SHA-256 등의 기존 검증 조건 유지.
+- 실패 화면/계층을 Download에 보존하고 계층 XML을 logcat으로 기록하여 다음 진단 가능하도록 개선. 이전 아티팩트의 내부 화면 자료는 현재 환경에서 직접 확인하지 못했으므로 그리드가 실패의 확정 원인이라고 단정하지 않음.
