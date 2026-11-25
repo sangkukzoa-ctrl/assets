@@ -107,12 +107,23 @@ public final class WebUploadCallerActivity extends Activity {
                     WebChromeClient.FileChooserParams params){
                 chooser=callback;
                 try{
-                    // Start the EXACT intent generated for this HTML file input.
-                    // The package restriction only isolates the test's target picker.
+                    // Preserve WebView's generated action, MIME and categories.
+                    // Older WebView versions omit EXTRA_ALLOW_MULTIPLE even for
+                    // MODE_OPEN_MULTIPLE. The host must forward the HTML mode.
                     Intent request=params.createIntent();
+                    boolean originalMultiple=request.getBooleanExtra(Intent.EXTRA_ALLOW_MULTIPLE,false);
+                    int mode=params.getMode();
+                    if(mode==WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE){
+                        request.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);
+                    }else if(mode==WebChromeClient.FileChooserParams.MODE_OPEN){
+                        request.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,false);
+                    }
+                    // The package restriction only isolates the test's target picker.
                     request.setPackage(TARGET);
                     Log.i("ImageOrderWeb","HTML chooser action="+request.getAction()
-                        +" type="+request.getType()+" mode="+params.getMode());
+                        +" type="+request.getType()+" mode="+mode
+                        +" generatedMultiple="+originalMultiple
+                        +" forwardedMultiple="+request.getBooleanExtra(Intent.EXTRA_ALLOW_MULTIPLE,false));
                     startActivityForResult(request,PICK);
                     return true;
                 }catch(Exception ex){
