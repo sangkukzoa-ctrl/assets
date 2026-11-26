@@ -1,0 +1,46 @@
+name: Just PDF to Image - export Chat LLM handoff package
+on:
+  push:
+    branches: ['pdfimage-handoff/2026-11-26']
+    paths:
+      - '.github/workflows/pdfimage-handoff-export.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive source and handoff docs (no secrets / no build)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s project/app/build.gradle
+          test -s HANDOFF/STATE.json
+          test -s HANDOFF/INITIAL_PROMPT_KO.md
+          mkdir -p /tmp/jpti-export
+          zip -q -r /tmp/jpti-export/JustPDFtoImage_ChatLLM_Handoff_20261126.zip project HANDOFF \
+            -x 'HANDOFF/JustPDFtoImage_ChatLLM_Handoff_20261126.zip' 'HANDOFF/HANDOFF_BUNDLE_SHA256.txt'
+          unzip -t /tmp/jpti-export/JustPDFtoImage_ChatLLM_Handoff_20261126.zip | tail -1
+          cp /tmp/jpti-export/JustPDFtoImage_ChatLLM_Handoff_20261126.zip HANDOFF/
+          (cd HANDOFF && sha256sum JustPDFtoImage_ChatLLM_Handoff_20261126.zip > HANDOFF_BUNDLE_SHA256.txt)
+      - name: Publish bundle to isolated handoff branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add HANDOFF/JustPDFtoImage_ChatLLM_Handoff_20261126.zip HANDOFF/HANDOFF_BUNDLE_SHA256.txt
+          if git diff --cached --quiet; then
+            echo 'No change.'
+          else
+            git commit -m 'Handoff: attach source plus docs single-file transfer ZIP'
+            git push origin HEAD:pdfimage-handoff/2026-11-26
+          fi
+      - name: Upload portability copy as short-term Actions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JustPDFtoImage-ChatLLM-Complete-Handoff-20261126
+          path: HANDOFF/JustPDFtoImage_ChatLLM_Handoff_20261126.zip
+          if-no-files-found: error
