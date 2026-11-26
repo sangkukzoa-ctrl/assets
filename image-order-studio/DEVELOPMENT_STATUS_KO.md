@@ -251,3 +251,8 @@
 - 사용자 직접 설치 후 검수 보고: ChatGPT 앱 무반응, Chat LLM 앱 무반응, Chrome의 Claude 웹 무반응(Image Order 호출 기준). 실사용 합격으로 간주하지 않는다. 기존 API26~36 및 Chrome113/124의 합격 기록은 해당 테스트 경로에만 유효.
 - 제품 manifest의 GET_CONTENT/PICK 및 DocumentsProvider 경로를 재확인. 현재 실기기에서 어떤 chooser/Intent가 실제 사용되는지 미확인. ACTION_PICK_IMAGES, 명시적 시스템 컴포넌트, 자체/임베디드 picker, GET_CONTENT takeover/SAF 후보 미노출 등을 구분할 필요가 있다. Android 공식 ACTION_PICK_IMAGES 및 ordered selection extra는 호출 앱의 계약이다. https://developer.android.com/reference/android/provider/MediaStore
 - PC용 읽기 전용 진단 스크립트 diagnostics/Capture-AttachmentRoute.ps1 추가. adb 등록 후보 및 Activity START action/type/component/package만 기록하고 원본 로그, URI, 파일명, 채팅 내용은 저장하지 않는다. 실제 실기기 실행 미검증. 스크린샷 또는 실제 진단 로그부터 확보한 뒤 제품 호출 경로를 수정. 접근성 서비스/원본 변경/신규 키 생성 없음. 공개판 유지.
+
+### 사용자 추가 보고 및 최신 Chromium 호출 분기 확인
+- GPT 앱 및 Chat LLM 앱은 기존 사진 첨부 UI가 직접 열리며 Image Order 설치 후에도 변화 없음. Claude 웹(Chrome)은 앱 선택 팝업이 열리나 Image Order 항목이 없음. 첨부 버튼 자체가 작동하지 않는 문제는 아님.
+- Chromium HEAD SelectFileDialog.java의 showAndroidMediaPickerViaGetContent는 GET_CONTENT resolver가 지정된 Google Media Picker 패키지가 아니면 ACTION_PICK_IMAGES로 전환한다. showExternalPicker는 별도 chooser 경로. Intent priority 상승은 무조건적인 해결책이 아니다. https://chromium.googlesource.com/chromium/src/+/HEAD/ui/android/java/src/org/chromium/ui/base/SelectFileDialog.java
+- 기존 Chrome113/124 검증은 Browse→DocumentsUI→merged app action 경로이며 실제 사용자의 첫 팝업 직접 후보 노출과 동일하지 않다. 실제 최신 Chrome 버전/OS/chooser UI 및 ADB action 로그 확인 우선. GPT/Chat LLM의 내부 또는 명시적 시스템 picker 여부는 로그 없이는 구분하지 않는다. 제품 코드를 근거 없이 변경하지 않음. v0.5.5 RC 실사용 합격 보류.
