@@ -1,0 +1,30 @@
+plugins {
+    id 'com.android.application'
+}
+android {
+    namespace 'com.hsiwan.pdfimage'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.hsiwan.pdfimage'
+        minSdk 26
+        targetSdk 36
+        versionCode 5
+        versionName '1.3.1'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}
+dependencies {
+    // Required only for extraction of original JPEG DCT streams (not page rendering).
+    implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
+}
+// PdfRenderer handles page rasterization; PDFBox handles raw DCTDecode JPEG extraction.
+
