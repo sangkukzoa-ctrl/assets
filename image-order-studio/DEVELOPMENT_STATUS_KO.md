@@ -229,3 +229,8 @@
 - 45750639062 API35 Chrome 124.0.6367.219 job 139677312319: chromeImageInputUploadsOriginalsInTapOrder 성공. 실제 Chrome -> Photo Picker -> Browse -> DocumentsUI -> merged app action -> NativeGalleryActivity -> 5 originals -> 실제 multipart POST. 파일명/MIME/순서/SHA-256 일치. 실제 Chrome 성공 로그 확보. generic 테스트는 최초 CAMERA 권한 승인 이후 원래 페이지의 빈 파일 입력으로 돌아와 실패. API34는 Maven 429로 사전 빌드 단계 실패.
 - 관측된 camera 승인 이후 동일 페이지의 파일 선택이 비어 있을 경우에만 HTML 입력을 한 번 다시 클릭. 기존 성공 경로 유지, 웹 페이지 위에서 불필요한 메뉴/스크롤 금지. generic 여부를 성공 로그에 명시.
 - Chrome CI 빌드 1회 후 3 APK 및 SHA256 manifest를 artifact로 전달, API34/35는 동일 바이너리로 검사하고 Gradle 다운로드하지 않음. 빌드 단계 자체의 Maven429 가능성은 남음. 신규 run 결과 미확정. 제품 본체 및 dev-v2/공개판 변경 없음.
+
+## 2026-11-26 — Chrome 선택창/테스트 독립성 개선
+- 45759785302 공통 APK 빌드 및 양쪽 설치 성공. API34/35 generic: camera 승인 후 다시 열어 실제 com.android.intentresolver CHOOSER 진입 확인, 이후 웹페이지로 돌아가 실패. API34 image: Chrome photos/videos 권한 안내에서 중단. API35 image: 이전 generic 실패 후 새 HTTP 페이지 GET 미도달. 이전 45750639062 API35 image 실제 HTTP 성공 기록 유지. 5차는 재현성 확보 실패.
+- Chrome chooser에 Files/Browse/Media picker 등 실제 표시되는 항목을 명시적으로 선택하고, 일반 chooser에서 화면 스와이프 금지. 권한 안내에서 사진 접근 처리(격리된 합성 테스트 이미지 전용). 화면 전환 순간 text/desc/resource ID를 수집하여 종료 후 화면만 보는 문제 해소. Chrome 자체 feature flags 및 제품 권한 변경 없음.
+- API34/35 x image/generic 4개 독립 에뮬레이터 job으로 분리. 한 번 빌드한 동일 APK 사용. 각 job은 단일 정확한 테스트 메서드 실행 및 결과 strict gate 통과 필요. 양쪽 테스트의 독립성과 재현성 검증. dev-v2 및 제품 본체 변경 없음, 신규 결과 미확정.

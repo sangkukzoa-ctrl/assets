@@ -179,7 +179,9 @@ public final class WebUploadCallerTest {
         long deadline=android.os.SystemClock.uptimeMillis()+(chromeCase?90000:60000);
         String previousPackage=null;
         long cameraApprovedAt=0;
-        boolean retriedAfterCamera=false;
+        int permissionRetries=0;
+        boolean awaitingPermissionReturn=false;
+        int chooserActions=0;
         int clicks=0,drawerAttempts=0,menuAttempts=0,scrolls=0;
         while(android.os.SystemClock.uptimeMillis()<deadline){
             if(device.hasObject(By.desc("imageorder.photos")))return;
@@ -188,6 +190,7 @@ public final class WebUploadCallerTest {
                 if(!java.util.Objects.equals(previousPackage,foreground)){
                     android.util.Log.i("ImageOrderResolver","Picker foreground="+foreground);
                     previousPackage=foreground;
+                    if(chromeCase)logVisiblePickerControls(device,foreground);
                 }
                 if(chromeCase && foreground!=null && foreground.contains("permissioncontroller")){
                     // Observed Chrome 113/124 camera permission prompt. Use the ordinary
@@ -200,6 +203,21 @@ public final class WebUploadCallerTest {
                             android.util.Log.i("ImageOrderResolver","Accepting Chrome camera prompt via UI");
                             allow.click();
                             cameraApprovedAt=android.os.SystemClock.uptimeMillis();
+                            awaitingPermissionReturn=true;
+                            Thread.sleep(900);continue;
+                        }
+                    }
+                    UiObject2 photosPermission=device.findObject(By.textContains("Allow Chrome to access photos and videos"));
+                    if(photosPermission!=null){
+                        // Only synthetic fixture images exist on this isolated QA device.
+                        UiObject2 allowAll=device.findObject(By.res(java.util.regex.Pattern.compile(
+                            ".*:id/permission_allow_all_button")));
+                        if(allowAll==null)allowAll=device.findObject(By.text("Allow all"));
+                        if(allowAll!=null){
+                            android.util.Log.i("ImageOrderResolver","Accepting Chrome photo access on isolated QA device");
+                            allowAll.click();
+                            cameraApprovedAt=android.os.SystemClock.uptimeMillis();
+                            awaitingPermissionReturn=true;
                             Thread.sleep(900);continue;
                         }
                     }
@@ -226,12 +244,29 @@ public final class WebUploadCallerTest {
                     browse.click();Thread.sleep(900);continue;
                 }
                 String current=device.getCurrentPackageName();
+                boolean resolver=current!=null&&(current.contains("intentresolver")||
+                    "android".equals(current));
+                if(chromeCase && resolver){
+                    // A real ACTION_CHOOSER can show camera/camcorder and Files as
+                    // separate choices. Do not swipe a bottom sheet: it may dismiss.
+                    UiObject2 files=null;
+                    for(String label:new String[]{"Files","Browse files","Browse","Media picker","Photos & videos","Media"}){
+                        files=device.findObject(By.pkg(current).text(label));
+                        if(files==null)files=device.findObject(By.pkg(current).desc(label));
+                        if(files!=null)break;
+                    }
+                    if(files!=null&&chooserActions<5){
+                        android.util.Log.i("ImageOrderResolver","Opening actual system chooser file option "+files.getText());
+                        files.click();chooserActions++;Thread.sleep(1000);continue;
+                    }
+                    Thread.sleep(500);continue;
+                }
                 boolean chrome="com.android.chrome".equals(current);
                 if(chromeCase&&chrome){
                     // Chrome's own media chooser can offer a Files/Browse entry.
                     // Restrict this action to a picker UI, not the underlying web page.
                     boolean page=device.hasObject(By.text("Choose originals for Chrome test"));
-                    if(page && cameraApprovedAt>0 && !retriedAfterCamera
+                    if(page && cameraApprovedAt>0 && awaitingPermissionReturn && permissionRetries<2
                             && android.os.SystemClock.uptimeMillis()-cameraApprovedAt>=2500){
                         // Chrome 124 returned to the unchanged HTML form after the
                         // first camera grant. Re-open the same real file input once.
@@ -239,7 +274,7 @@ public final class WebUploadCallerTest {
                         if(empty==null)empty=device.findObject(By.descContains("No file chosen"));
                         if(empty!=null && device.hasObject(By.text("No files selected"))){
                             android.util.Log.i("ImageOrderResolver","Reopening empty Chrome file input after camera approval");
-                            empty.click();retriedAfterCamera=true;
+                            empty.click();permissionRetries++;awaitingPermissionReturn=false;
                             Thread.sleep(1000);continue;
                         }
                     }
@@ -279,7 +314,7 @@ public final class WebUploadCallerTest {
                 }
                 // Scroll only actual scrollable chooser/drawer nodes. Never swipe the
                 // navigation bar or dismiss an unknown window.
-                if((drawerVisible||(!documents&&!systemPicker)) && scrolls<8){
+                if((drawerVisible||(!chromeCase&&!documents&&!systemPicker)) && scrolls<8){
                     UiObject2 list=device.findObject(By.scrollable(true));
                     if(list!=null){
                         android.graphics.Rect bounds=list.getVisibleBounds();
@@ -296,6 +331,22 @@ public final class WebUploadCallerTest {
         }
         fail("System chooser did not open Image Order native gallery; foreground="+
             device.getCurrentPackageName()+"; candidates: "+WebUploadCallerActivity.resolverDiagnostics);
+    }
+    private static void logVisiblePickerControls(UiDevice device,String foreground){
+        try{
+            java.util.LinkedHashSet<String> labels=new java.util.LinkedHashSet<>();
+            for(UiObject2 node:device.findObjects(By.text(java.util.regex.Pattern.compile(".+")))){
+                String text=node.getText();
+                if(text!=null&&!text.trim().isEmpty())labels.add("text="+text+" id="+node.getResourceName());
+                if(labels.size()>=35)break;
+            }
+            for(UiObject2 node:device.findObjects(By.desc(java.util.regex.Pattern.compile(".+")))){
+                String desc=node.getContentDescription();
+                if(desc!=null&&!desc.trim().isEmpty())labels.add("desc="+desc+" id="+node.getResourceName());
+                if(labels.size()>=55)break;
+            }
+            android.util.Log.i("ImageOrderResolver","Visible controls in "+foreground+": "+labels);
+        }catch(Exception ignored){}
     }
     static void clickPhotoAndWaitForCount(UiDevice device,String desc,int expected) throws Exception {
         for(int retry=0;retry<3;retry++){

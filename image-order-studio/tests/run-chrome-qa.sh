@@ -31,9 +31,14 @@ done
 adb shell pm grant com.twobornot.imageorder android.permission.READ_MEDIA_IMAGES
 runner="com.twobornot.imageorder.caller.test/androidx.test.runner.AndroidJUnitRunner"
 adb shell pm list instrumentation | tr -d '\r' | grep -F "$runner"
+method="${CHROME_QA_METHOD:?Select the independent Chrome test method}"
+case "$method" in
+  chromeGenericInputUploadsOriginalsInTapOrder|chromeImageInputUploadsOriginalsInTapOrder) ;;
+  *) echo "Invalid Chrome test method: $method" >&2; exit 2 ;;
+esac
 result="$project/chrome-qa-instrumentation.txt"
-# Android shell exit status alone is NOT proof that a JUnit run passed.
+# One clean emulator, one method, one explicit positive success result.
 timeout 12m adb shell am instrument -w -r \
-  -e class com.twobornot.imageorder.caller.ChromeUploadTest \
+  -e class "com.twobornot.imageorder.caller.ChromeUploadTest#$method" \
   -e chromeQa true "$runner" | tee "$result"
-python3 "$script_dir/check-chrome-instrumentation.py" "$result"
+python3 "$script_dir/check-chrome-instrumentation.py" "$result" "$method"

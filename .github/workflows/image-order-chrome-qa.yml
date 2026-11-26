@@ -47,7 +47,7 @@ jobs:
           retention-days: 14
   chrome:
     needs: build-test-apks
-    name: Installed Chrome on Android API ${{ matrix.api-level }}
+    name: Chrome API ${{ matrix.api-level }} - ${{ matrix.method }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
@@ -55,6 +55,7 @@ jobs:
       max-parallel: 2
       matrix:
         api-level: [34, 35]
+        method: [chromeImageInputUploadsOriginalsInTapOrder, chromeGenericInputUploadsOriginalsInTapOrder]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -68,6 +69,8 @@ jobs:
           sudo chmod 666 /dev/kvm
       - name: Real Chrome APK, no browser modifications
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          CHROME_QA_METHOD: ${{ matrix.method }}
         with:
           api-level: ${{ matrix.api-level }}
           target: google_apis_playstore
@@ -79,7 +82,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ImageOrder-real-Chrome-api${{ matrix.api-level }}
+          name: ImageOrder-real-Chrome-api${{ matrix.api-level }}-${{ matrix.method }}
           path: |
             image-order-studio/chrome-qa-apk-sha256.txt
             image-order-studio/chrome-qa-instrumentation.txt

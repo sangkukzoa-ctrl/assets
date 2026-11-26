@@ -90,6 +90,8 @@ public final class ChromeUploadTest {
             LoopbackUploadServer server=ChromeUploadFixtureActivity.server;
             assertNotNull(server);
             assertTrue("Chrome did not load the real test page",server.pageServed.await(45,TimeUnit.SECONDS));
+            // The runner uses a fresh emulator per case. No previous case can leave
+            // a file picker or loopback server in the browser's task stack.
             clickRealFileInput(device);
             WebUploadCallerTest.selectRealSystemGallery(device,true);
             UiObject2 photos=device.wait(Until.findObject(By.desc("imageorder.photos")),15000);
