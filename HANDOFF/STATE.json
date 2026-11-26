@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "as_of": "2026-11-26",
+  "timezone": "Asia/Seoul",
+  "project": "Just PDF to Image",
+  "publisher": "2bornot",
+  "product_slogan_ko": "PDF를 이미지로. 그게 전부입니다.",
+  "product_slogan_en": "PDF to images. Nothing else.",
+  "user_requested_action": "Create complete Chat LLM DeepSeek Flash 4.1 handoff; do not begin new development",
+  "current_phase": "handoff_completed_no_active_development_task",
+  "task_status": "no_active_task",
+  "authorized_next_action": "read_state_and_await_specific_user_request",
+  "release": {
+    "version": "1.3.1",
+    "version_code": 5,
+    "released": "2026-11-06",
+    "published": true,
+    "repository": "sangkukzoa-ctrl/assets",
+    "tag": "v1.3.1",
+    "url": "https://github.com/sangkukzoa-ctrl/assets/releases/tag/v1.3.1",
+    "source_zip": "https://github.com/sangkukzoa-ctrl/assets/releases/download/v1.3.1/JustPDFtoImage-v1.3.1-Source.zip",
+    "apk": "https://github.com/sangkukzoa-ctrl/assets/releases/download/v1.3.1/JustPDFtoImage-v1.3.1.apk",
+    "aab": "https://github.com/sangkukzoa-ctrl/assets/releases/download/v1.3.1/JustPDFtoImage-v1.3.1.aab",
+    "checksums": "https://github.com/sangkukzoa-ctrl/assets/releases/download/v1.3.1/SHA256SUMS.txt",
+    "signed": true,
+    "original_production_certificate_reused_from": "v1.3.0",
+    "source_tag_commit": "8394fbb356a810243d3f4dc8d5259be4580648f8",
+    "verified_build_run": "https://github.com/sangkukzoa-ctrl/assets/actions/runs/42159936750"
+  },
+  "project_source": {
+    "git_repository": "sangkukzoa-ctrl/assets",
+    "git_branch": "pdfimage-handoff/2026-11-26",
+    "source_root": "project/",
+    "handoff_root": "HANDOFF/",
+    "source_provenance": "Official published v1.3.1-Source.zip SHA256 verified and unpacked by GitHub Actions",
+    "application_id": "com.hsiwan.pdfimage",
+    "min_sdk": 26,
+    "target_sdk": 36,
+    "compile_sdk": 36,
+    "agp": "8.10.1",
+    "gradle": "8.11.1",
+    "jdk": "17",
+    "project_language": "Java",
+    "locales": [
+      "ko",
+      "en"
+    ],
+    "pdfbox_android": "2.0.27.0"
+  },
+  "build": {
+    "prior_public_release_ci": "success",
+    "handoff_ci_workflow": ".github/workflows/pdfimage-handoff-ci.yml",
+    "handoff_ci_intent": "Unit tests, debug APK and unsigned release outputs ONLY; no publishing/signing",
+    "runtime_device_test_matrix": "not established",
+    "installed_signing_key_in_repo": false,
+    "build_environment": "GitHub Actions ubuntu-latest"
+  },
+  "security": {
+    "private_signing_material": "Not in repository or handoff files; user retains private backup",
+    "internet_permission": false,
+    "broad_storage_permission": false,
+    "ads": false,
+    "accounts": false,
+    "telemetry": false
+  },
+  "distribution": {
+    "primary": "GitHub Releases",
+    "korean_promotion": "Naver Blog",
+    "google_play": "not currently pursued",
+    "samsung_galaxy_store": "not currently pursued after eligibility problem"
+  },
+  "next_task": null,
+  "outstanding_user_approved_work": [],
+  "proposed_tasks_not_authorized": [],
+  "automation_or_agent_enabled": false,
+  "normal_chat_only": true,
+  "handoff_documents": [
+    "HANDOFF/00_START_HERE.md",
+    "HANDOFF/01_PRODUCT_AND_ARCHITECTURE.md",
+    "HANDOFF/02_BUILD_AND_ENVIRONMENT.md",
+    "HANDOFF/03_RELEASE_AND_SECURITY.md",
+    "HANDOFF/04_CHATLLM_WORKFLOW.md",
+    "HANDOFF/05_VERIFICATION_AND_HISTORY.md",
+    "HANDOFF/TASKS.md",
+    "HANDOFF/INITIAL_PROMPT_KO.md"
+  ]
+}
