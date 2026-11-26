@@ -121,7 +121,7 @@ public final class ChromeUploadTest {
                     hex.append(String.format(Locale.ROOT,"%02x",b&255));
                 assertEquals("Chrome server original SHA-256",ChromeUploadFixtureActivity.hashes[source],hex.toString());
             }
-            android.util.Log.i("ImageOrderChrome","PASS real Chrome multipart, five originals in tap order");
+            android.util.Log.i("ImageOrderChrome","PASS real Chrome multipart, five originals in tap order; generic="+generic);
         }catch(Throwable failure){
             try{
                 android.util.Log.e("ImageOrderChrome","Foreground on failure="+device.getCurrentPackageName());

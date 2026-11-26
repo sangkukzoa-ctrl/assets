@@ -224,3 +224,8 @@
 - dev-v2 ade9799d CI 45664554543 및 45664554476 모두 성공. API26~36 11/11 전체 회귀 성공. 실제 상용 Chrome 검증은 별도.
 - Chrome ADB 실행 45665625974: API34/35 APK 설치·AndroidJUnitRunner 실행·실패 검출 정상. 양쪽 generic 테스트는 실제 Chrome 알림 안내를 넘고 파일 첨부를 눌렀으나 Chrome CAMERA 권한 안내에서 정지. 이후 image 테스트는 이전 DocumentsUI 창이 전면에 남아 시작 실패. 브라우저 첨부 결과 검증에는 아직 도달하지 못함.
 - Chrome 전용 UI 탐색에서 관측된 카메라 foreground-only 버튼을 사용자 동작으로 선택. 실제 Chrome 파일 선택기 Files 항목 분기 대응. 테스트 사이 Chrome 프로세스/task 종료 및 별도 task 실행, 실패 정리 전에 activity stack과 Intent action 로그 저장. Chrome picker 기능 플래그 변경 없음, 본체/공개판 변경 없음. 신규 검증 미확정.
+
+## 2026-11-26 — 실제 Chrome 최초 원본 순서 HTTP 검증 성공
+- 45750639062 API35 Chrome 124.0.6367.219 job 139677312319: chromeImageInputUploadsOriginalsInTapOrder 성공. 실제 Chrome -> Photo Picker -> Browse -> DocumentsUI -> merged app action -> NativeGalleryActivity -> 5 originals -> 실제 multipart POST. 파일명/MIME/순서/SHA-256 일치. 실제 Chrome 성공 로그 확보. generic 테스트는 최초 CAMERA 권한 승인 이후 원래 페이지의 빈 파일 입력으로 돌아와 실패. API34는 Maven 429로 사전 빌드 단계 실패.
+- 관측된 camera 승인 이후 동일 페이지의 파일 선택이 비어 있을 경우에만 HTML 입력을 한 번 다시 클릭. 기존 성공 경로 유지, 웹 페이지 위에서 불필요한 메뉴/스크롤 금지. generic 여부를 성공 로그에 명시.
+- Chrome CI 빌드 1회 후 3 APK 및 SHA256 manifest를 artifact로 전달, API34/35는 동일 바이너리로 검사하고 Gradle 다운로드하지 않음. 빌드 단계 자체의 Maven429 가능성은 남음. 신규 run 결과 미확정. 제품 본체 및 dev-v2/공개판 변경 없음.

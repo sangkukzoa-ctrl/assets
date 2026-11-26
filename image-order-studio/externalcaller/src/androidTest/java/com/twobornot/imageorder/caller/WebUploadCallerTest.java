@@ -178,6 +178,8 @@ public final class WebUploadCallerTest {
     static void selectRealSystemGallery(UiDevice device,boolean chromeCase) throws Exception {
         long deadline=android.os.SystemClock.uptimeMillis()+(chromeCase?90000:60000);
         String previousPackage=null;
+        long cameraApprovedAt=0;
+        boolean retriedAfterCamera=false;
         int clicks=0,drawerAttempts=0,menuAttempts=0,scrolls=0;
         while(android.os.SystemClock.uptimeMillis()<deadline){
             if(device.hasObject(By.desc("imageorder.photos")))return;
@@ -196,7 +198,9 @@ public final class WebUploadCallerTest {
                             ".*:id/permission_allow_foreground_only_button")));
                         if(allow!=null){
                             android.util.Log.i("ImageOrderResolver","Accepting Chrome camera prompt via UI");
-                            allow.click();Thread.sleep(900);continue;
+                            allow.click();
+                            cameraApprovedAt=android.os.SystemClock.uptimeMillis();
+                            Thread.sleep(900);continue;
                         }
                     }
                 }
@@ -227,6 +231,22 @@ public final class WebUploadCallerTest {
                     // Chrome's own media chooser can offer a Files/Browse entry.
                     // Restrict this action to a picker UI, not the underlying web page.
                     boolean page=device.hasObject(By.text("Choose originals for Chrome test"));
+                    if(page && cameraApprovedAt>0 && !retriedAfterCamera
+                            && android.os.SystemClock.uptimeMillis()-cameraApprovedAt>=2500){
+                        // Chrome 124 returned to the unchanged HTML form after the
+                        // first camera grant. Re-open the same real file input once.
+                        UiObject2 empty=device.findObject(By.textContains("No file chosen"));
+                        if(empty==null)empty=device.findObject(By.descContains("No file chosen"));
+                        if(empty!=null && device.hasObject(By.text("No files selected"))){
+                            android.util.Log.i("ImageOrderResolver","Reopening empty Chrome file input after camera approval");
+                            empty.click();retriedAfterCamera=true;
+                            Thread.sleep(1000);continue;
+                        }
+                    }
+                    if(page){
+                        // Do not scroll the underlying web page or open browser menus.
+                        Thread.sleep(400);continue;
+                    }
                     if(!page){
                         UiObject2 files=device.findObject(By.text("Files"));
                         if(files==null)files=device.findObject(By.desc("Files"));

@@ -12,15 +12,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  chrome:
-    name: Installed Chrome on Android API ${{ matrix.api-level }}
+  build-test-apks:
+    name: Build one shared set of Chrome QA APKs
     runs-on: ubuntu-latest
-    timeout-minutes: 40
-    strategy:
-      fail-fast: false
-      max-parallel: 1
-      matrix:
-        api-level: [34, 35]
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -35,11 +30,42 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-36' 'build-tools;35.0.0'
           bash -n image-order-studio/tests/run-chrome-qa.sh
           python3 image-order-studio/tests/check-chrome-instrumentation.py --self-test
-          test -e /dev/kvm
-          sudo chmod 666 /dev/kvm
-      - name: Warm APK and instrumentation dependency cache before emulator startup
+      - name: Build APKs once
         run: |
           bash image-order-studio/tests/gradle-with-retry.sh chrome-prebuild -p image-order-studio --no-daemon :app:assembleDebug :externalcaller:assembleDebug :externalcaller:assembleDebugAndroidTest
+          cd image-order-studio
+          sha256sum app/build/outputs/apk/debug/app-debug.apk externalcaller/build/outputs/apk/debug/externalcaller-debug.apk externalcaller/build/outputs/apk/androidTest/debug/externalcaller-debug-androidTest.apk > chrome-qa-apk-sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chrome-qa-shared-apks
+          path: |
+            image-order-studio/app/build/outputs/apk/debug/app-debug.apk
+            image-order-studio/externalcaller/build/outputs/apk/debug/externalcaller-debug.apk
+            image-order-studio/externalcaller/build/outputs/apk/androidTest/debug/externalcaller-debug-androidTest.apk
+            image-order-studio/chrome-qa-apk-sha256.txt
+          if-no-files-found: error
+          retention-days: 14
+  chrome:
+    needs: build-test-apks
+    name: Installed Chrome on Android API ${{ matrix.api-level }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        api-level: [34, 35]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: chrome-qa-shared-apks
+          path: image-order-studio
+      - name: Verify identical prebuilt APKs and enable KVM
+        run: |
+          (cd image-order-studio && sha256sum -c chrome-qa-apk-sha256.txt)
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
       - name: Real Chrome APK, no browser modifications
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -55,8 +81,7 @@ jobs:
         with:
           name: ImageOrder-real-Chrome-api${{ matrix.api-level }}
           path: |
-            image-order-studio/externalcaller/build/outputs/androidTest-results/connected/
-            image-order-studio/externalcaller/build/reports/androidTests/connected/
+            image-order-studio/chrome-qa-apk-sha256.txt
             image-order-studio/chrome-qa-instrumentation.txt
             image-order-studio/chrome-qa-logcat.txt
             image-order-studio/chrome-qa-activities.txt
