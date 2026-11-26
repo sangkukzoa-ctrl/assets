@@ -1,0 +1,61 @@
+name: Just PDF to Image - handoff CI (no publishing)
+on:
+  push:
+    branches: ['pdfimage-handoff/2026-11-26']
+    paths:
+      - 'project/**'
+      - '.github/workflows/pdfimage-handoff-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK API 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          test -n "$SDKMANAGER"
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Test page selection with plain Java
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/jpti-tests
+          javac -d /tmp/jpti-tests project/app/src/main/java/com/hsiwan/pdfimage/L10n.java project/app/src/main/java/com/hsiwan/pdfimage/PageSelection.java project/tests/PageSelectionTest.java
+          java -cp /tmp/jpti-tests PageSelectionTest
+      - name: Build debug APK and unsigned release outputs (no signing / no releases)
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -p project :app:assembleDebug :app:assembleRelease :app:bundleRelease --stacktrace
+          test -s project/app/build/outputs/apk/debug/app-debug.apk
+          test -s project/app/build/outputs/apk/release/app-release-unsigned.apk
+          test -s project/app/build/outputs/bundle/release/app-release.aab
+      - name: Upload debug install candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: JPTI-Handoff-CI-Debug-APK
+          path: project/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+      - name: Upload unsigned release verification artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: JPTI-Handoff-CI-Unsigned
+          path: |
+            project/app/build/outputs/apk/release/app-release-unsigned.apk
+            project/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
