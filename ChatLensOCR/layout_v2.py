@@ -276,10 +276,10 @@ def ffxiv(img, language, precise, world, icons, progress=None):
     for row_index,(y0,y1) in enumerate(lines,1):
         if progress:progress("line",row_index,len(lines))
         if y1-y0>36:continue
-        top=max(0,y0-2);bottom=min(img.height,y1+2)
+        from ffxiv_chromatic_v050 import autocomplete_metadata, autocomplete_row_bounds
+        top,bottom=autocomplete_row_bounds(img,lines,row_index-1)
         crop=img.crop((0,top,img.width,bottom))
         # Paired autocomplete glyphs are evidence, not literal OCR text.
-        from ffxiv_chromatic_v050 import autocomplete_metadata
         metadata.extend(autocomplete_metadata(crop,top))
         # PvP role/job badge, colored nickname and orange message are
         # independently recognized before any ordinary chat-header parser.

@@ -54,6 +54,43 @@ def autocomplete_pairs(image):
     return result
 
 
+def autocomplete_row_bounds(image, bands, index):
+    """Recover a clipped paired glyph without crossing adjacent OCR rows.
+
+    The regular luminance projection can see only part of a saturated
+    green/red glyph. Widen a short interior row only when a complete,
+    mirrored pair overlaps that row and is clipped by the original crop.
+    """
+    y0,y1=bands[index]
+    top,bottom=max(0,y0-2),min(image.height,y1+2)
+    if index==0 or index+1>=len(bands) or y1-y0>8:
+        return top,bottom
+    if autocomplete_pairs(image.crop((0,top,image.width,bottom))):
+        return top,bottom
+    lo=max(0,bands[index-1][1]+2,y0-16)
+    hi=min(image.height,bands[index+1][0]-2,y1+16)
+    if not (lo<=top<bottom<=hi and 8<=hi-lo<=36):
+        return top,bottom
+    pairs=autocomplete_pairs(image.crop((0,lo,image.width,hi)))
+    if len(pairs)!=1:
+        return top,bottom
+    x,a,e,b=pairs[0]['box']
+    a+=lo;b+=lo
+    if min(y1,b)<=max(y0,a) or (a>=top and b<=bottom):
+        return top,bottom
+    new_top=max(lo,min(top,a-2))
+    new_bottom=min(hi,max(bottom,b+2))
+    # Verify the same pair still exists in the final crop. Do not change
+    # ordinary row bounds based on a single loosely matching color blob.
+    final=autocomplete_pairs(image.crop((0,new_top,image.width,new_bottom)))
+    if len(final)!=1:
+        return top,bottom
+    xx,aa,ee,bb=final[0]['box']
+    if (xx,aa+new_top,ee,bb+new_top)!=(x,a,e,b):
+        return top,bottom
+    return new_top,new_bottom
+
+
 def chromatic_body(image,x0,x1,language,primary,backend=None):
     """Two independent preprocessing readings must agree before replacement.
 

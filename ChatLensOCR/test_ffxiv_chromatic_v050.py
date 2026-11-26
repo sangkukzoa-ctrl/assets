@@ -2,7 +2,7 @@
 """Synthetic-only regressions: no real chats or user data."""
 import unittest
 from PIL import Image, ImageDraw
-from ffxiv_chromatic_v050 import autocomplete_pairs, chromatic_body, autocomplete_metadata
+from ffxiv_chromatic_v050 import autocomplete_pairs, chromatic_body, autocomplete_metadata, autocomplete_row_bounds
 
 # Synthetic mirrored bracket-like stencil (not a game asset).
 SHAPE=('..###.','..###.','.####.','.##...','##....','##....','##....','.##...','.####.','..###.','..###.')
@@ -52,5 +52,38 @@ class Tests(unittest.TestCase):
     def test_no_stale_boxes(self):
         old=('원문',[{'text':'원문','score':.52}],52)
         self.assertEqual(chromatic_body(fixture(pair=False),0,180,'한국어',lambda *a:old,lambda *a,**kw:('검사',[],90))[1],[])
+
+    def test_clipped_pair_row_recovered(self):
+        im=Image.new('RGB',(180,65),(18,20,25))
+        im.paste(fixture(),(0,20))
+        bands=[(3,16),(28,32),(42,55)]
+        old=im.crop((0,26,180,34))
+        self.assertEqual(autocomplete_pairs(old),[])
+        top,bottom=autocomplete_row_bounds(im,bands,1)
+        self.assertEqual((top,bottom),(21,36))
+        self.assertEqual(len(autocomplete_pairs(im.crop((0,top,180,bottom)))),1)
+        self.assertGreaterEqual(top,bands[0][1]+2)
+        self.assertLessEqual(bottom,bands[2][0]-2)
+
+    def test_narrow_nonpair_unchanged(self):
+        bands=[(3,16),(28,32),(42,55)]
+        for opts in ({'pair':False},{'flip':True},{'fill':False}):
+            im=Image.new('RGB',(180,65),(18,20,25))
+            im.paste(fixture(**opts),(0,20))
+            self.assertEqual(autocomplete_row_bounds(im,bands,1),(26,34))
+
+    def test_complete_or_boundary_row_unchanged(self):
+        im=Image.new('RGB',(180,65),(18,20,25))
+        im.paste(fixture(),(0,20))
+        bands=[(3,16),(23,34),(42,55)]
+        self.assertEqual(autocomplete_row_bounds(im,bands,1),(21,36))
+        self.assertEqual(autocomplete_row_bounds(im,[(28,32),(42,55)],0),(26,34))
+        self.assertEqual(autocomplete_row_bounds(im,[(3,16),(28,32)],1),(26,34))
+
+    def test_adjacent_row_protection(self):
+        im=Image.new('RGB',(180,65),(18,20,25))
+        im.paste(fixture(),(0,20))
+        bands=[(16,24),(28,32),(36,46)]
+        self.assertEqual(autocomplete_row_bounds(im,bands,1),(26,34))
 
 if __name__=='__main__':unittest.main()
