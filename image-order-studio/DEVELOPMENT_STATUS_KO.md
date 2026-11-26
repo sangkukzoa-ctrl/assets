@@ -246,3 +246,8 @@
 - 실제 동선: 이미지 첨부→시스템 Photo Picker→Browse→DocumentsUI의 Image Order (Files) 앱 실행 버튼→Image Order native gallery→Chrome→HTTP POST. 일반 첨부는 앞단 chooser의 Media 또는 Media picker 항목을 추가 선택. 공급자 제목 자체를 누르면 순서 보장 없는 SAF 파일 목록임.
 - dev-v2 ade9799d의 API26~36 전체 회귀 성공(45664554476)을 보존하며 chrome-qa 0c1de9a의 검증 소스/CI 병합. 제품 app/ 경로 변경 없음. Chrome CI는 dev-v2에서도 실행 가능하게 변경. 기존 일반 regression에서는 chromeQa 미지정 시 Chrome 전용 두 테스트는 의도적으로 skip, Chrome 전용 CI는 skip 실패 처리. 통합 커밋 재검증 예정.
 - 검증 범위는 에뮬레이터 및 위 Chrome 버전에 한정. 현재 최신 Chrome/OEM 실기기 및 직접 ACTION_PICK_IMAGES 전역 교체는 미해결. 공개 v0.5.4 및 서명 변경 없음. 목표 축소 금지.
+
+## 2026-11-26 — v0.5.5 RC 사용자 실기기 검수: 핵심 호출 실패
+- 사용자 직접 설치 후 검수 보고: ChatGPT 앱 무반응, Chat LLM 앱 무반응, Chrome의 Claude 웹 무반응(Image Order 호출 기준). 실사용 합격으로 간주하지 않는다. 기존 API26~36 및 Chrome113/124의 합격 기록은 해당 테스트 경로에만 유효.
+- 제품 manifest의 GET_CONTENT/PICK 및 DocumentsProvider 경로를 재확인. 현재 실기기에서 어떤 chooser/Intent가 실제 사용되는지 미확인. ACTION_PICK_IMAGES, 명시적 시스템 컴포넌트, 자체/임베디드 picker, GET_CONTENT takeover/SAF 후보 미노출 등을 구분할 필요가 있다. Android 공식 ACTION_PICK_IMAGES 및 ordered selection extra는 호출 앱의 계약이다. https://developer.android.com/reference/android/provider/MediaStore
+- PC용 읽기 전용 진단 스크립트 diagnostics/Capture-AttachmentRoute.ps1 추가. adb 등록 후보 및 Activity START action/type/component/package만 기록하고 원본 로그, URI, 파일명, 채팅 내용은 저장하지 않는다. 실제 실기기 실행 미검증. 스크린샷 또는 실제 진단 로그부터 확보한 뒤 제품 호출 경로를 수정. 접근성 서비스/원본 변경/신규 키 생성 없음. 공개판 유지.
