@@ -1,0 +1,39 @@
+name: Image Order - official Android signing tools export
+on:
+  push:
+    branches: ['image-order/signing-tools']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export-tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install official SDK build tools
+        run: |
+          set -euo pipefail
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" 'build-tools;35.0.0'
+          sdk="$ANDROID_HOME/build-tools/35.0.0"
+          test -s "$sdk/lib/apksigner.jar"
+          "$sdk/apksigner" version
+          mkdir -p export/build-tools/35.0.0/lib
+          for f in apksigner aapt zipalign source.properties; do
+            cp -p "$sdk/$f" export/build-tools/35.0.0/
+          done
+          cp -p "$sdk/lib/apksigner.jar" export/build-tools/35.0.0/lib/
+          if [ -d "$sdk/lib64" ]; then
+            cp -a "$sdk/lib64" export/build-tools/35.0.0/
+          fi
+          (cd export && find build-tools -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)
+          tar -czf android-sdk-signing-tools-35.0.0-linux.tar.gz -C export .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-android-sdk-signing-tools-35.0.0-linux
+          path: android-sdk-signing-tools-35.0.0-linux.tar.gz
+          if-no-files-found: error
+          retention-days: 14
