@@ -5,6 +5,7 @@ project="$(cd "$script_dir/.." && pwd)"
 diagnostics(){
   adb logcat -d -v time > "$project/chrome-qa-logcat.txt" 2>&1 || true
   adb logcat -d -v brief -s ImageOrderChrome:I ImageOrderResolver:I ImageOrderHttp:I || true
+  adb logcat -d -v brief -s ActivityTaskManager:I | grep -E 'START.*(GET_CONTENT|OPEN_DOCUMENT|PICK_IMAGES|CHOOSER|com.android.chrome|com.twobornot.imageorder)' || true
   adb shell dumpsys activity activities > "$project/chrome-qa-activities.txt" 2>&1 || true
   mkdir -p "$project/chrome-qa-diagnostics"
   adb pull /sdcard/Download/. "$project/chrome-qa-diagnostics/" || true

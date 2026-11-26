@@ -173,11 +173,33 @@ public final class WebUploadCallerTest {
         }
     }
     static void selectRealSystemGallery(UiDevice device) throws Exception {
-        long deadline=android.os.SystemClock.uptimeMillis()+60000;
+        selectRealSystemGallery(device,false);
+    }
+    static void selectRealSystemGallery(UiDevice device,boolean chromeCase) throws Exception {
+        long deadline=android.os.SystemClock.uptimeMillis()+(chromeCase?90000:60000);
+        String previousPackage=null;
         int clicks=0,drawerAttempts=0,menuAttempts=0,scrolls=0;
         while(android.os.SystemClock.uptimeMillis()<deadline){
             if(device.hasObject(By.desc("imageorder.photos")))return;
             try{
+                String foreground=device.getCurrentPackageName();
+                if(!java.util.Objects.equals(previousPackage,foreground)){
+                    android.util.Log.i("ImageOrderResolver","Picker foreground="+foreground);
+                    previousPackage=foreground;
+                }
+                if(chromeCase && foreground!=null && foreground.contains("permissioncontroller")){
+                    // Observed Chrome 113/124 camera permission prompt. Use the ordinary
+                    // user-facing foreground-only grant on synthetic test devices.
+                    UiObject2 message=device.findObject(By.textContains("Allow Chrome to take pictures and record video"));
+                    if(message!=null){
+                        UiObject2 allow=device.findObject(By.res(java.util.regex.Pattern.compile(
+                            ".*:id/permission_allow_foreground_only_button")));
+                        if(allow!=null){
+                            android.util.Log.i("ImageOrderResolver","Accepting Chrome camera prompt via UI");
+                            allow.click();Thread.sleep(900);continue;
+                        }
+                    }
+                }
                 // The merged RootAndAppItem has a separate app-launch action.
                 // Clicking its title opens SAF instead, which cannot guarantee tap order.
                 UiObject2 open=device.findObject(By.desc("Open Image Order (Files)"));
@@ -201,6 +223,19 @@ public final class WebUploadCallerTest {
                 }
                 String current=device.getCurrentPackageName();
                 boolean chrome="com.android.chrome".equals(current);
+                if(chromeCase&&chrome){
+                    // Chrome's own media chooser can offer a Files/Browse entry.
+                    // Restrict this action to a picker UI, not the underlying web page.
+                    boolean page=device.hasObject(By.text("Choose originals for Chrome test"));
+                    if(!page){
+                        UiObject2 files=device.findObject(By.text("Files"));
+                        if(files==null)files=device.findObject(By.desc("Files"));
+                        if(files!=null){
+                            android.util.Log.i("ImageOrderResolver","Opening Chrome Files entry");
+                            files.click();Thread.sleep(900);continue;
+                        }
+                    }
+                }
                 boolean systemPicker=current!=null &&
                     (current.contains("photopicker")||current.contains("providers.media"));
                 if((systemPicker||chrome) && menuAttempts<4){
@@ -239,7 +274,8 @@ public final class WebUploadCallerTest {
             }catch(androidx.test.uiautomator.StaleObjectException ignored){}
             Thread.sleep(400);
         }
-        fail("System chooser did not open Image Order native gallery; candidates: "+WebUploadCallerActivity.resolverDiagnostics);
+        fail("System chooser did not open Image Order native gallery; foreground="+
+            device.getCurrentPackageName()+"; candidates: "+WebUploadCallerActivity.resolverDiagnostics);
     }
     static void clickPhotoAndWaitForCount(UiDevice device,String desc,int expected) throws Exception {
         for(int retry=0;retry<3;retry++){

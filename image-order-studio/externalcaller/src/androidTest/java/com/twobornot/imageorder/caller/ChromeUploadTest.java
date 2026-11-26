@@ -54,6 +54,15 @@ public final class ChromeUploadTest {
         }
         fail("Real Chrome file input not visible after onboarding; foreground="+device.getCurrentPackageName());
     }
+    private static String shell(Instrumentation inst,String command) throws Exception {
+        try(InputStream in=new ParcelFileDescriptor.AutoCloseInputStream(
+                inst.getUiAutomation().executeShellCommand(command));
+            java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){
+            byte[] buffer=new byte[4096];int n;
+            while((n=in.read(buffer))!=-1)out.write(buffer,0,n);
+            return out.toString("UTF-8");
+        }
+    }
     private void verify(boolean generic) throws Exception {
         Assume.assumeTrue("Dedicated real-browser CI only",
             "true".equals(InstrumentationRegistry.getArguments().getString("chromeQa")));
@@ -65,6 +74,11 @@ public final class ChromeUploadTest {
         android.util.Log.i("ImageOrderChrome","Chrome version="+pm.getPackageInfo(CHROME,0).versionName+" generic="+generic);
         TestMediaPermissions.grant(inst);
         UiDevice device=UiDevice.getInstance(inst);
+        // A canceled file chooser can keep a Chrome activity/task above the next case.
+        // Clear only Chrome's process/task on this disposable emulator; do not clear
+        // its storage, grant media permission, or alter any picker feature flags.
+        shell(inst,"am force-stop "+CHROME);
+        device.pressHome();
         ChromeUploadFixtureActivity.reset();
         Intent start=new Intent(ctx,ChromeUploadFixtureActivity.class)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -77,7 +91,7 @@ public final class ChromeUploadTest {
             assertNotNull(server);
             assertTrue("Chrome did not load the real test page",server.pageServed.await(45,TimeUnit.SECONDS));
             clickRealFileInput(device);
-            WebUploadCallerTest.selectRealSystemGallery(device);
+            WebUploadCallerTest.selectRealSystemGallery(device,true);
             UiObject2 photos=device.wait(Until.findObject(By.desc("imageorder.photos")),15000);
             assertNotNull("Image Order native gallery must open from Chrome",photos);
             photos.click();
@@ -110,6 +124,8 @@ public final class ChromeUploadTest {
             android.util.Log.i("ImageOrderChrome","PASS real Chrome multipart, five originals in tap order");
         }catch(Throwable failure){
             try{
+                android.util.Log.e("ImageOrderChrome","Foreground on failure="+device.getCurrentPackageName());
+                android.util.Log.e("ImageOrderChrome","Activity stack before cleanup:\n"+shell(inst,"dumpsys activity activities"));
                 java.io.ByteArrayOutputStream xml=new java.io.ByteArrayOutputStream();
                 device.dumpWindowHierarchy(xml);
                 android.util.Log.e("ImageOrderChrome",xml.toString("UTF-8"));
@@ -120,6 +136,8 @@ public final class ChromeUploadTest {
             }catch(Exception ignored){}
             throw failure;
         }finally{
+            // End any remaining browser/picker interaction before launching cleanup.
+            try{shell(inst,"am force-stop "+CHROME);}catch(Exception ignored){}
             if(ChromeUploadFixtureActivity.server!=null)ChromeUploadFixtureActivity.server.close();
             if(ChromeUploadFixtureActivity.uris!=null){
                 Intent cleanup=new Intent().setComponent(new ComponentName(TARGET,TARGET+".CrossAppMediaFixtureActivity"))

@@ -42,6 +42,7 @@ public final class ChromeUploadFixtureActivity extends Activity {
             server=new LoopbackUploadServer(html);
             // Package specifies ONLY the browser, not the image picker. Chrome controls its own upload intent.
             Intent browser=new Intent(Intent.ACTION_VIEW,Uri.parse(server.url())).setPackage("com.android.chrome");
+            browser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(browser);
         }catch(Exception ex){error=ex.toString();}
         finally{ready.countDown();}

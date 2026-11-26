@@ -219,3 +219,8 @@
 - Chrome run 45663873549: API34 Chrome 113.0.5672.136, API35 Chrome 124.0.6367.219. 두 환경 모두 host APK prebuild 성공, 오프라인 AGP connectedDebugAndroidTest 단계에서 android-test-plugin-host-additional-test-output:31.9.2 미캐시로 중단. 신규 Chrome UI 테스트 자체는 미실행.
 - prebuild된 제품 debug/독립 caller/AndroidJUnitRunner APK를 그대로 adb install하고 실제 am instrument -w -r 실행으로 전환. UTP host plugin 경로 제거. 실행 결과는 stdout raw transcript 및 로그 보존. 두 지정 테스트의 시작/성공 각각 1회, JUnit OK (2 tests), 종료 코드 -1 및 skip/failure 없음까지 강제 검증. 가짜 transcript self-test 추가.
 - 기존 dev-v2 ade9799d 개발 CI 45664554543 성공, 11종 E2E 45664554476 실행 중. Chrome 브랜치만 변경, 본체/공개판 변경 없음. 신규 실행 결과 미확정.
+
+## 2026-11-26 — 전체 Android 회귀 통과, Chrome 실제 권한 분기 처리
+- dev-v2 ade9799d CI 45664554543 및 45664554476 모두 성공. API26~36 11/11 전체 회귀 성공. 실제 상용 Chrome 검증은 별도.
+- Chrome ADB 실행 45665625974: API34/35 APK 설치·AndroidJUnitRunner 실행·실패 검출 정상. 양쪽 generic 테스트는 실제 Chrome 알림 안내를 넘고 파일 첨부를 눌렀으나 Chrome CAMERA 권한 안내에서 정지. 이후 image 테스트는 이전 DocumentsUI 창이 전면에 남아 시작 실패. 브라우저 첨부 결과 검증에는 아직 도달하지 못함.
+- Chrome 전용 UI 탐색에서 관측된 카메라 foreground-only 버튼을 사용자 동작으로 선택. 실제 Chrome 파일 선택기 Files 항목 분기 대응. 테스트 사이 Chrome 프로세스/task 종료 및 별도 task 실행, 실패 정리 전에 activity stack과 Intent action 로그 저장. Chrome picker 기능 플래그 변경 없음, 본체/공개판 변경 없음. 신규 검증 미확정.
