@@ -111,10 +111,14 @@ def transcribe_header(image, source, top, language, world, icons, reader, geomet
     job="직업미확인";rect=None;ic_conf=0.
     x0,x1=geometry.job
     try:
-        # The legacy matcher searches to the left of the supplied anchor.
-        # Give it only the evidenced job tile, not the party/name pixels.
+        # The production matcher is bounded to the detected job tile.
+        # Keep compatibility with injected legacy matchers in existing tests.
         tile=source.crop((x0,top,x1,top+image.height))
-        j,local,ic_conf=icons.match(tile,(tile.width-1,0,tile.width,tile.height))
+        match_tile=getattr(icons,"match_tile",None)
+        if callable(match_tile):
+            j,local,ic_conf=match_tile(tile)
+        else:
+            j,local,ic_conf=icons.match(tile,(tile.width-1,0,tile.width,tile.height))
         if j and local and 0<=local[0]<local[2]<=tile.width and 0<=local[1]<local[3]<=tile.height:
             job=j
             rect=(x0+local[0],top+local[1],x0+local[2],top+local[3])
