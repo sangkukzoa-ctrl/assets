@@ -246,3 +246,7 @@
 - 실제 동선: 이미지 첨부→시스템 Photo Picker→Browse→DocumentsUI의 Image Order (Files) 앱 실행 버튼→Image Order native gallery→Chrome→HTTP POST. 일반 첨부는 앞단 chooser의 Media 또는 Media picker 항목을 추가 선택. 공급자 제목 자체를 누르면 순서 보장 없는 SAF 파일 목록임.
 - dev-v2 ade9799d의 API26~36 전체 회귀 성공(45664554476)을 보존하며 chrome-qa 0c1de9a의 검증 소스/CI 병합. 제품 app/ 경로 변경 없음. Chrome CI는 dev-v2에서도 실행 가능하게 변경. 기존 일반 regression에서는 chromeQa 미지정 시 Chrome 전용 두 테스트는 의도적으로 skip, Chrome 전용 CI는 skip 실패 처리. 통합 커밋 재검증 예정.
 - 검증 범위는 에뮬레이터 및 위 Chrome 버전에 한정. 현재 최신 Chrome/OEM 실기기 및 직접 ACTION_PICK_IMAGES 전역 교체는 미해결. 공개 v0.5.4 및 서명 변경 없음. 목표 축소 금지.
+
+## 2026-11-26 — 공개판 유지, 검수 후보 분리
+- 통합 d810802d 개발 CI 45791982456 성공. Chrome 45791982393 3/4 통과, API35 image는 fixture launch timeout (Chrome 실행 전 홈 화면). 실패 job 139813652292만 재실행 요청 성공, attempt 2. Android 통합 45791982467 진행 중.
+- image-order/rc-v0.5.5 분리: 읽기 전용 Actions workflow로 unsigned 후보와 공개 v0.5.4에서 추출한 인증서 fingerprint, 서명 검증 스크립트 준비. 공개판 교체 금지. 기존 개인키 원본은 현재 작업 환경에서 확보되지 않음. 실제 서명/업데이트 검증은 키 확보 후 실시. app/ 소스 변경 없음.
