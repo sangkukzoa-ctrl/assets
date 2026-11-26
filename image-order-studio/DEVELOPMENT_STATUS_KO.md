@@ -256,3 +256,11 @@
 - GPT 앱 및 Chat LLM 앱은 기존 사진 첨부 UI가 직접 열리며 Image Order 설치 후에도 변화 없음. Claude 웹(Chrome)은 앱 선택 팝업이 열리나 Image Order 항목이 없음. 첨부 버튼 자체가 작동하지 않는 문제는 아님.
 - Chromium HEAD SelectFileDialog.java의 showAndroidMediaPickerViaGetContent는 GET_CONTENT resolver가 지정된 Google Media Picker 패키지가 아니면 ACTION_PICK_IMAGES로 전환한다. showExternalPicker는 별도 chooser 경로. Intent priority 상승은 무조건적인 해결책이 아니다. https://chromium.googlesource.com/chromium/src/+/HEAD/ui/android/java/src/org/chromium/ui/base/SelectFileDialog.java
 - 기존 Chrome113/124 검증은 Browse→DocumentsUI→merged app action 경로이며 실제 사용자의 첫 팝업 직접 후보 노출과 동일하지 않다. 실제 최신 Chrome 버전/OS/chooser UI 및 ADB action 로그 확인 우선. GPT/Chat LLM의 내부 또는 명시적 시스템 picker 여부는 로그 없이는 구분하지 않는다. 제품 코드를 근거 없이 변경하지 않음. v0.5.5 RC 실사용 합격 보류.
+
+### 2026-11-26 실기기 스크린샷 판독 — 시스템 Photo Picker / Chrome chooser 구분
+- 사용자 제공 1000018149.jpg: GPT/Chat LLM/네이버 리뷰 공통 화면. Android 시스템 Photo Picker 형태(선택한 사진 접근 안내, 사진/앨범, 직장 프로필 전환). 표시된 화면에서 Browse/overflow가 보이지 않음. ACTION_PICK_IMAGES 직접 호출 가능성이 높지만 실제 action은 ADB 등으로 확인 필요. 자체 앱 갤러리라고 분류하지 않는다.
+- 1000018150.jpg: Claude 웹의 파일 또는 사진 선택 버튼. 1000018151.jpg: Chrome '작업 선택' 팝업에는 카메라, 카메라 캠코더, 파일 세 항목만 존재. Image Order 직접 후보 없음. 파일 버튼 이후 화면 미확보. 이전 Chrome113/124 E2E는 Photo Picker Browse→DocumentsUI→merged app action의 하위 경로이므로 첫 팝업 직접 노출과 구분.
+- AOSP PhotoPickerActivity.onPrepareOptionsMenu: Browse visible only isGetContentAction(). https://android.googlesource.com/platform/packages/providers/MediaProvider/+/master/src/com/android/providers/media/photopicker/PhotoPickerActivity.java
+- AOSP ComponentResolver의 일반 앱 intent priority 상한 0. https://android.googlesource.com/platform/frameworks/base/+/dda790354c866877613d550afe7bb27e02fe35f7/services/core/java/com/android/server/pm/resolution/ComponentResolver.java
+- MediaStore EXTRA_PICK_IMAGES_IN_ORDER API35/R extension12는 호출자 extra이며 전역 사용자 설정이 아님. AndroidX system fallback picker는 시스템 앱 한정. 일반 APK에서 직접 시스템 picker 대체가 가능한지 별도 조사하고 단순 priority/manifest 변경을 성공으로 보고하지 않는다.
+- 다음 증거: Chrome 팝업의 파일 버튼 이후 화면 및 왼쪽 탐색 메뉴. 직접 Photo Picker 경로는 actual action 및 OS/extension 확인. 제품 코드 변경 없음. RC 실사용 실패 상태 유지. 사용자 사진의 썸네일/개인 콘텐츠는 저장소에 복제하지 않음.
