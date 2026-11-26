@@ -14,7 +14,8 @@ final class LoopbackUploadServer implements AutoCloseable {
     private final byte[] page;
     public final CountDownLatch received=new CountDownLatch(1);
     public volatile List<Part> parts;
-    public volatile String error;
+    public volatile String error,uploadUserAgent;
+    public final CountDownLatch pageServed=new CountDownLatch(1);
     private volatile boolean closed;
     static final class Part {
         final String field,filename,mime;
@@ -32,10 +33,20 @@ final class LoopbackUploadServer implements AutoCloseable {
     String url(){return "http://127.0.0.1:"+listener.getLocalPort()+"/";}
     private void serve(){
         while(!closed){
-            try(Socket socket=listener.accept()){
-                socket.setSoTimeout(15000);
-                handle(socket);
-            }catch(Exception ex){
+            try{
+                Socket socket=listener.accept();
+                Thread client=new Thread(()->{
+                    try(Socket connection=socket){
+                        connection.setSoTimeout(15000);
+                        handle(connection);
+                    }catch(IOException ex){
+                        // Browser speculative connections can time out before an HTTP request.
+                        // Only an actual multipart POST failure is a failed upload.
+                        android.util.Log.w("ImageOrderHttp","Connection ended: "+ex);
+                    }
+                },"ImageOrder-http-client");
+                client.setDaemon(true);client.start();
+            }catch(IOException ex){
                 if(!closed){error=ex.toString();received.countDown();}
             }
         }
@@ -51,11 +62,12 @@ final class LoopbackUploadServer implements AutoCloseable {
             if(k>0)headers.put(h.substring(0,k).trim().toLowerCase(Locale.ROOT),h.substring(k+1).trim());
         }
         if(request.startsWith("GET / HTTP/")){
-            respond(out,200,"text/html; charset=utf-8",page);return;
+            respond(out,200,"text/html; charset=utf-8",page);pageServed.countDown();return;
         }
         if(!request.startsWith("POST /upload HTTP/")){
             respond(out,404,"text/plain",new byte[0]);return;
         }
+        uploadUserAgent=headers.get("user-agent");
         try{
             if("100-continue".equalsIgnoreCase(headers.get("expect"))){
                 out.write("HTTP/1.1 100 Continue\r\n\r\n".getBytes(StandardCharsets.US_ASCII));out.flush();

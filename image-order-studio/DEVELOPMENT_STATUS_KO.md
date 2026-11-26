@@ -209,3 +209,40 @@
 - SAF 탐색을 클릭 성공 여부가 아니라 실제 UI 상태 기반으로 재작성. Open from drawer 내 공급자 행, All photos 실제 파일 목록 행, 현재 폴더/파일을 구분하고 좌표 터치 및 단계 로그 추가. 원본 authority/doc ID/권한/크기/hash 검증 유지.
 - 회전 검증은 실제 display 가로·세로 변경과 confirm UI 복귀를 각각 기다리고, UiAutomation 전환 실패 시 테스트 에뮬레이터 WindowManager 명령으로 재시도. 선택 수와 최종 원본 순서 검증 유지. 테스트 종료 후 회전 잠금 해제.
 - Chrome 독립 브랜치 942d9b21, run 45663873549 API34 실행 중 / API35 대기. 본체·공개판 변경 없음, 신규 회귀 결과 미확정.
+
+## 2026-11-26 — 실제 Chrome 검증 별도 브랜치
+- 기존 847b928c API26~36 CI 45655161207 진행 중이므로 독립 image-order/chrome-qa 브랜치에서 병행. 제품 본체 변경 없음.
+- 실제 설치 Chrome(com.android.chrome)에서 image/* 및 generic HTML multiple 파일 입력, 자체 갤러리 실제 진입, 5개 선택, 실제 multipart 서버의 순서/파일명/MIME/SHA-256 검증. WebView 대체 없음. Browser UA 및 APK 버전 기록.
+- API34/35 Play Store emulator 이미지 사용. 초기 온보딩만 테스트 플래그로 생략 시도, picker feature flag 변경 없음. Chrome 미설치/온보딩/선택창 장애는 실패로 기록. 실제 CI 결과 미확정. 통과 후 개발 브랜치 병합 검토.
+
+## 2026-11-26 — Chrome 1차 검증 결과와 환경 개선
+- 847b928c 개발 CI 45655160628 성공. E2E 45655161207에서 API26/27/28/29/30/33/34 전부 성공(비고정 시스템 chooser 및 실제 HTTP 포함). API31은 SAF 원본 탐색, API32는 화면 회전 landscape 확인만 실패; 두 환경의 비고정 chooser 통과. API35/36 실행 중 확인.
+- Chrome QA 45655688471: API34 Chrome 113.0.5672.136 실제 페이지 GET 성공, 알림 온보딩 화면으로 파일 입력 가시성 실패. API35는 Maven Central HTTP429로 APK 빌드 실패, 브라우저 미실행.
+- 실제 Chrome 알림 안내의 No thanks 버튼만 UI로 처리. 파일 입력 자체를 접근성 라벨을 갖춘 가시적 HTML 기본 컨트롤로 개선, 업로드 전 5개 선택 DOM 표시 검증 추가. 브라우저 picker 플래그/반환 방식 변경 없음.
+- 에뮬레이터 기동 전 APK·계측 APK 빌드 및 캐시 확보 후 기동 단계 offline 빌드 사용. HTTP429 자체의 근본 해결은 아님. Chrome 최신 버전 실기기 검증 별도 필요. 제품 본체 변경 없음, 신규 결과 미확정.
+
+## 2026-11-26 — Chrome 테스트 실행기에서 UTP 의존성 제거
+- Chrome run 45663873549: API34 Chrome 113.0.5672.136, API35 Chrome 124.0.6367.219. 두 환경 모두 host APK prebuild 성공, 오프라인 AGP connectedDebugAndroidTest 단계에서 android-test-plugin-host-additional-test-output:31.9.2 미캐시로 중단. 신규 Chrome UI 테스트 자체는 미실행.
+- prebuild된 제품 debug/독립 caller/AndroidJUnitRunner APK를 그대로 adb install하고 실제 am instrument -w -r 실행으로 전환. UTP host plugin 경로 제거. 실행 결과는 stdout raw transcript 및 로그 보존. 두 지정 테스트의 시작/성공 각각 1회, JUnit OK (2 tests), 종료 코드 -1 및 skip/failure 없음까지 강제 검증. 가짜 transcript self-test 추가.
+- 기존 dev-v2 ade9799d 개발 CI 45664554543 성공, 11종 E2E 45664554476 실행 중. Chrome 브랜치만 변경, 본체/공개판 변경 없음. 신규 실행 결과 미확정.
+
+## 2026-11-26 — 전체 Android 회귀 통과, Chrome 실제 권한 분기 처리
+- dev-v2 ade9799d CI 45664554543 및 45664554476 모두 성공. API26~36 11/11 전체 회귀 성공. 실제 상용 Chrome 검증은 별도.
+- Chrome ADB 실행 45665625974: API34/35 APK 설치·AndroidJUnitRunner 실행·실패 검출 정상. 양쪽 generic 테스트는 실제 Chrome 알림 안내를 넘고 파일 첨부를 눌렀으나 Chrome CAMERA 권한 안내에서 정지. 이후 image 테스트는 이전 DocumentsUI 창이 전면에 남아 시작 실패. 브라우저 첨부 결과 검증에는 아직 도달하지 못함.
+- Chrome 전용 UI 탐색에서 관측된 카메라 foreground-only 버튼을 사용자 동작으로 선택. 실제 Chrome 파일 선택기 Files 항목 분기 대응. 테스트 사이 Chrome 프로세스/task 종료 및 별도 task 실행, 실패 정리 전에 activity stack과 Intent action 로그 저장. Chrome picker 기능 플래그 변경 없음, 본체/공개판 변경 없음. 신규 검증 미확정.
+
+## 2026-11-26 — 실제 Chrome 최초 원본 순서 HTTP 검증 성공
+- 45750639062 API35 Chrome 124.0.6367.219 job 139677312319: chromeImageInputUploadsOriginalsInTapOrder 성공. 실제 Chrome -> Photo Picker -> Browse -> DocumentsUI -> merged app action -> NativeGalleryActivity -> 5 originals -> 실제 multipart POST. 파일명/MIME/순서/SHA-256 일치. 실제 Chrome 성공 로그 확보. generic 테스트는 최초 CAMERA 권한 승인 이후 원래 페이지의 빈 파일 입력으로 돌아와 실패. API34는 Maven 429로 사전 빌드 단계 실패.
+- 관측된 camera 승인 이후 동일 페이지의 파일 선택이 비어 있을 경우에만 HTML 입력을 한 번 다시 클릭. 기존 성공 경로 유지, 웹 페이지 위에서 불필요한 메뉴/스크롤 금지. generic 여부를 성공 로그에 명시.
+- Chrome CI 빌드 1회 후 3 APK 및 SHA256 manifest를 artifact로 전달, API34/35는 동일 바이너리로 검사하고 Gradle 다운로드하지 않음. 빌드 단계 자체의 Maven429 가능성은 남음. 신규 run 결과 미확정. 제품 본체 및 dev-v2/공개판 변경 없음.
+
+## 2026-11-26 — Chrome 선택창/테스트 독립성 개선
+- 45759785302 공통 APK 빌드 및 양쪽 설치 성공. API34/35 generic: camera 승인 후 다시 열어 실제 com.android.intentresolver CHOOSER 진입 확인, 이후 웹페이지로 돌아가 실패. API34 image: Chrome photos/videos 권한 안내에서 중단. API35 image: 이전 generic 실패 후 새 HTTP 페이지 GET 미도달. 이전 45750639062 API35 image 실제 HTTP 성공 기록 유지. 5차는 재현성 확보 실패.
+- Chrome chooser에 Files/Browse/Media picker 등 실제 표시되는 항목을 명시적으로 선택하고, 일반 chooser에서 화면 스와이프 금지. 권한 안내에서 사진 접근 처리(격리된 합성 테스트 이미지 전용). 화면 전환 순간 text/desc/resource ID를 수집하여 종료 후 화면만 보는 문제 해소. Chrome 자체 feature flags 및 제품 권한 변경 없음.
+- API34/35 x image/generic 4개 독립 에뮬레이터 job으로 분리. 한 번 빌드한 동일 APK 사용. 각 job은 단일 정확한 테스트 메서드 실행 및 결과 strict gate 통과 필요. 양쪽 테스트의 독립성과 재현성 검증. dev-v2 및 제품 본체 변경 없음, 신규 결과 미확정.
+
+## 2026-11-26 — Chrome 4/4 실제 업로드 성공 및 개발 브랜치 통합
+- 독립 Chrome run 45780368542 전체 성공, 공통 APK 빌드 성공. API34 Chrome 113.0.5672.136 및 API35 Chrome 124.0.6367.219에서 각각 이미지 전용/일반 파일 첨부 4개 job 통과. 실제 NativeGalleryActivity 실행 로그, 각 5개 원본 파일의 서버 순서/이름/MIME/SHA256 및 JUnit OK(1 test) 확인. job 139774862339/139774862344/139774862390/139774862415.
+- 실제 동선: 이미지 첨부→시스템 Photo Picker→Browse→DocumentsUI의 Image Order (Files) 앱 실행 버튼→Image Order native gallery→Chrome→HTTP POST. 일반 첨부는 앞단 chooser의 Media 또는 Media picker 항목을 추가 선택. 공급자 제목 자체를 누르면 순서 보장 없는 SAF 파일 목록임.
+- dev-v2 ade9799d의 API26~36 전체 회귀 성공(45664554476)을 보존하며 chrome-qa 0c1de9a의 검증 소스/CI 병합. 제품 app/ 경로 변경 없음. Chrome CI는 dev-v2에서도 실행 가능하게 변경. 기존 일반 regression에서는 chromeQa 미지정 시 Chrome 전용 두 테스트는 의도적으로 skip, Chrome 전용 CI는 skip 실패 처리. 통합 커밋 재검증 예정.
+- 검증 범위는 에뮬레이터 및 위 Chrome 버전에 한정. 현재 최신 Chrome/OEM 실기기 및 직접 ACTION_PICK_IMAGES 전역 교체는 미해결. 공개 v0.5.4 및 서명 변경 없음. 목표 축소 금지.

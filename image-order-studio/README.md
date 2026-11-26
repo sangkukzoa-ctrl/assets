@@ -32,3 +32,13 @@ then `:externalcaller:connectedDebugAndroidTest` on one Android 35 emulator.
 ### Official name and development handoff
 
 Official name: **Image Order**. Current development branch: `image-order/dev-v2`. Legacy project path, app ID and public v0.5.4 APK URL are preserved for backward compatibility.
+
+### Verified real-browser attachment route (development v0.5.5)
+
+On the Android 14/15 Google Play emulator images, installed Chrome 113.0.5672.136 and 124.0.6367.219 passed both image-only and generic HTML multiple file input tests. Five original PNG/JPEG/WebP images were selected in the order 5→2→4→1→3, sent by Chrome using real HTTP multipart, and checked for filename, MIME, order, and SHA-256 on the receiving server. [Four real Chrome checks](https://github.com/sangkukzoa-ctrl/assets/actions/runs/45780368542). [Android API 26–36 independent caller regression](https://github.com/sangkukzoa-ctrl/assets/actions/runs/45664554476).
+
+When Chrome opens the system Photo Picker, use **Browse** (or the overflow menu containing Browse), then open the navigation drawer in Files. Select the separate **Open Image Order (Files)** app-launch action if the Files source and app appear merged. Tapping only the provider name opens SAF, which does not promise selection order. A generic file chooser may first require **Media / Media picker / Files**. Actual labels vary with the device and Android version.
+
+한국어: 웹사이트 사진 첨부 → 시스템 사진 선택창의 더보기/찾아보기 → 파일 앱 탐색 메뉴 → Image Order (Files)의 앱 실행 버튼 → 원하는 순서대로 사진 선택 → 완료. 일반 파일 첨부는 앞에서 Media/Media picker/Files를 선택할 수 있습니다. 공급자 이름만 누르는 SAF 경로는 순서 지정용 갤러리와 다릅니다.
+
+This is a supported real-world route, not automatic replacement of every uploader. These results are emulator results for the listed versions; current Chrome releases, Samsung Internet, and direct ACTION_PICK_IMAGES callers are separate compatibility targets. Public v0.5.4 is unchanged.

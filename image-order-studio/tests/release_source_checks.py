@@ -139,3 +139,15 @@ assert 'selectProviderOriginal' in (external/'src/androidTest/java/com/twobornot
 
 assert 'isInNavigationDrawer' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/SafExternalCallerTest.java').read_text()
 assert 'rotateAndAwait' in (external/'src/androidTest/java/com/twobornot/imageorder/caller/CrossPackagePickerTest.java').read_text()
+
+# Real-browser verification is separate from the normal independent caller suite.
+chrome_test=(external/'src/androidTest/java/com/twobornot/imageorder/caller/ChromeUploadTest.java').read_text()
+chrome_host=(external/'src/main/java/com/twobornot/imageorder/caller/ChromeUploadFixtureActivity.java').read_text()
+assert 'chromeGenericInputUploadsOriginalsInTapOrder' in chrome_test
+assert 'chromeImageInputUploadsOriginalsInTapOrder' in chrome_test
+assert 'Chrome server original SHA-256' in chrome_test and 'Chrome server filename and order' in chrome_test
+assert 'ChromeUploadFixtureActivity' not in manifest and 'ChromeUploadFixtureActivity' in foreign_manifest
+assert 'setPackage("com.android.chrome")' in chrome_host and 'multipart/form-data' in chrome_host
+assert 'Assume.assumeTrue' in chrome_test and 'chromeQa' in chrome_test
+assert (p/'tests/check-chrome-instrumentation.py').is_file()
+assert 'CHROME_QA_METHOD' in (p/'tests/run-chrome-qa.sh').read_text()

@@ -1,0 +1,153 @@
+package com.twobornot.imageorder.caller;
+
+import android.app.Instrumentation;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.ParcelFileDescriptor;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.uiautomator.By;
+import androidx.test.uiautomator.UiDevice;
+import androidx.test.uiautomator.UiObject2;
+import androidx.test.uiautomator.Until;
+import java.io.InputStream;
+import java.security.MessageDigest;
+import java.util.Locale;
+import java.util.concurrent.TimeUnit;
+import org.junit.Assume;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import static org.junit.Assert.*;
+
+/** Real Chrome, actual multipart HTTP, never WebView or a patched browser file chooser. */
+@RunWith(AndroidJUnit4.class)
+public final class ChromeUploadTest {
+    private static final String CHROME="com.android.chrome",TARGET="com.twobornot.imageorder";
+    private static final int[] ORDER={4,1,3,0,2};
+    @Test public void chromeImageInputUploadsOriginalsInTapOrder() throws Exception {verify(false);}
+    @Test public void chromeGenericInputUploadsOriginalsInTapOrder() throws Exception {verify(true);}
+    /** Dismiss only the known browser onboarding prompts through the real UI. */
+    private static void clickRealFileInput(UiDevice device) throws Exception {
+        long deadline=android.os.SystemClock.uptimeMillis()+60000;
+        while(android.os.SystemClock.uptimeMillis()<deadline){
+            try{
+                if(CHROME.equals(device.getCurrentPackageName())){
+                    UiObject2 notification=device.findObject(By.textContains("Chrome notifications make things easier"));
+                    if(notification!=null){
+                        UiObject2 decline=device.findObject(By.text("No thanks"));
+                        if(decline!=null){
+                            android.util.Log.i("ImageOrderChrome","Dismissing Chrome notification onboarding");
+                            decline.click();Thread.sleep(800);continue;
+                        }
+                    }
+                    UiObject2 input=device.findObject(By.text("Choose originals for Chrome test"));
+                    if(input==null)input=device.findObject(By.desc("Choose originals for Chrome test"));
+                    if(input!=null){
+                        input.click();
+                        return;
+                    }
+                }
+            }catch(androidx.test.uiautomator.StaleObjectException ignored){}
+            Thread.sleep(450);
+        }
+        fail("Real Chrome file input not visible after onboarding; foreground="+device.getCurrentPackageName());
+    }
+    private static String shell(Instrumentation inst,String command) throws Exception {
+        try(InputStream in=new ParcelFileDescriptor.AutoCloseInputStream(
+                inst.getUiAutomation().executeShellCommand(command));
+            java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){
+            byte[] buffer=new byte[4096];int n;
+            while((n=in.read(buffer))!=-1)out.write(buffer,0,n);
+            return out.toString("UTF-8");
+        }
+    }
+    private void verify(boolean generic) throws Exception {
+        Assume.assumeTrue("Dedicated real-browser CI only",
+            "true".equals(InstrumentationRegistry.getArguments().getString("chromeQa")));
+        Instrumentation inst=InstrumentationRegistry.getInstrumentation();
+        Context ctx=inst.getTargetContext();
+        PackageManager pm=ctx.getPackageManager();
+        assertNotEquals(pm.getApplicationInfo(CHROME,0).uid,pm.getApplicationInfo(TARGET,0).uid);
+        assertNotEquals(pm.getApplicationInfo(CHROME,0).uid,pm.getApplicationInfo(ctx.getPackageName(),0).uid);
+        android.util.Log.i("ImageOrderChrome","Chrome version="+pm.getPackageInfo(CHROME,0).versionName+" generic="+generic);
+        TestMediaPermissions.grant(inst);
+        UiDevice device=UiDevice.getInstance(inst);
+        // A canceled file chooser can keep a Chrome activity/task above the next case.
+        // Clear only Chrome's process/task on this disposable emulator; do not clear
+        // its storage, grant media permission, or alter any picker feature flags.
+        shell(inst,"am force-stop "+CHROME);
+        device.pressHome();
+        ChromeUploadFixtureActivity.reset();
+        Intent start=new Intent(ctx,ChromeUploadFixtureActivity.class)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            .putExtra("generic",generic);
+        ctx.startActivity(start);
+        try{
+            assertTrue("Chrome launch timed out",ChromeUploadFixtureActivity.ready.await(30,TimeUnit.SECONDS));
+            assertNull("Chrome launch failed",ChromeUploadFixtureActivity.error);
+            LoopbackUploadServer server=ChromeUploadFixtureActivity.server;
+            assertNotNull(server);
+            assertTrue("Chrome did not load the real test page",server.pageServed.await(45,TimeUnit.SECONDS));
+            // The runner uses a fresh emulator per case. No previous case can leave
+            // a file picker or loopback server in the browser's task stack.
+            clickRealFileInput(device);
+            WebUploadCallerTest.selectRealSystemGallery(device,true);
+            UiObject2 photos=device.wait(Until.findObject(By.desc("imageorder.photos")),15000);
+            assertNotNull("Image Order native gallery must open from Chrome",photos);
+            photos.click();
+            int count=0;
+            for(int source:ORDER)WebUploadCallerTest.clickPhotoAndWaitForCount(device,
+                "imageorder.photo:"+ChromeUploadFixtureActivity.names[source],++count);
+            UiObject2 done=device.wait(Until.findObject(By.desc("imageorder.confirm")),15000);
+            assertNotNull(done);done.click();
+            assertNotNull("Chrome must show all five files before submission",
+                device.wait(Until.findObject(By.textContains("5 originals selected")),30000));
+            UiObject2 submit=device.wait(Until.findObject(By.text("Upload originals")),15000);
+            assertNotNull("Chrome must return to the upload page",submit);
+            assertEquals(CHROME,device.getCurrentPackageName());
+            submit.click();
+            assertTrue("Chrome did not POST selected files: "+server.error,server.received.await(30,TimeUnit.SECONDS));
+            assertNull(server.error);
+            assertNotNull("Browser User-Agent",server.uploadUserAgent);
+            assertTrue("Real Chrome HTTP user agent: "+server.uploadUserAgent,server.uploadUserAgent.contains("Chrome/"));
+            assertNotNull(server.parts);assertEquals(ORDER.length,server.parts.size());
+            for(int pos=0;pos<ORDER.length;pos++){
+                int source=ORDER[pos];LoopbackUploadServer.Part part=server.parts.get(pos);
+                assertEquals("photos",part.field);
+                assertEquals("Chrome server filename and order",ChromeUploadFixtureActivity.names[source],part.filename);
+                assertEquals("Chrome server MIME",ChromeUploadFixtureActivity.mimes[source],part.mime);
+                StringBuilder hex=new StringBuilder();
+                for(byte b:MessageDigest.getInstance("SHA-256").digest(part.bytes))
+                    hex.append(String.format(Locale.ROOT,"%02x",b&255));
+                assertEquals("Chrome server original SHA-256",ChromeUploadFixtureActivity.hashes[source],hex.toString());
+            }
+            android.util.Log.i("ImageOrderChrome","PASS real Chrome multipart, five originals in tap order; generic="+generic);
+        }catch(Throwable failure){
+            try{
+                android.util.Log.e("ImageOrderChrome","Foreground on failure="+device.getCurrentPackageName());
+                android.util.Log.e("ImageOrderChrome","Activity stack before cleanup:\n"+shell(inst,"dumpsys activity activities"));
+                java.io.ByteArrayOutputStream xml=new java.io.ByteArrayOutputStream();
+                device.dumpWindowHierarchy(xml);
+                android.util.Log.e("ImageOrderChrome",xml.toString("UTF-8"));
+            }catch(Exception ignored){}
+            try(InputStream in=new ParcelFileDescriptor.AutoCloseInputStream(inst.getUiAutomation().executeShellCommand(
+                "screencap -p /sdcard/Download/imageorder-chrome-"+(generic?"generic":"image")+".png"))){
+                byte[] buf=new byte[256];while(in.read(buf)!=-1){}
+            }catch(Exception ignored){}
+            throw failure;
+        }finally{
+            // End any remaining browser/picker interaction before launching cleanup.
+            try{shell(inst,"am force-stop "+CHROME);}catch(Exception ignored){}
+            if(ChromeUploadFixtureActivity.server!=null)ChromeUploadFixtureActivity.server.close();
+            if(ChromeUploadFixtureActivity.uris!=null){
+                Intent cleanup=new Intent().setComponent(new ComponentName(TARGET,TARGET+".CrossAppMediaFixtureActivity"))
+                    .putExtra("test_cleanup_uri_strings",ChromeUploadFixtureActivity.uris)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                try{ctx.startActivity(cleanup);}catch(Exception ignored){}
+            }
+            device.pressHome();
+        }
+    }
+}
