@@ -17,3 +17,8 @@
 - 깨끗한 전용 에뮬레이터에서 `bash verify-candidate-upgrade.sh emulator-5554 /path/to/v0.5.4.apk /path/to/ImageOrder-v0.5.5-RC.apk` 실행. 이미 설치된 앱/실기기에서는 실행 거부한다.
 - 두 APK 인증서/버전 검증 → 기존판 설치 → 제거 또는 데이터 초기화 없이 덮어쓰기 설치 → UID/appId 및 최초 설치시각 동일성 → GET_CONTENT/PICK 등록 및 갤러리 실행 확인. 결과는 imageorder-upgrade-report에 보존한다.
 - 이 스크립트는 아직 실제 서명된 RC가 없으므로 실동작 미검증. 서명 APK의 실제 사진 첨부 E2E 및 물리기기 Play Protect는 별도 시험이다.
+
+## 2026-11-26 — 서명 후보 생성 완료
+- 실제 기존 PKCS#12 키 복구 및 기존 공개 APK signer SHA-256 동일 확인. 공식 SDK build-tools 35.0.0 도구는 전용 CI 45810925119 artifact에서 확보하여 로컬에서 서명. 개인키 및 암호는 GitHub에 전송하지 않았으며 임시 복호화 파일은 제거.
+- unsigned artifact 15110340536 (8e710f85 기준)를 기존 인증서로 서명. APK SHA-256: 4356a664f52fd8a52b38bb8bc3a9f55a2d3b2fda6a017106cad5ea2817cc2d57. v2/v3, zipalign, package/version/minSdk 26 검사 통과. v1은 검증 결과 false이며 minSdk 26에서 v2/v3로 지원. 동일 암호 파일을 두 번 넘길 때 PasswordRetriever EOF 발생하여 별도 임시 파일 사용으로 수정.
+- 실제 서명 APK 업데이트 설치 및 최신 Chrome/OEM 실기기 검수는 미실행. 공개판 변경 없음.

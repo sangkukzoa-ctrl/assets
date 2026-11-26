@@ -21,8 +21,13 @@ expected="$(tr -d '\r\n' < expected-signer-sha256.txt)"
 [[ "$expected" =~ ^[a-fA-F0-9]{64}$ ]]
 temp="$(mktemp -d)"
 trap 'rm -rf "$temp"' EXIT
+# PasswordRetriever reads distinct lines when the same file is reused.
+# Use two independent files for the identical PKCS#12 store/key password.
+chmod 700 "$temp"
+cp "$password" "$temp/key-password.txt"
+chmod 600 "$temp/key-password.txt"
 "$tools/apksigner" sign --ks "$ks" --ks-key-alias imageorder \
-  --ks-pass "file:$password" --key-pass "file:$password" \
+  --ks-pass "file:$password" --key-pass "file:$temp/key-password.txt" \
   --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
   --min-sdk-version 26 --out "$temp/signed.apk" "$unsigned"
 "$tools/apksigner" verify --verbose --print-certs --min-sdk-version 26 "$temp/signed.apk" > "$temp/report.txt"

@@ -255,3 +255,7 @@
 - d810802d 통합 CI 45791982456 성공, Android E2E 45791982467 11/11 성공, Chrome 45791982393 attempt2 4/4 성공. RC build 45794623113 성공, artifact 15103988422 (unsigned, 만료 2026-12-10 UTC). 공개 v0.5.4 APK SHA256/버전 검사 및 기존 공개 signer 추출, 후보 v0.5.5 versionCode11/minSdk26/금지 권한·컴포넌트 검사 통과.
 - 과거 서명키 백업 파일명 확인: ImageOrderStudio-PRIVATE-SIGNING-KEY.enc. 접근 가능한 Library 검색에서 원본 미확보. 비밀번호/키 본문 노출 또는 새 키 생성 없음. 기존 공개판 유지.
 - 서명 후보 확보 후 전용 깨끗한 emulator에서 기존판→RC 실제 업데이트 설치를 검증하는 스크립트 추가. 기존 signer, UID/firstInstallTime, 패키지 등록 및 native launcher 검사. 실제 실행은 서명 후보 확보 이후, 현재는 신규 스크립트 CI 문법 검사 예정. 제품 코드 변경 없음.
+
+## 2026-11-26 — 로컬 기존 인증서 서명 성공
+- 공식 SDK 도구 export CI 45810925119 성공. 기존 키 복구, published signer 동일, unsigned artifact 15110340536 서명 완료. V2/V3/zipalign/package/version/금지 권한 검사 통과. APK SHA256 4356a664f52fd8a52b38bb8bc3a9f55a2d3b2fda6a017106cad5ea2817cc2d57. 개인키와 암호의 GitHub 전송 없음, 임시 파일 제거.
+- sign-candidate.sh의 동일 password file 중복 사용으로 발생한 EOF 수정. 본체 변경 없음. 실제 업데이트 설치는 미실행, 사용자 검수 후보로 구분. 공개판 유지.
