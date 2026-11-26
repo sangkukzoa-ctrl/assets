@@ -28,6 +28,7 @@ jobs:
           python3 image-order-studio/tests/release_source_checks.py
           python3 image-order-studio/tests/check-chrome-instrumentation.py --self-test
           bash -n image-order-studio/tests/sign-candidate.sh
+          bash -n image-order-studio/tests/verify-candidate-upgrade.sh
           bash image-order-studio/tests/gradle-with-retry.sh candidate -p image-order-studio --no-daemon :app:assembleRelease
       - name: Verify existing signed beta identity and package unsigned candidate
         run: |
@@ -53,9 +54,10 @@ jobs:
           "$tools/aapt" dump xmltree candidate/ImageOrder-v0.5.5-UNSIGNED.apk AndroidManifest.xml > candidate/candidate-manifest.txt
           ! grep -E 'CrossAppMediaFixtureActivity|PickerHostActivity|ChromeUploadFixtureActivity|UploadAssistService|android.accessibilityservice' candidate/candidate-manifest.txt
           cp image-order-studio/tests/sign-candidate.sh candidate/
+          cp image-order-studio/tests/verify-candidate-upgrade.sh candidate/
           cp image-order-studio/RC_VALIDATION_KO.md candidate/
           git rev-parse HEAD > candidate/source-commit.txt
-          (cd candidate && sha256sum ImageOrder-v0.5.5-UNSIGNED.apk expected-signer-sha256.txt sign-candidate.sh > SHA256SUMS.txt)
+          (cd candidate && sha256sum ImageOrder-v0.5.5-UNSIGNED.apk expected-signer-sha256.txt sign-candidate.sh verify-candidate-upgrade.sh > SHA256SUMS.txt)
       - uses: actions/upload-artifact@v4
         with:
           name: ImageOrder-v0.5.5-UNSIGNED-candidate

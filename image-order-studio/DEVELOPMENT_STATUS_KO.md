@@ -250,3 +250,8 @@
 ## 2026-11-26 — 공개판 유지, 검수 후보 분리
 - 통합 d810802d 개발 CI 45791982456 성공. Chrome 45791982393 3/4 통과, API35 image는 fixture launch timeout (Chrome 실행 전 홈 화면). 실패 job 139813652292만 재실행 요청 성공, attempt 2. Android 통합 45791982467 진행 중.
 - image-order/rc-v0.5.5 분리: 읽기 전용 Actions workflow로 unsigned 후보와 공개 v0.5.4에서 추출한 인증서 fingerprint, 서명 검증 스크립트 준비. 공개판 교체 금지. 기존 개인키 원본은 현재 작업 환경에서 확보되지 않음. 실제 서명/업데이트 검증은 키 확보 후 실시. app/ 소스 변경 없음.
+
+## 2026-11-26 — 통합 QA 종결 및 unsigned 후보 확보
+- d810802d 통합 CI 45791982456 성공, Android E2E 45791982467 11/11 성공, Chrome 45791982393 attempt2 4/4 성공. RC build 45794623113 성공, artifact 15103988422 (unsigned, 만료 2026-12-10 UTC). 공개 v0.5.4 APK SHA256/버전 검사 및 기존 공개 signer 추출, 후보 v0.5.5 versionCode11/minSdk26/금지 권한·컴포넌트 검사 통과.
+- 과거 서명키 백업 파일명 확인: ImageOrderStudio-PRIVATE-SIGNING-KEY.enc. 접근 가능한 Library 검색에서 원본 미확보. 비밀번호/키 본문 노출 또는 새 키 생성 없음. 기존 공개판 유지.
+- 서명 후보 확보 후 전용 깨끗한 emulator에서 기존판→RC 실제 업데이트 설치를 검증하는 스크립트 추가. 기존 signer, UID/firstInstallTime, 패키지 등록 및 native launcher 검사. 실제 실행은 서명 후보 확보 이후, 현재는 신규 스크립트 CI 문법 검사 예정. 제품 코드 변경 없음.
