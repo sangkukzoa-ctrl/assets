@@ -1,0 +1,58 @@
+name: PDF Image handoff - materialize released source
+on:
+  push:
+    branches:
+      - 'pdfimage-handoff/2026-11-26'
+    paths:
+      - '.github/workflows/pdfimage-handoff-materialize.yml'
+      - 'HANDOFF/**'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  prepare-workspace:
+    name: Restore official v1.3.1 source as readable project files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout handoff branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Fetch the exact published release source and verify SHA256
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/jpti-release
+          gh release download v1.3.1 \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern 'JustPDFtoImage-v1.3.1-Source.zip' \
+            --pattern 'SHA256SUMS.txt' \
+            --dir /tmp/jpti-release
+          cd /tmp/jpti-release
+          grep -F 'JustPDFtoImage-v1.3.1-Source.zip' SHA256SUMS.txt | sha256sum -c -
+      - name: Materialize source in project directory (no compilation or release)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p project
+          unzip -oq /tmp/jpti-release/JustPDFtoImage-v1.3.1-Source.zip -d project
+          test -s project/app/build.gradle
+          test -s project/app/src/main/java/com/hsiwan/pdfimage/MainActivity.java
+          test -s project/.github/workflows/pdfimage-release-v131.yml
+          ! find project -type f \( -name '*.jks' -o -name '*.p12' -o -name '*.keystore' \) | grep .
+          echo 'Published v1.3.1 source successfully restored as plaintext files.'
+      - name: Commit source for direct GitHub reading by Chat LLM
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add project/
+          if git diff --cached --quiet; then
+            echo 'No source change needed.'
+          else
+            git commit -m 'Handoff: materialize published v1.3.1 source under project/'
+            git push origin HEAD:pdfimage-handoff/2026-11-26
+          fi
