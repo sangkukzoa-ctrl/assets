@@ -45,7 +45,8 @@
       "ko",
       "en"
     ],
-    "pdfbox_android": "2.0.27.0"
+    "pdfbox_android": "2.0.27.0",
+    "materialization_run": "https://github.com/sangkukzoa-ctrl/assets/actions/runs/45760764079"
   },
   "build": {
     "prior_public_release_ci": "success",
@@ -53,7 +54,19 @@
     "handoff_ci_intent": "Unit tests, debug APK and unsigned release outputs ONLY; no publishing/signing",
     "runtime_device_test_matrix": "not established",
     "installed_signing_key_in_repo": false,
-    "build_environment": "GitHub Actions ubuntu-latest"
+    "build_environment": "GitHub Actions ubuntu-latest",
+    "handoff_ci_latest_result": "success",
+    "handoff_ci_run": "https://github.com/sangkukzoa-ctrl/assets/actions/runs/45760970207",
+    "handoff_ci_artifacts": [
+      "JPTI-Handoff-CI-Debug-APK",
+      "JPTI-Handoff-CI-Unsigned"
+    ],
+    "handoff_ci_validations": [
+      "PageSelection Java tests",
+      "assembleDebug",
+      "assembleRelease",
+      "bundleRelease"
+    ]
   },
   "security": {
     "private_signing_material": "Not in repository or handoff files; user retains private backup",
