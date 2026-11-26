@@ -603,6 +603,13 @@ def generic(img,language,precise):
                              "box":outline,
                              "evidence":"pixel_outline_glyph_rows",
                              "human_verified":False,"needs_review":True})
+    # Do not discard a recovered caption or invoke this rule in specialized
+    # layouts. Only the unchanged solitary photographic reading is eligible.
+    if reread == original:
+        from isolated_graphic_v050 import reject_isolated_graphic
+        rejection=reject_isolated_graphic(img,items,rows,language)
+        if rejection is not None:
+            return "범용","",[],[rejection],[]
     return "범용",reread,[],metadata,items
 
 
