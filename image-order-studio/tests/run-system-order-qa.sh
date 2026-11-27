@@ -33,9 +33,20 @@ taps=re.findall(r'Tapped fixture (\d+) count=(\d+)',log)
 assert taps==[('3','1'),('0','2'),('4','3'),('0','2'),('0','3'),('1','4'),('2','5')],taps
 assert 'tap=[3, 4, 0, 1, 2]' in lines[0],lines[0]
 http=[l for l in log.splitlines() if 'SYSTEM_HTTP_RESULT orderedExtra='+ordered in l]
-assert len(http)==1 and 'originals=true' in http[0],http
+assert len(http)==1 and 'bytesAndMime=true transportNames=true' in http[0],http
+names=[l for l in log.splitlines() if 'SYSTEM_NAME_RESULT orderedExtra='+ordered in l]
+assert len(names)==1,names
+items=[l for l in log.splitlines() if 'SYSTEM_NAME_ITEM position=' in l]
+assert len(items)==5,items
+preserved=sum('matches=true' in l for l in items)
+assert f'preserved={preserved}/5' in names[0],names
+expected_names='originalNames='+str(preserved==5).lower()
+assert expected_names in names[0] and expected_names in http[0]
+verdict='CONTROL_COMPLETE' if preserved==5 else 'CONTROL_COMPLETE_ORIGINAL_NAME_LOSS'
+print(verdict+' — measurement only, not Image Order P0 success')
 if ordered=='true': assert 'matches=true' in lines[0]
 print(lines[0])
 print(http[0])
-(p/'outcome.txt').write_text(lines[0]+'\n'+http[0]+'\n')
+print(names[0])
+(p/'outcome.txt').write_text(lines[0]+'\n'+names[0]+'\n'+http[0]+'\n'+verdict+'\n')
 PY

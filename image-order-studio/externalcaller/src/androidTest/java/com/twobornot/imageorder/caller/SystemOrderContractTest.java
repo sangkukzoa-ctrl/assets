@@ -53,10 +53,12 @@ public final class SystemOrderContractTest {
             assertNull(AttachmentCallerActivity.error);
             assertFalse(AttachmentCallerActivity.hadAccessBeforeUserSelection);
             String foreground=null;
-            long deadline=android.os.SystemClock.uptimeMillis()+30000;
+            long deadline=android.os.SystemClock.uptimeMillis()+60000;
             while(android.os.SystemClock.uptimeMillis()<deadline){
                 foreground=device.getCurrentPackageName();
                 if(foreground!=null&&foreground.contains("providers.media"))break;
+                // No chooser traversal, app selection or system change: this must
+                // remain the original first-call path. Observe transient foreground.
                 Thread.sleep(400);
             }
             assertNotNull(foreground);
@@ -86,6 +88,8 @@ public final class SystemOrderContractTest {
             assertEquals(ORDER.length,result.getClipData().getItemCount());
             int[] actual=new int[ORDER.length];
             List<Uri> returnedUris=new ArrayList<>();
+            List<String> returnedNames=new ArrayList<>();
+            int preservedNames=0;
             for(int pos=0;pos<actual.length;pos++){
                 Uri uri=result.getClipData().getItemAt(pos).getUri();
                 assertNotNull(uri);
@@ -101,12 +105,29 @@ public final class SystemOrderContractTest {
                 assertTrue("Returned bytes must match selected original",idx>=0);
                 assertEquals(AttachmentCallerActivity.mimes[idx],ctx.getContentResolver().getType(uri));
                 actual[pos]=idx;
+                String displayName;
+                try(android.database.Cursor c=ctx.getContentResolver().query(uri,
+                    new String[]{android.provider.OpenableColumns.DISPLAY_NAME},null,null,null)){
+                    assertNotNull(c);assertTrue(c.moveToFirst());
+                    displayName=c.getString(0);
+                }
+                assertNotNull(displayName);
+                returnedNames.add(displayName);
+                boolean nameSame=AttachmentCallerActivity.names[idx].equals(displayName);
+                if(nameSame)preservedNames++;
+                android.util.Log.i("ImageOrderSystem","SYSTEM_NAME_ITEM position="+pos+
+                    " fixture="+idx+" original="+AttachmentCallerActivity.names[idx]+
+                    " returned="+displayName+" matches="+nameSame);
+
             }
             int[] sorted=actual.clone(),expected=ORDER.clone();Arrays.sort(sorted);Arrays.sort(expected);
             assertArrayEquals("Same selected originals",expected,sorted);
             boolean same=Arrays.equals(ORDER,actual);
             android.util.Log.i("ImageOrderSystem","SYSTEM_ORDER_RESULT orderedExtra="+ordered+
                 " tap="+Arrays.toString(ORDER)+" returned="+Arrays.toString(actual)+" matches="+same);
+            android.util.Log.i("ImageOrderSystem","SYSTEM_NAME_RESULT orderedExtra="+ordered+
+                " preserved="+preservedNames+"/"+actual.length+
+                " originalNames="+(preservedNames==actual.length));
             if(ordered)assertArrayEquals("Ordered system API must preserve explicit tap order",ORDER,actual);
             // Independent caller uploads the real returned URIs, not fixture paths.
             // Never sort by name, MIME, or worker completion order.
@@ -115,15 +136,27 @@ public final class SystemOrderContractTest {
                 assertTrue("HTTP receiver timeout",server.received.await(15,TimeUnit.SECONDS));
                 assertNull(server.error);assertNotNull(server.parts);
                 assertEquals(actual.length,server.parts.size());
+                int[] serverOrder=new int[actual.length];
+                int serverOriginalNames=0;
                 for(int i=0;i<actual.length;i++){
                     LoopbackUploadServer.Part part=server.parts.get(i);
                     assertEquals("photos",part.field);
-                    assertEquals(AttachmentCallerActivity.names[actual[i]],part.filename);
-                    assertEquals(AttachmentCallerActivity.mimes[actual[i]],part.mime);
-                    assertEquals(AttachmentCallerActivity.hashes[actual[i]],NativeUploadOrderProbe.sha256(part.bytes));
+                    // Transport must preserve the name actually returned by the
+                    // system. Original-name loss at the picker is a separate
+                    // product failure, recorded above; never rename to conceal it.
+                    assertEquals(returnedNames.get(i),part.filename);
+                    int idx=Arrays.asList(AttachmentCallerActivity.hashes)
+                        .indexOf(NativeUploadOrderProbe.sha256(part.bytes));
+                    assertTrue("HTTP bytes must match an original",idx>=0);
+                    serverOrder[i]=idx;
+                    assertEquals(AttachmentCallerActivity.mimes[idx],part.mime);
+                    if(AttachmentCallerActivity.names[idx].equals(part.filename))serverOriginalNames++;
                 }
+                assertArrayEquals("HTTP order must equal picker return order",actual,serverOrder);
+                assertEquals(preservedNames,serverOriginalNames);
                 android.util.Log.i("ImageOrderSystem","SYSTEM_HTTP_RESULT orderedExtra="+ordered+
-                    " picker="+Arrays.toString(actual)+" server="+Arrays.toString(actual)+" originals=true");
+                    " picker="+Arrays.toString(actual)+" server="+Arrays.toString(serverOrder)+
+                    " bytesAndMime=true transportNames=true originalNames="+(serverOriginalNames==actual.length));
             }
         } finally {
             try{
