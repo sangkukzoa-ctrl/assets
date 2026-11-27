@@ -264,3 +264,8 @@
 - AOSP ComponentResolver의 일반 앱 intent priority 상한 0. https://android.googlesource.com/platform/frameworks/base/+/dda790354c866877613d550afe7bb27e02fe35f7/services/core/java/com/android/server/pm/resolution/ComponentResolver.java
 - MediaStore EXTRA_PICK_IMAGES_IN_ORDER API35/R extension12는 호출자 extra이며 전역 사용자 설정이 아님. AndroidX system fallback picker는 시스템 앱 한정. 일반 APK에서 직접 시스템 picker 대체가 가능한지 별도 조사하고 단순 priority/manifest 변경을 성공으로 보고하지 않는다.
 - 다음 증거: Chrome 팝업의 파일 버튼 이후 화면 및 왼쪽 탐색 메뉴. 직접 Photo Picker 경로는 actual action 및 OS/extension 확인. 제품 코드 변경 없음. RC 실사용 실패 상태 유지. 사용자 사진의 썸네일/개인 콘텐츠는 저장소에 복제하지 않음.
+
+### 2026-11-27 — Chrome 파일 선택 후 DocumentsUI 진입 확인
+- 사용자 화면 1000018156.jpg: Chrome 작업 선택→파일→시스템 DocumentsUI 최근 화면, 개인/직장 탭, '다른 앱의 파일 탐색' 가로 목록. 삼성 갤러리 등 외부 앱 항목이 보이고 우측 목록은 화면 밖으로 이어짐. Image Order가 전체 목록에 없는지는 아직 미확인. 햄버거 탐색 메뉴도 존재. 다음 확인은 가로 목록 전체 및 탐색 drawer에서 Image Order 또는 Image Order (Files), 별도 앱 열기 동작 확인.
+- AOSP RootsFragment의 handler app/provider 동일 package 병합 및 AppsRowManager의 앱/루트 표시 구조 확인. 특히 RootsFragment는 ACTION_PICK_IMAGES로 조회되는 패키지를 외부 handler app 목록에서 제외하므로 해당 intent-filter 무조건 추가 시 기존 DocumentsUI 연동까지 손상될 수 있음. https://android.googlesource.com/platform/packages/apps/DocumentsUI/+/265ccf6333c739b7a020478f6bf5eca2a8accf30/src/com/android/documentsui/sidebar/RootsFragment.java
+- 화면에서 Image Order 미노출 여부 확정 전 제품 manifest 변경하지 않음. 직접 Photo Picker 경로는 별도 과제. 스크린샷 원본/개인 사진은 저장소에 포함하지 않음.
