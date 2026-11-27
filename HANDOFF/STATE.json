@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "as_of": "2026-11-28",
+  "timezone": "Asia/Seoul",
+  "project": "심안(心眼) / Siman",
+  "publisher": "2bornot",
+  "requested_action": "Complete handoff from ChatGPT Siman 1–3 to ABACUS.AI Chat LLM normal chat; no new product implementation or release authorized",
+  "task_status": "handoff_verification_pending",
+  "next_task": null,
+  "approved_active_development_tasks": [],
+  "normal_chat_only": true,
+  "agent_allowed": false,
+  "repository": {
+    "name": "sangkukzoa-ctrl/assets",
+    "production_branch": "main",
+    "handoff_branch": "siman-handoff/2026-11-28",
+    "source_root": "siman/development/",
+    "historical_root": "siman/",
+    "source_tree": "3bfc7f13f88b9060a6e20b6560c2e4bf5b7288ae",
+    "main_snapshot": "d1a7af4196eb724d9d3327a534f48cbdd17e255c",
+    "release_ci_commit": "4dc301c40bfc471ac72aef7b1e827ae4f8c23ee9"
+  },
+  "release": {
+    "version": "1.5.13",
+    "installer_revision": 11,
+    "tag": "siman-v1.5.13",
+    "fixed_tag": "siman-beta",
+    "url": "https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-v1.5.13",
+    "beta_url": "https://github.com/sangkukzoa-ctrl/assets/releases/tag/siman-beta",
+    "exe_url": "https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/SimanSetup.exe",
+    "zip_url": "https://github.com/sangkukzoa-ctrl/assets/releases/download/siman-beta/Siman-Windows.zip",
+    "build_run": "https://github.com/sangkukzoa-ctrl/assets/actions/runs/43439284243",
+    "download_check": "https://github.com/sangkukzoa-ctrl/assets/actions/runs/43439664742",
+    "published": true,
+    "asset_sha256": {
+      "exe": "4f1f97a331b985d422384bce7232fdfec063a9129da6a719f9a7f28226c0617b",
+      "windows_zip": "cd93b5e6bd9a0345fddfbdb572456772f33048c426f38775f41ff28aaae9c033",
+      "source_zip": "1e13d0d73857763448ced8a48882ff5eeb9fbf12d5fc0cb1983a5be0845025aa",
+      "webstore_zip": "e24a55c53567e9de72f679254283debc4475ddc444bda1b478f69a95c64745a9"
+    },
+    "versioned_and_fixed_asset_digests_equal": true
+  },
+  "verification": {
+    "historical_ci": "success",
+    "historical_node_suites": 15,
+    "historical_chrome_e2e": "Chrome for Testing, Dev Mode ON, v1.5.12 -> v1.5.13, original ID, new background ACK",
+    "handoff_ci": "pending",
+    "handoff_run": null,
+    "source_manifest": "HANDOFF/BASELINE_MANIFEST.json",
+    "runtime_user_v1513": "not confirmed",
+    "actual_edge_and_dev_mode_off": "not proven",
+    "grok_authenticated_real_account": "not proven"
+  },
+  "last_user_log": {
+    "version": "1.5.12",
+    "at_kst": "2026-11-13 22:47:34",
+    "chatllm": {
+      "discovered": 301,
+      "complete": 301,
+      "account_list_complete": "unproven"
+    },
+    "claude": {
+      "discovered": 120,
+      "complete": 119,
+      "failed": 1,
+      "reason": "503"
+    },
+    "deepseek": {
+      "discovered": 40,
+      "complete": 40
+    },
+    "gemini": {
+      "discovered": 208,
+      "complete": 208
+    },
+    "grok": {
+      "discovered": 0,
+      "complete": 0,
+      "status": "401, login required, not verified empty"
+    },
+    "chatgpt": {
+      "discovered": 644,
+      "complete": 183,
+      "pending": 460,
+      "retry": 1,
+      "reason": "429",
+      "previous_log_complete": 532
+    }
+  },
+  "unresolved": [
+    "Validate actual v1.5.13 installer ACK in user Chrome; preserve extension identity/data; investigate Chrome error card with real exception/stack",
+    "Explain ChatGPT completion decrease 532 -> 183 without assuming deletion; verify profile/ID/archive continuity, then residual 429 recovery",
+    "Confirm Claude 503 retry in user account",
+    "Verify Grok actual authenticated account and all providers incremental/complete coverage",
+    "Exact-message-position navigation; support existing title/body/context/copy UX",
+    "Tab-independent collection design only if subsequently approved",
+    "Chrome Web Store / Edge Add-ons and Authenticode not completed"
+  ],
+  "source_precedence": [
+    "actual published release asset digests and release CI commit",
+    "actual source tree and test logs",
+    "current STATE/TASKS",
+    "historical continuation and handoff documents",
+    "conversation summaries"
+  ],
+  "history": {
+    "session_1": "2026-11-02 onward, all-session full-text search origin; early detailed transcript not fully available",
+    "session_2": "siman/CONTINUATION_2026-11-10.md; original 2->3 handoff at bottom of siman/HANDOFF_SIMAN_3_2026-11-12.md",
+    "session_3": "siman/HANDOFF_SIMAN_3_2026-11-12.md newest section v1.5.13; README and release notes",
+    "raw_private_logs_included": false
+  },
+  "release_authorization": "NONE for this handoff; production main untouched; candidate artifacts only",
+  "next_action": "Read handoff, verify source and ChatLLM tool/REST permissions; report readiness. Await specific approved development task."
+}

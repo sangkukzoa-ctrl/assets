@@ -1,0 +1,306 @@
+name: Siman - handoff Windows regression (NO publication)
+on:
+  push:
+    branches: ['siman-handoff/2026-11-28']
+    paths:
+      - 'siman/development/**'
+      - 'siman/installer-v151r2/SimanSetup.ico.base64'
+      - '.github/workflows/siman-handoff-ci.yml'
+      - 'tools/verify_baseline.py'
+  workflow_dispatch:
+concurrency:
+  group: siman-handoff-ci
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  build-verify-release:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify preserved source snapshot at baseline (only when version/tree remains unchanged)
+        shell: pwsh
+        run: |
+          python tools/verify_baseline.py --working-tree
+          if($LASTEXITCODE -ne 0){throw 'Baseline source integrity failed. For authorized code edits, update CI baseline policy explicitly; do not rewrite historical manifest.'}
+      - name: Package maintained plain source and extension
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Path dist,source -Force | Out-Null
+          Copy-Item -Path 'siman/development/*' -Destination source -Recurse -Force
+          $v='1.5.13'
+          $manifest=Get-Content 'source/app/manifest.json' -Raw -Encoding UTF8 | ConvertFrom-Json
+          if($manifest.manifest_version -ne 3 -or $manifest.version -ne $v){throw 'Source manifest mismatch'}
+          $csharp=Get-Content 'source/installer/SimanSetup.cs' -Raw -Encoding UTF8
+          if(!$csharp.Contains('AppVersion = "1.5.13"')){throw 'Windows installer version mismatch'}
+          Compress-Archive -Path 'source/*' -DestinationPath 'dist/Siman_v1.5.13_SOURCE.zip' -CompressionLevel Optimal -Force
+          Compress-Archive -Path 'source/app/*' -DestinationPath 'dist/Siman_v1.5.13_WEBSTORE.zip' -CompressionLevel Optimal -Force
+          foreach($file in @('Siman_v1.5.13_SOURCE.zip','Siman_v1.5.13_WEBSTORE.zip')){
+            $z=[IO.Compression.ZipFile]::OpenRead((Resolve-Path (Join-Path 'dist' $file)).Path)
+            try{
+              if($z.Entries.Count -lt 15){throw "Missing files in $file"}
+              foreach($e in $z.Entries){
+                if(!$e.Name){continue}
+                $stream=$e.Open()
+                try{$buffer=New-Object byte[] 16384;while($stream.Read($buffer,0,$buffer.Length) -gt 0){}}
+                finally{$stream.Dispose()}
+              }
+            }finally{$z.Dispose()}
+          }
+          Write-Host 'PASS source and extension archive verification'
+      - name: Node collector, bridge, visited-DOM, 429 and archive regression
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($test in @('bridge.test.cjs','collectors.test.cjs','deepseek_dom.test.cjs','v154_regressions.test.cjs','v155_archive_integrity.test.cjs','v155_capture_recovery.test.cjs','v1510_stall_recovery.test.cjs','v1513_autoapply.test.cjs','v1513_deepseek_web.test.cjs','v1513_gemini_web.test.cjs','v1513_grok_web.test.cjs','v1513_grok_auth.test.cjs','v1513_chrome_lifecycle.test.cjs','v1513_chatgpt_resume.test.cjs','v1513_claude_503.test.cjs')){
+            node (Join-Path 'source/tests' $test)
+            if($LASTEXITCODE -ne 0){throw "Regression failed: $test"}
+          }
+          Get-ChildItem 'source/app' -Filter '*.js' | ForEach-Object {
+            node --check $_.FullName
+            if($LASTEXITCODE -ne 0){throw "JavaScript syntax failed: $($_.Name)"}
+          }
+          $m=Get-Content 'source/app/manifest.json' -Raw -Encoding UTF8 | ConvertFrom-Json
+          if($m.manifest_version -ne 3 -or $m.version -ne '1.5.13'){throw 'Manifest mismatch'}
+          $s=Get-Content 'source/app/content.js' -Raw -Encoding UTF8
+          if($s.Contains("throw Error('심안 저장용 의존성 로딩 실패')")){throw 'Old Chrome loading crash remains'}
+          if(!$s.Contains('VISIT_SKIP') -or !$s.Contains('VISIT_ERROR') -or !$s.Contains('captureBusy')){throw 'Visited capture diagnostics missing'}
+          Write-Host 'PASS: fifteen regression suites, Chrome content initialization and manifest'
+      - name: Compile native Windows SimanSetup.exe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $payload=Join-Path (Resolve-Path source/installer).Path 'extension_payload.zip'
+          Copy-Item 'dist/Siman_v1.5.13_WEBSTORE.zip' $payload
+          $icon=Join-Path (Resolve-Path source/installer).Path 'SimanSetup.ico'
+          $data=(Get-Content 'siman/installer-v151r2/SimanSetup.ico.base64' -Raw).Trim()
+          [IO.File]::WriteAllBytes($icon,[Convert]::FromBase64String($data))
+          $csc=Join-Path $env:windir 'Microsoft.NET/Framework/v4.0.30319/csc.exe'
+          if(!(Test-Path $csc)){throw 'Windows compiler missing'}
+          $sourceFile=Join-Path (Resolve-Path source/installer).Path 'SimanSetup.cs'
+          $referenceRoot=${env:ProgramFiles(x86)}
+          $uiRefRoot=Join-Path $referenceRoot 'Reference Assemblies/Microsoft/Framework/.NETFramework/v4.8'
+          $wpfRoot=Join-Path $env:WINDIR 'Microsoft.NET/Framework/v4.0.30319/WPF'
+          $uiRefs=@()
+          foreach($dll in @('UIAutomationClient.dll','UIAutomationTypes.dll','WindowsBase.dll')){
+            $options=@(
+              (Join-Path $uiRefRoot $dll),
+              (Join-Path $wpfRoot $dll)
+            )
+            $selected=$options | Where-Object {Test-Path $_} | Select-Object -First 1
+            if(!$selected){
+              $folder=Join-Path $env:WINDIR ('Microsoft.NET/assembly/GAC_MSIL/'+[IO.Path]::GetFileNameWithoutExtension($dll))
+              if(Test-Path $folder){$selected=Get-ChildItem $folder -Filter $dll -Recurse -File | Select-Object -First 1 -ExpandProperty FullName}
+            }
+            if(!$selected){throw "UI Automation reference assembly not found: $dll"}
+            Write-Host "UI Automation assembly resolved: $selected"
+            $uiRefs+=('/reference:'+([string]$selected))
+          }
+          & $csc /nologo /target:winexe /platform:anycpu /optimize+ /out:dist/SimanSetup.exe "/resource:${payload},siman.extension.payload" "/win32icon:${icon}" /reference:System.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll @uiRefs $sourceFile
+          if($LASTEXITCODE -ne 0){throw 'Windows installer compile failure'}
+      - name: Real Windows EXE first install, in-place upgrade, user file preservation and repeated update
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $exe=(Resolve-Path 'dist/SimanSetup.exe').Path
+          $text=Get-Content 'source/installer/SimanSetup.cs' -Raw -Encoding UTF8
+          if(!$text.Contains('Shown += delegate') -or !$text.Contains('DoInstall(true)')){
+            throw 'GUI auto-install-on-launch hook is missing'
+          }
+          if(!$text.Contains('CopyDirectory(stage, Target)')){
+            throw 'In-place file overwrite is missing'
+          }
+          if(!$text.Contains('ROLLBACK: old app files restored')){
+            throw 'Update rollback path is missing'
+          }
+          if(!$text.Contains('DiscoverBrowserExtensions()') -or !$text.Contains('ApplyBrowserUpdates()') -or !$text.Contains('TcpListener(IPAddress.Loopback, 0)')){
+            throw 'Browser-profile discovery or acknowledged automatic extension reload is absent'
+          }
+          $v=Start-Process -FilePath $exe -ArgumentList '--verify' -Wait -PassThru
+          if($v.ExitCode -ne 0){throw "Installer ZIP validation failed: $($v.ExitCode)"}
+          $r=Start-Process -FilePath $exe -ArgumentList '--install' -Wait -PassThru
+          if($r.ExitCode -ne 0){throw "First installation failed: $($r.ExitCode)"}
+          $target=Join-Path $env:LOCALAPPDATA '2bornot/Siman/app'
+          $root=Join-Path $env:LOCALAPPDATA '2bornot/Siman'
+          $manifestPath=Join-Path $target 'manifest.json'
+          $managed=Join-Path $target '.siman-managed-files.txt'
+          if(!(Test-Path $managed)){throw 'Installer managed-file inventory missing'}
+          $manifest=Get-Content $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+          if($manifest.version -ne '1.5.13'){throw 'Wrong initial manifest version'}
+          $count=@(Get-ChildItem $target -Recurse -File).Count
+          if($count -lt 15){throw 'Extension files missing'}
+          $directoryCreatedAt=(Get-Item $target).CreationTimeUtc
+          # Mimic the previous version without moving the folder; this is the user upgrade case.
+          $previous=Get-Content $manifestPath -Raw -Encoding UTF8
+          $previous=$previous.Replace('"version": "1.5.13"','"version": "1.5.6"')
+          if($previous -notmatch '"version":\s*"1.5.6"'){throw 'Could not prepare prior-version fixture'}
+          Set-Content $manifestPath -Value $previous -Encoding UTF8
+          # Managed obsolete extension file must be deleted; non-managed custom file preserved.
+          'obsolete code' | Set-Content (Join-Path $target 'obsolete-test.txt')
+          Add-Content -LiteralPath $managed -Value 'obsolete-test.txt' -Encoding UTF8
+          'preserve user data' | Set-Content (Join-Path $target 'user-notes.txt')
+          'untouched local data' | Set-Content (Join-Path $root 'siman-archive-sentinel.json')
+          $r=Start-Process -FilePath $exe -ArgumentList '--update' -Wait -PassThru
+          if($r.ExitCode -ne 0){throw "Version upgrade failed: $($r.ExitCode)"}
+          if((Get-Content $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json).version -ne '1.5.13'){throw 'Update version mismatch'}
+          if(Test-Path (Join-Path $target 'obsolete-test.txt')){throw 'Old managed code survived in-place update'}
+          if((Get-Content (Join-Path $target 'user-notes.txt') -Raw).Trim() -ne 'preserve user data'){throw 'Unmanaged user file was deleted or overwritten'}
+          if((Get-Content (Join-Path $root 'siman-archive-sentinel.json') -Raw).Trim() -ne 'untouched local data'){throw 'External archive sentinel modified'}
+          if((Get-Item $target).CreationTimeUtc -ne $directoryCreatedAt){throw 'Extension installation directory was replaced; in-place path identity lost'}
+          # Re-run the installer: updating twice must be safe.
+          $r=Start-Process -FilePath $exe -ArgumentList '--install' -Wait -PassThru
+          if($r.ExitCode -ne 0){throw "Repeated update failed: $($r.ExitCode)"}
+          if(!(Test-Path (Join-Path $target 'user-notes.txt'))){throw 'Repeated update lost custom file'}
+          # A real Chrome Preferences structure must resolve the SAME extension
+          # ID from the existing app path, without modifying that profile file.
+          $profile=Join-Path $env:LOCALAPPDATA 'Google/Chrome/User Data/Default'
+          New-Item -ItemType Directory -Path $profile -Force | Out-Null
+          $pref=Join-Path $profile 'Preferences'
+          $id='abcdefghijklmnopabcdefghijklmnop'
+          $prefs=@{ extensions=@{ settings=@{ $id=@{ path=$target;state=1;manifest=@{name='Siman';version='1.5.12'} } } } } | ConvertTo-Json -Depth 12
+          [IO.File]::WriteAllText($pref,$prefs,[Text.Encoding]::UTF8)
+          $orig=(Get-FileHash $pref -Algorithm SHA256).Hash
+          $scan=Start-Process -FilePath $exe -ArgumentList '--scan-browser' -Wait -PassThru
+          if($scan.ExitCode -ne 0){throw 'Installer failed to discover previous unpacked extension ID from Chrome Preferences'}
+          if((Get-FileHash $pref -Algorithm SHA256).Hash -ne $orig){throw 'Chrome Preferences were modified by the installer'}
+          if(!(Test-Path (Join-Path $root 'setup.log'))){throw 'Installation log missing'}
+          if(!(Select-String -LiteralPath (Join-Path $root 'setup.log') -Pattern 'In-place update' -Quiet)){throw 'In-place update not recorded'}
+          Write-Host "PASS: automatic GUI update source, real Windows EXE, prior-version upgrade, same folder identity, stale code removed, user data preserved, repeated update ($count extension files)"
+      - name: Install Chrome for Testing for real extension lifecycle verification
+        id: chrome-test
+        uses: browser-actions/setup-chrome@v2
+        with:
+          chrome-version: stable
+
+      - name: End-to-end previous Siman -> v1.5.13 in running Chrome without user clicks
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHROME_FOR_TESTING: ${{ steps.chrome-test.outputs.chrome-path }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $chrome=$env:CHROME_FOR_TESTING
+          if(!(Test-Path $chrome)){throw "Chrome for Testing binary missing: $chrome"}
+          $app=Join-Path $env:LOCALAPPDATA '2bornot/Siman/app'
+          $root=Join-Path $env:LOCALAPPDATA 'Google/Chrome/User Data'
+          $log=Join-Path $env:LOCALAPPDATA '2bornot/Siman/setup.log'
+          $previous=Join-Path (Resolve-Path dist).Path 'Siman_v1.5.12_WEBSTORE.zip'
+          gh release download siman-v1.5.12 --repo $env:GITHUB_REPOSITORY --pattern 'Siman_v1.5.12_WEBSTORE.zip' --dir dist
+          if($LASTEXITCODE -ne 0){throw 'v1.5.12 original Chrome extension fixture download failed'}
+          if(Test-Path $root){Remove-Item $root -Recurse -Force}
+          New-Item -ItemType Directory $root -Force | Out-Null
+          Expand-Archive -LiteralPath $previous -DestinationPath $app -Force
+          if((Get-Content (Join-Path $app 'manifest.json') -Raw | ConvertFrom-Json).version -ne '1.5.12'){
+            throw 'Real previous extension fixture not installed'
+          }
+          $reg='HKCU:\Software\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe'
+          New-Item $reg -Force | Out-Null
+          Set-Item -Path $reg -Value $chrome
+          $args="--remote-debugging-port=0 --remote-allow-origins=* --no-first-run --no-default-browser-check --disable-gpu --user-data-dir=__QUOTED_ROOT__ --load-extension=__QUOTED_APP__ --disable-extensions-except=__QUOTED_APP__ about:blank"
+          $args=$args.Replace('__QUOTED_ROOT__',('"'+$root+'"')).Replace('__QUOTED_APP__',('"'+$app+'"'))
+          $browser=Start-Process -FilePath $chrome -ArgumentList $args -PassThru
+          try{
+            $preferences=''
+          $found=$false
+          for($attempt=0;$attempt -lt 65;$attempt++){
+            Start-Sleep -Milliseconds 400
+            foreach($source in @('Secure Preferences','Preferences')){
+              $candidate=Join-Path (Join-Path $root 'Default') $source
+              if(!(Test-Path $candidate)){continue}
+              try{
+                $json=Get-Content $candidate -Raw -Encoding UTF8 | ConvertFrom-Json
+                $matches=@($json.extensions.settings.PSObject.Properties | Where-Object {
+                  $_.Value.path -and ([IO.Path]::GetFullPath([string]$_.Value.path).TrimEnd('\') -ieq [IO.Path]::GetFullPath($app).TrimEnd('\'))
+                })
+                if($matches.Count){$preferences=$candidate;$found=$true;break}
+              }catch{}
+            }
+            if($found){break}
+          }
+          if(!$preferences){$preferences=Join-Path $root 'Default/Secure Preferences'}
+          if(!$found){
+            Write-Host "Browser exited: $($browser.HasExited)"
+            Write-Host "Preferences path exists: $(Test-Path $preferences)"
+            Get-ChildItem -LiteralPath $root -Force -ErrorAction SilentlyContinue | Select-Object Name,Length | Format-Table | Out-String | Write-Host
+            $active=Get-Process chrome -ErrorAction SilentlyContinue
+            Write-Host "Chrome process count $(@($active).Count)"
+            if(Test-Path $preferences){
+              try{
+                $prefData=Get-Content $preferences -Raw -Encoding UTF8 | ConvertFrom-Json
+                Write-Host "Extensions settings count $(@($prefData.extensions.settings.PSObject.Properties).Count)"
+                $paths=@($prefData.extensions.settings.PSObject.Properties | ForEach-Object {$_.Value.path} | Where-Object {$_})
+                Write-Host "Registered unpacked paths ending Siman/app: $(@($paths | Where-Object {$_ -like '*Siman*'}).Count)"
+                Write-Host "Preferences total size $((Get-Item $preferences).Length)"
+              }catch{Write-Host "Preference JSON inspection: $($_.Exception.Message)"}
+            }
+            $devPort=Join-Path $root 'DevToolsActivePort'
+            if(Test-Path $devPort){Write-Host 'Remote debugging port file present'}
+            throw 'Live Chrome for Testing did not register original v1.5.12 unpacked extension in Preferences'
+          }
+            Write-Host "RUNNING CHROME: previous v1.5.12 extension found; ID=$($matches[0].Name); state=$($matches[0].Value.state); disabled-reasons=$($matches[0].Value.disable_reasons)"
+            $probePort=Join-Path $root 'DevToolsActivePort'
+            if(Test-Path $probePort){
+              $devPort=(Get-Content $probePort -TotalCount 1).Trim()
+              node 'source/tests/v158_browser_manager_probe.cjs' $devPort $matches[0].Name --dev-mode
+            }
+            $installer=(Resolve-Path 'dist/SimanSetup.exe').Path
+            $upgrade=Start-Process -FilePath $installer -ArgumentList '--update' -PassThru -Wait
+            if($upgrade.ExitCode -ne 0){
+              if(Test-Path $log){Get-Content $log -Tail 35 | Write-Host}
+              $portFile=Join-Path $root 'DevToolsActivePort'
+              if(Test-Path $portFile){
+                $cdpPort=(Get-Content $portFile -TotalCount 1).Trim()
+                try{
+                  $browserInfo=Invoke-RestMethod "http://127.0.0.1:$cdpPort/json/version" -TimeoutSec 5
+                  Write-Host "CDP browser product $($browserInfo.Browser)"
+                  $targets=Invoke-RestMethod "http://127.0.0.1:$cdpPort/json/list" -TimeoutSec 5
+                  $safeTargets=@($targets | ForEach-Object { $_.type + ' ' + (($_.url -split '[?]')[0]) })
+                  Write-Host ('CDP targets: '+($safeTargets -join ' | '))
+                  node 'source/tests/v158_browser_cdp_probe.cjs' $cdpPort
+                  node 'source/tests/v158_browser_manager_probe.cjs' $cdpPort $matches[0].Name
+                }catch{Write-Host "CDP inspection error $($_.Exception.Message)"}
+              }
+              $sprefs=Join-Path $root 'Default/Secure Preferences'
+              if(Test-Path $sprefs){
+                $secure=Get-Content $sprefs -Raw -Encoding UTF8 | ConvertFrom-Json
+                $regEntry=$secure.extensions.settings.PSObject.Properties | Where-Object {$_.Name -eq $matches[0].Name}
+                Write-Host "Secure ext registered: $([bool]$regEntry) v=$($regEntry.Value.manifest.version)"
+              }
+              throw "Extension lifecycle update not acknowledged by real Chrome; exit=$($upgrade.ExitCode)"
+            }
+            if(!(Select-String -LiteralPath $log -Pattern 'BROWSER RELOADED:' -Quiet)){
+              throw 'No real Chrome background ACK after extension reload'
+            }
+            if((Get-Content (Join-Path $app 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version -ne '1.5.13'){
+              throw 'Installed manifest is not v1.5.13 after actual Chrome upgrade'
+            }
+            $after=Get-Content $preferences -Raw -Encoding UTF8 | ConvertFrom-Json
+            $same=$after.extensions.settings.PSObject.Properties | Where-Object { $_.Name -eq $matches[0].Name }
+            if(!$same){throw 'Original extension ID disappeared after update'}
+            Write-Host 'PASS: real Chrome for Testing runs installed v1.5.12; v1.5.13 installer auto-updates code and obtains background completion ACK with original extension ID'
+          }finally{
+            # Test runner profile only: never terminate a real user's browser.
+            if($browser -and !$browser.HasExited){Stop-Process -Id $browser.Id -Force -ErrorAction SilentlyContinue}
+          }
+
+      - name: Package verified Windows candidate without publishing
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Copy-Item 'source/README_INSTALL_BETA.txt' dist/
+          Copy-Item 'source/RELEASE_NOTES_v1.5.13.md' dist/
+          Compress-Archive -Path 'dist/SimanSetup.exe','dist/README_INSTALL_BETA.txt','dist/RELEASE_NOTES_v1.5.13.md' -DestinationPath 'dist/Siman-Handoff-Windows.zip' -Force
+          Get-ChildItem dist -File | Where-Object {$_.Name -match '\.(zip|exe)$'} | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)" } | Set-Content 'dist/HANDOFF-CANDIDATE-SHA256.txt' -Encoding ascii
+      - name: Upload verification artifacts (NOT a public release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Siman-Handoff-v1.5.13-Windows-CI
+          path: |
+            dist/SimanSetup.exe
+            dist/Siman-Handoff-Windows.zip
+            dist/Siman_v1.5.13_SOURCE.zip
+            dist/Siman_v1.5.13_WEBSTORE.zip
+            dist/HANDOFF-CANDIDATE-SHA256.txt
+          if-no-files-found: error

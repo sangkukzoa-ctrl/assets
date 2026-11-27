@@ -1,0 +1,2 @@
+* -text
+# Handoff snapshot must preserve the original Git blob bytes across operating systems.

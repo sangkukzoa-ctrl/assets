@@ -1,0 +1,803 @@
+{
+  "schema_version": 1,
+  "repository": "sangkukzoa-ctrl/assets",
+  "main_snapshot": "d1a7af4196eb724d9d3327a534f48cbdd17e255c",
+  "release_ci_commit": "4dc301c40bfc471ac72aef7b1e827ae4f8c23ee9",
+  "siman_tree": "71946d511c619ead7234c1e96590a9317dd4713b",
+  "development_tree": "3bfc7f13f88b9060a6e20b6560c2e4bf5b7288ae",
+  "files": [
+    {
+      "path": "HANDOFF/production_workflows/siman-bootstrap-source.yml",
+      "original_path": ".github/workflows/siman-bootstrap-source.yml",
+      "git_blob_sha": "7801f32fae6c3c8068623d1873811c66ebb0e70c",
+      "bytes": 1537
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-easy-installer-r2.yml",
+      "original_path": ".github/workflows/siman-easy-installer-r2.yml",
+      "git_blob_sha": "06fe9ee02ed06e632c87e015272636cd8f2bce2b",
+      "bytes": 5403
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-public-download-check.yml",
+      "original_path": ".github/workflows/siman-public-download-check.yml",
+      "git_blob_sha": "c3fac982ea88006762be671bb1fa75aedc088cee",
+      "bytes": 3705
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v130-release.yml",
+      "original_path": ".github/workflows/siman-v130-release.yml",
+      "git_blob_sha": "0f00b510300fcd720e3413241a2c77a3fd7d7f2c",
+      "bytes": 1797
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v131-install-release.yml",
+      "original_path": ".github/workflows/siman-v131-install-release.yml",
+      "git_blob_sha": "264e7c7ec9c22d9326f84a7a68470f58a69aaa46",
+      "bytes": 4261
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v140-release.yml",
+      "original_path": ".github/workflows/siman-v140-release.yml",
+      "git_blob_sha": "b758fe49bb6045a1733d84472ca0d74a10c11b5e",
+      "bytes": 4740
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v150-release.yml",
+      "original_path": ".github/workflows/siman-v150-release.yml",
+      "git_blob_sha": "6ccbefc67d67f741f224b5c02158dcdb02b4a8a5",
+      "bytes": 4841
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v151-release.yml",
+      "original_path": ".github/workflows/siman-v151-release.yml",
+      "git_blob_sha": "0246d7758650ca312f6cfe1e4b45b1ca280bd0c4",
+      "bytes": 4725
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v1510-release.yml",
+      "original_path": ".github/workflows/siman-v1510-release.yml",
+      "git_blob_sha": "578f66edd61a97b239672f1619438b6b0309ef2a",
+      "bytes": 26790
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v1511-release.yml",
+      "original_path": ".github/workflows/siman-v1511-release.yml",
+      "git_blob_sha": "0954a1460ed5d9ade6c9896a89b395d21559929f",
+      "bytes": 26828
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v1512-release.yml",
+      "original_path": ".github/workflows/siman-v1512-release.yml",
+      "git_blob_sha": "f0ccd68cf101c272e04b186a572295f99a4cb6a9",
+      "bytes": 26916
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v1513-release.yml",
+      "original_path": ".github/workflows/siman-v1513-release.yml",
+      "git_blob_sha": "2cddb260d008e4231174d079ede3136ebafcbdfc",
+      "bytes": 27066
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v152-release.yml",
+      "original_path": ".github/workflows/siman-v152-release.yml",
+      "git_blob_sha": "e0d7e0d9fb854766c9be1ec86b6260c2fee2ff85",
+      "bytes": 6664
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v153-blog-kit.yml",
+      "original_path": ".github/workflows/siman-v153-blog-kit.yml",
+      "git_blob_sha": "94c2faeda1b905dff9be7f717606296e8add20c4",
+      "bytes": 2418
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v153-release.yml",
+      "original_path": ".github/workflows/siman-v153-release.yml",
+      "git_blob_sha": "c889a8ad84f457992eb4df85639e68712f978b68",
+      "bytes": 6796
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v154-release.yml",
+      "original_path": ".github/workflows/siman-v154-release.yml",
+      "git_blob_sha": "47e569f29410c791d8e8e2f1f3b38d69db3419d7",
+      "bytes": 7313
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v155-release.yml",
+      "original_path": ".github/workflows/siman-v155-release.yml",
+      "git_blob_sha": "ee776c13c49f34df0f59ef2fa744a6d298950fe6",
+      "bytes": 12653
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v156-release.yml",
+      "original_path": ".github/workflows/siman-v156-release.yml",
+      "git_blob_sha": "d6d2bb4f8bb9eb72522b1c10700af863c2d3ff04",
+      "bytes": 13044
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v157-release.yml",
+      "original_path": ".github/workflows/siman-v157-release.yml",
+      "git_blob_sha": "a79dbe71549234a87561a4db3e5303636071b3e4",
+      "bytes": 16418
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v158-release.yml",
+      "original_path": ".github/workflows/siman-v158-release.yml",
+      "git_blob_sha": "08ab04288763c30fdfd6a36471462894e40a9923",
+      "bytes": 26698
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-v159-release.yml",
+      "original_path": ".github/workflows/siman-v159-release.yml",
+      "git_blob_sha": "e3b4a1f2e2dc37ba7edb7c6765896ee53dc189d6",
+      "bytes": 26726
+    },
+    {
+      "path": "HANDOFF/production_workflows/siman-windows-smoke.yml",
+      "original_path": ".github/workflows/siman-windows-smoke.yml",
+      "git_blob_sha": "2d5a23056e82b612a4b935be48006afe1ba27b7d",
+      "bytes": 1542
+    },
+    {
+      "path": "siman/blog-v153/BLOG_POST_복사용.txt",
+      "git_blob_sha": "9e943f6a3318ed33c64ff8e555f3543ed0ee7125",
+      "bytes": 5382
+    },
+    {
+      "path": "siman/blog-v153/BLOGGER_작업순서.txt",
+      "git_blob_sha": "ed073a44157408e0e6c966054863c46fabc9efa1",
+      "bytes": 898
+    },
+    {
+      "path": "siman/blog-v153/CHANGELOG_알려진문제.txt",
+      "git_blob_sha": "efa4bfb1c16eb4fa12869d274745dbb539c63482",
+      "bytes": 1069
+    },
+    {
+      "path": "siman/blog-v153/PRIVACY_권한과저장방식.txt",
+      "git_blob_sha": "bff684b5dc9173218056e0118004f957f9ba3e42",
+      "bytes": 1304
+    },
+    {
+      "path": "siman/blog-v153/README_사용방법.txt",
+      "git_blob_sha": "3ef2700c9ce449a000dd0d931efe50ad0f79f8a8",
+      "bytes": 2234
+    },
+    {
+      "path": "siman/CONTINUATION_2026-11-10.md",
+      "git_blob_sha": "ed2dcb6e613df76b5cfa34bc9503b9e198aa50ba",
+      "bytes": 16600
+    },
+    {
+      "path": "siman/development/app/background.js",
+      "git_blob_sha": "dfd288740448df2005692bf01f3e68ed46df993d",
+      "bytes": 4605
+    },
+    {
+      "path": "siman/development/app/content.js",
+      "git_blob_sha": "de223a33f8c49e5306ce06cafda7aee0a3f683db",
+      "bytes": 14885
+    },
+    {
+      "path": "siman/development/app/core.js",
+      "git_blob_sha": "1a0e357d4f9c95518bbffa3e8f7d5cf41952f916",
+      "bytes": 11442
+    },
+    {
+      "path": "siman/development/app/db.js",
+      "git_blob_sha": "2b305ddb6c34be7cf51fecb1f4ad827b249d19dc",
+      "bytes": 2609
+    },
+    {
+      "path": "siman/development/app/deepseek-web.js",
+      "git_blob_sha": "804a7e1ddb02be096d23fb74c4a56676f7925fb7",
+      "bytes": 3476
+    },
+    {
+      "path": "siman/development/app/gemini-web.js",
+      "git_blob_sha": "eb39b940a62a5cecd355747c0277aad5c4edd8ce",
+      "bytes": 4835
+    },
+    {
+      "path": "siman/development/app/grok-web.js",
+      "git_blob_sha": "cc8ba31523708b4dc9497fde34b51d229a05bb11",
+      "bytes": 6224
+    },
+    {
+      "path": "siman/development/app/icons/128.png",
+      "git_blob_sha": "0be39c686580c209964c92dd96e991572eaaea14",
+      "bytes": 1151
+    },
+    {
+      "path": "siman/development/app/icons/16.png",
+      "git_blob_sha": "f67383e66650d9ae33799cd1f91d56a551b66660",
+      "bytes": 203
+    },
+    {
+      "path": "siman/development/app/icons/32.png",
+      "git_blob_sha": "eef72f2f9b91cdbbb45c5a62df779c710a926d8c",
+      "bytes": 325
+    },
+    {
+      "path": "siman/development/app/icons/48.png",
+      "git_blob_sha": "8ba9a8d72b62f68679282193dbead953f188b3fb",
+      "bytes": 431
+    },
+    {
+      "path": "siman/development/app/manifest.json",
+      "git_blob_sha": "3f00f35102e418e4bfc822200faecc460d9841a7",
+      "bytes": 2210
+    },
+    {
+      "path": "siman/development/app/network.js",
+      "git_blob_sha": "e775d474b780547c3e452b9a9ff13657bc78baed",
+      "bytes": 13317
+    },
+    {
+      "path": "siman/development/app/page.js",
+      "git_blob_sha": "138b8b32d6c74fe663c014c687f805eb52e58793",
+      "bytes": 40873
+    },
+    {
+      "path": "siman/development/app/popup.html",
+      "git_blob_sha": "7a04d833e3ebe52523d47efc2b577fd09345c18a",
+      "bytes": 661
+    },
+    {
+      "path": "siman/development/app/popup.js",
+      "git_blob_sha": "60b8e7b26ce9d49eea1e59e9477dac5e256d4dc8",
+      "bytes": 78
+    },
+    {
+      "path": "siman/development/app/search.html",
+      "git_blob_sha": "26f392680a0fa838c979a52d21163659b468d289",
+      "bytes": 5365
+    },
+    {
+      "path": "siman/development/app/search.js",
+      "git_blob_sha": "77742c69f117cbaa7016d5b5effdaa922278c94e",
+      "bytes": 37862
+    },
+    {
+      "path": "siman/development/app/siman-update-1510.html",
+      "git_blob_sha": "b9a380e5173d0f1ad0cf77ec555adac4d8181112",
+      "bytes": 301
+    },
+    {
+      "path": "siman/development/app/siman-update-1510.js",
+      "git_blob_sha": "c545192a968176947fb21ae7e6147d677d88af38",
+      "bytes": 1076
+    },
+    {
+      "path": "siman/development/app/siman-update-1511.html",
+      "git_blob_sha": "22f71d55f807b2ea0cbb60d54ae9ef60c236429b",
+      "bytes": 301
+    },
+    {
+      "path": "siman/development/app/siman-update-1511.js",
+      "git_blob_sha": "a49467cb24d135b83c9e0038b05b005399825c9a",
+      "bytes": 1076
+    },
+    {
+      "path": "siman/development/app/siman-update-1512.html",
+      "git_blob_sha": "1521c16b0e2c0b9d0ea4d6e6a04b0d7e14739662",
+      "bytes": 301
+    },
+    {
+      "path": "siman/development/app/siman-update-1512.js",
+      "git_blob_sha": "40ee7286e581d607795eb2779f4146f82f5b29fa",
+      "bytes": 1076
+    },
+    {
+      "path": "siman/development/app/siman-update-1513.html",
+      "git_blob_sha": "527f4c6a63074c66a61f3c92d90be8cc598f9b04",
+      "bytes": 301
+    },
+    {
+      "path": "siman/development/app/siman-update-1513.js",
+      "git_blob_sha": "62afd85b080b96881a8e2e2c0adc301c368d922b",
+      "bytes": 1076
+    },
+    {
+      "path": "siman/development/app/siman-update-158.html",
+      "git_blob_sha": "167cde0faccc277ddb5aa90599a88293e7be84cf",
+      "bytes": 300
+    },
+    {
+      "path": "siman/development/app/siman-update-158.js",
+      "git_blob_sha": "1dd80e092a27867409ef83eec0b80b1bf37cde01",
+      "bytes": 1074
+    },
+    {
+      "path": "siman/development/app/siman-update-159.html",
+      "git_blob_sha": "36ea040810f7ecd2b1624b5a8436216f48eb9f82",
+      "bytes": 300
+    },
+    {
+      "path": "siman/development/app/siman-update-159.js",
+      "git_blob_sha": "35e2b803034f1e1768865f604d6fd57a73555f57",
+      "bytes": 1074
+    },
+    {
+      "path": "siman/development/app/store.js",
+      "git_blob_sha": "aa70b6add44d1be43a43615e412b6791561070a1",
+      "bytes": 7345
+    },
+    {
+      "path": "siman/development/app/style.css",
+      "git_blob_sha": "be34d9b49cecc006e6fc6f824e3b87f50a8d9f31",
+      "bytes": 5837
+    },
+    {
+      "path": "siman/development/app/vendor/JSZip_LICENSE.md",
+      "git_blob_sha": "f8250b37a61862ea61ea9a93d5d423cad395a364",
+      "bytes": 33753
+    },
+    {
+      "path": "siman/development/app/vendor/jszip.min.js",
+      "git_blob_sha": "ff4cfd5e8fdc49176c2d1d409afa897f40be01f4",
+      "bytes": 97630
+    },
+    {
+      "path": "siman/development/BLOG_UPDATE_COPY.txt",
+      "git_blob_sha": "8ccd59ec0a5cac510882b3db1c35e13f8779c7bd",
+      "bytes": 2096
+    },
+    {
+      "path": "siman/development/BLOGGER_INSTRUCTIONS.txt",
+      "git_blob_sha": "624fd2e02ac68d8f3521d487ee78c339df083c6e",
+      "bytes": 1343
+    },
+    {
+      "path": "siman/development/installer/SimanSetup.cs",
+      "git_blob_sha": "56c8e68474b5c12ba97a0b5d9e8bb9eec69214d0",
+      "bytes": 57076
+    },
+    {
+      "path": "siman/development/README_INSTALL_BETA.txt",
+      "git_blob_sha": "07257022e0473d18c53c7b2ce6ad02ae3bfd0857",
+      "bytes": 2849
+    },
+    {
+      "path": "siman/development/RELEASE_NOTES_v1.5.10.md",
+      "git_blob_sha": "9603d74e72030f125f6e6f4dc97770a81d338713",
+      "bytes": 3040
+    },
+    {
+      "path": "siman/development/RELEASE_NOTES_v1.5.11.md",
+      "git_blob_sha": "eb460a57b7be2dc126345e6aabff828914b24866",
+      "bytes": 2354
+    },
+    {
+      "path": "siman/development/RELEASE_NOTES_v1.5.12.md",
+      "git_blob_sha": "ec2f2078af57be327e92846fda4bf3c87483b5e9",
+      "bytes": 3627
+    },
+    {
+      "path": "siman/development/RELEASE_NOTES_v1.5.13.md",
+      "git_blob_sha": "7e5593d99e511db90b834f9bf3665985b852d182",
+      "bytes": 4252
+    },
+    {
+      "path": "siman/development/RELEASE_NOTES_v1.5.5.md",
+      "git_blob_sha": "977366e3c96923cea12af2ef110f6ff55b8a0301",
+      "bytes": 3644
+    },
+    {
+      "path": "siman/development/RELEASE_NOTES_v1.5.6.md",
+      "git_blob_sha": "68edf237e2ae72cc750056bab118717d488de23a",
+      "bytes": 2522
+    },
+    {
+      "path": "siman/development/RELEASE_NOTES_v1.5.7.md",
+      "git_blob_sha": "458dd1ff099722eb1abf6fdb2aedce1ea87cca2b",
+      "bytes": 1987
+    },
+    {
+      "path": "siman/development/RELEASE_NOTES_v1.5.8.md",
+      "git_blob_sha": "cc54da9980e44ebcac1d34454fde71f3b9700a5a",
+      "bytes": 2943
+    },
+    {
+      "path": "siman/development/RELEASE_NOTES_v1.5.9.md",
+      "git_blob_sha": "b95c807aa600edf73b4da742e3b24a69430f5e86",
+      "bytes": 2570
+    },
+    {
+      "path": "siman/development/tests/bridge.test.cjs",
+      "git_blob_sha": "c01fa573daec9f20baf0aa0139cbb03fa99c352c",
+      "bytes": 4100
+    },
+    {
+      "path": "siman/development/tests/collectors.test.cjs",
+      "git_blob_sha": "ac1b80f99d22c5e7d4293dafd2a6fbed0c4a5621",
+      "bytes": 7274
+    },
+    {
+      "path": "siman/development/tests/deepseek_dom.test.cjs",
+      "git_blob_sha": "fe59e979aa198e8beffd060fc48d3b8bb611accc",
+      "bytes": 2969
+    },
+    {
+      "path": "siman/development/tests/v1510_autoapply.test.cjs",
+      "git_blob_sha": "d0f3018278c52c218c752630adaefedcb570062e",
+      "bytes": 5175
+    },
+    {
+      "path": "siman/development/tests/v1510_deepseek_web.test.cjs",
+      "git_blob_sha": "48b2fac51b78e8fa718095f7f1580843a6466502",
+      "bytes": 4741
+    },
+    {
+      "path": "siman/development/tests/v1510_gemini_web.test.cjs",
+      "git_blob_sha": "23bb8101474dcd27c40ee3a410ac1d2db14322b2",
+      "bytes": 4669
+    },
+    {
+      "path": "siman/development/tests/v1510_stall_recovery.test.cjs",
+      "git_blob_sha": "b56837823850e4e876b534013665dd427bbe9488",
+      "bytes": 4510
+    },
+    {
+      "path": "siman/development/tests/v1511_autoapply.test.cjs",
+      "git_blob_sha": "790f4235100b589fbc0259eea0b1d845758cceb1",
+      "bytes": 5175
+    },
+    {
+      "path": "siman/development/tests/v1511_deepseek_web.test.cjs",
+      "git_blob_sha": "2f98cb880ad61b3880ad4a368c15f63ad990971b",
+      "bytes": 4741
+    },
+    {
+      "path": "siman/development/tests/v1511_gemini_web.test.cjs",
+      "git_blob_sha": "23bb8101474dcd27c40ee3a410ac1d2db14322b2",
+      "bytes": 4669
+    },
+    {
+      "path": "siman/development/tests/v1511_grok_web.test.cjs",
+      "git_blob_sha": "abde6f81b130983bebb523c6db4cf49b6195c6c3",
+      "bytes": 5290
+    },
+    {
+      "path": "siman/development/tests/v1512_autoapply.test.cjs",
+      "git_blob_sha": "73a7edaea96d8d734aaf12608d8bd732e4d2c35b",
+      "bytes": 5175
+    },
+    {
+      "path": "siman/development/tests/v1512_chatgpt_resume.test.cjs",
+      "git_blob_sha": "2d17a6f4ca4b81cbcbc7128404d51e79aef2db2a",
+      "bytes": 3300
+    },
+    {
+      "path": "siman/development/tests/v1512_chrome_lifecycle.test.cjs",
+      "git_blob_sha": "d6662b52f62d56e84045e4dfdd4e8c6801717472",
+      "bytes": 2153
+    },
+    {
+      "path": "siman/development/tests/v1512_deepseek_web.test.cjs",
+      "git_blob_sha": "f4174373832e33d811a7dd7b485a2fb73d8ef57b",
+      "bytes": 4741
+    },
+    {
+      "path": "siman/development/tests/v1512_gemini_web.test.cjs",
+      "git_blob_sha": "8c0348557a378f364731f78c7d4de642d31f3430",
+      "bytes": 5323
+    },
+    {
+      "path": "siman/development/tests/v1512_grok_auth.test.cjs",
+      "git_blob_sha": "8d6d902c48bc449e3f20cffe425556c4f24cd959",
+      "bytes": 2587
+    },
+    {
+      "path": "siman/development/tests/v1512_grok_web.test.cjs",
+      "git_blob_sha": "3d26acf1d7eb286f375c8f299e26fd85a854ec12",
+      "bytes": 5290
+    },
+    {
+      "path": "siman/development/tests/v1513_autoapply.test.cjs",
+      "git_blob_sha": "70d16a55a5239a3da800516ca88f206b83f75f4d",
+      "bytes": 8182
+    },
+    {
+      "path": "siman/development/tests/v1513_chatgpt_resume.test.cjs",
+      "git_blob_sha": "2d17a6f4ca4b81cbcbc7128404d51e79aef2db2a",
+      "bytes": 3300
+    },
+    {
+      "path": "siman/development/tests/v1513_chrome_lifecycle.test.cjs",
+      "git_blob_sha": "d6662b52f62d56e84045e4dfdd4e8c6801717472",
+      "bytes": 2153
+    },
+    {
+      "path": "siman/development/tests/v1513_claude_503.test.cjs",
+      "git_blob_sha": "582e0dbc7ba3a5118566179b3e7d289873984eb4",
+      "bytes": 3105
+    },
+    {
+      "path": "siman/development/tests/v1513_deepseek_web.test.cjs",
+      "git_blob_sha": "1d03229d14655e8376f253b70cb115c47bf6a0ce",
+      "bytes": 4741
+    },
+    {
+      "path": "siman/development/tests/v1513_gemini_web.test.cjs",
+      "git_blob_sha": "8c0348557a378f364731f78c7d4de642d31f3430",
+      "bytes": 5323
+    },
+    {
+      "path": "siman/development/tests/v1513_grok_auth.test.cjs",
+      "git_blob_sha": "8d6d902c48bc449e3f20cffe425556c4f24cd959",
+      "bytes": 2587
+    },
+    {
+      "path": "siman/development/tests/v1513_grok_web.test.cjs",
+      "git_blob_sha": "f06ac6895fdbf8ba673fa8a21031557fbd3cc661",
+      "bytes": 5290
+    },
+    {
+      "path": "siman/development/tests/v154_regressions.test.cjs",
+      "git_blob_sha": "e7dfe491dea2fea01dbd8bc634dbf5ad8e99180b",
+      "bytes": 3847
+    },
+    {
+      "path": "siman/development/tests/v155_archive_integrity.test.cjs",
+      "git_blob_sha": "d663d577e9677a69c03e407940123eab03f64fee",
+      "bytes": 2066
+    },
+    {
+      "path": "siman/development/tests/v155_capture_recovery.test.cjs",
+      "git_blob_sha": "2433eb0c246412bcb4fa5e6f8816ab0cca4f23ed",
+      "bytes": 4495
+    },
+    {
+      "path": "siman/development/tests/v156_stall_recovery.test.cjs",
+      "git_blob_sha": "8db6fbcb3ebdad009c07fd46c860b230ff0ba96a",
+      "bytes": 4539
+    },
+    {
+      "path": "siman/development/tests/v158_autoapply.test.cjs",
+      "git_blob_sha": "734d71bfcbd2fe65df1beaf36e3fc92b5f715c79",
+      "bytes": 5160
+    },
+    {
+      "path": "siman/development/tests/v158_browser_cdp_probe.cjs",
+      "git_blob_sha": "4b32f844bac4e9eeb75f3d4e068848c2ca8fc1ac",
+      "bytes": 1726
+    },
+    {
+      "path": "siman/development/tests/v158_browser_manager_probe.cjs",
+      "git_blob_sha": "cd5cf79bb96c9092170b8a2ae56dcd03f8ace2a0",
+      "bytes": 4458
+    },
+    {
+      "path": "siman/development/tests/v159_autoapply.test.cjs",
+      "git_blob_sha": "6be622f8be5a91e5b11bad35dbfdbea441d3f62c",
+      "bytes": 5160
+    },
+    {
+      "path": "siman/development/tests/v159_deepseek_web.test.cjs",
+      "git_blob_sha": "bb29ece8dae3bcae947f1dae60743605c7a5637c",
+      "bytes": 4740
+    },
+    {
+      "path": "siman/HANDOFF_SIMAN_3_2026-11-12.md",
+      "git_blob_sha": "783c7e8adc80ceb779755b6010fe5095df14d390",
+      "bytes": 42881
+    },
+    {
+      "path": "siman/installer-v151r2/extension_payload.zip.base64",
+      "git_blob_sha": "63e5ae4719c898eb9cc9a903166000e38fd8af4c",
+      "bytes": 109104
+    },
+    {
+      "path": "siman/installer-v151r2/README_설치방법.txt",
+      "git_blob_sha": "8c81a8c92f94976d1f156d1195f590e96d312e5c",
+      "bytes": 2316
+    },
+    {
+      "path": "siman/installer-v151r2/RELEASE_NOTES.md",
+      "git_blob_sha": "570ce7d74758f3a4e11049431a06a3591eef77b8",
+      "bytes": 1459
+    },
+    {
+      "path": "siman/installer-v151r2/SimanSetup.cs",
+      "git_blob_sha": "b26370ab67af300cacb0200639fd11b4c73e75d9",
+      "bytes": 18991
+    },
+    {
+      "path": "siman/installer-v151r2/SimanSetup.ico.base64",
+      "git_blob_sha": "c1a3cdc685f494d7040c7fef340dd2c90f356938",
+      "bytes": 55096
+    },
+    {
+      "path": "siman/installer-v152r3/extension_payload.zip.base64",
+      "git_blob_sha": "01fe3bfee9dbbb956efd1e7fb10d570e7ee38c44",
+      "bytes": 109852
+    },
+    {
+      "path": "siman/installer-v152r3/README_설치방법.txt",
+      "git_blob_sha": "4c1454972faa6c9cfa34ae55d91ee31f0739d4c3",
+      "bytes": 1738
+    },
+    {
+      "path": "siman/installer-v152r3/RELEASE_NOTES.md",
+      "git_blob_sha": "28cd935fb5b629a1b49e48f91452ae9ae35770a3",
+      "bytes": 1411
+    },
+    {
+      "path": "siman/installer-v152r3/Siman_v1.5.2_SOURCE.zip.base64",
+      "git_blob_sha": "8bb649bee13f4c777c9d9a357af5452829ccfb71",
+      "bytes": 137468
+    },
+    {
+      "path": "siman/installer-v152r3/SimanSetup.cs",
+      "git_blob_sha": "a31825330ecd535d6828c2f24f5c1c064e4f6d7a",
+      "bytes": 22583
+    },
+    {
+      "path": "siman/installer-v153/extension_payload.zip.base64",
+      "git_blob_sha": "945f9afe86b86b76e912b9037ee7f40e8297db01",
+      "bytes": 111160
+    },
+    {
+      "path": "siman/installer-v153/README_설치방법.txt",
+      "git_blob_sha": "856fead0eabd1cb707a2cde1d35e54904388d78a",
+      "bytes": 1058
+    },
+    {
+      "path": "siman/installer-v153/RELEASE_NOTES.md",
+      "git_blob_sha": "50852bd011afbe9e4c2d3563fa4fbd12a73d3b71",
+      "bytes": 1378
+    },
+    {
+      "path": "siman/installer-v153/Siman_v1.5.3_SOURCE.zip.base64",
+      "git_blob_sha": "a4a43767805d2cc3dd4b7f22a053a19b9cfea4a7",
+      "bytes": 131088
+    },
+    {
+      "path": "siman/installer-v153/SimanSetup.cs",
+      "git_blob_sha": "7964b832ba5a7e54df35321c6cf54f431326cfe7",
+      "bytes": 22583
+    },
+    {
+      "path": "siman/installer-v154/BLOG_POST_UPDATE_COPY.txt",
+      "git_blob_sha": "b2afca6ce3ada1a72e78d34c306996def4e039d2",
+      "bytes": 2394
+    },
+    {
+      "path": "siman/installer-v154/extension_payload.zip.base64",
+      "git_blob_sha": "b6e09c931d0339979fcec640092a3e7112bd13f1",
+      "bytes": 112120
+    },
+    {
+      "path": "siman/installer-v154/README_INSTALL_BETA.txt",
+      "git_blob_sha": "b8a12f49ed5718cf9a2669fd9dfabfb76d6339e2",
+      "bytes": 1305
+    },
+    {
+      "path": "siman/installer-v154/README_설치방법.txt",
+      "git_blob_sha": "b8a12f49ed5718cf9a2669fd9dfabfb76d6339e2",
+      "bytes": 1305
+    },
+    {
+      "path": "siman/installer-v154/RELEASE_NOTES.md",
+      "git_blob_sha": "7d20daef70862088426db99aed4e4edf2e653b80",
+      "bytes": 2588
+    },
+    {
+      "path": "siman/installer-v154/Siman_v1.5.4_SOURCE.zip.base64",
+      "git_blob_sha": "14e1d8713b413af88f1a6e6260ef3b13ea93fb47",
+      "bytes": 137600
+    },
+    {
+      "path": "siman/installer-v154/SimanSetup.cs",
+      "git_blob_sha": "bb24e6b9c946619d939967177ab882855e5a6889",
+      "bytes": 22583
+    },
+    {
+      "path": "siman/PRIVACY.md",
+      "git_blob_sha": "160cd106fac585044e94c4218c5b81a94e44184b",
+      "bytes": 930
+    },
+    {
+      "path": "siman/README.md",
+      "git_blob_sha": "475b1531dc1a9216b0d427d7f8428be75ddc00dd",
+      "bytes": 13280
+    },
+    {
+      "path": "siman/RELEASE_NOTES_v1.3.0.md",
+      "git_blob_sha": "374be799d026b1ef9247a5b5cfd36adf34693da6",
+      "bytes": 764
+    },
+    {
+      "path": "siman/RELEASE_NOTES_v1.4.0.md",
+      "git_blob_sha": "7fff59fad65fa1ef538f906ec335733ae7f48db3",
+      "bytes": 1029
+    },
+    {
+      "path": "siman/RELEASE_NOTES_v1.5.0.md",
+      "git_blob_sha": "5e0b3d0776ce5d910981609a72f99bd2c808ff22",
+      "bytes": 1699
+    },
+    {
+      "path": "siman/RELEASE_NOTES_v1.5.1.md",
+      "git_blob_sha": "664ae6b6867db9daa78fe94d5e23d0221d7b286e",
+      "bytes": 1258
+    },
+    {
+      "path": "siman/release/Siman_HeartEye_v1.3.0_INSTALL.zip.base64",
+      "git_blob_sha": "b19f4a41f0e05a4b3fd1008637fd91ebebc5ab3d",
+      "bytes": 105396
+    },
+    {
+      "path": "siman/release/Siman_HeartEye_v1.3.0_SOURCE.zip.base64",
+      "git_blob_sha": "e0636821d731f1fcd40c327b62baacfbe4fa5c2b",
+      "bytes": 122820
+    },
+    {
+      "path": "siman/release/Siman_HeartEye_v1.3.0_WEBSTORE.zip.base64",
+      "git_blob_sha": "61d7530c7c732228823f279b589a4abd25e36161",
+      "bytes": 94056
+    },
+    {
+      "path": "siman/release/Siman_HeartEye_v1.3.1_INSTALL.zip.base64",
+      "git_blob_sha": "e4fe8bf54d1d76812245fbad2c8d17511da9b00e",
+      "bytes": 100184
+    },
+    {
+      "path": "siman/release/v140/Siman_v1.4.0_INSTALL.zip.base64",
+      "git_blob_sha": "10252a3ead2bb8e06b47601d029df9b176a4092b",
+      "bytes": 110208
+    },
+    {
+      "path": "siman/release/v140/Siman_v1.4.0_SOURCE.zip.base64",
+      "git_blob_sha": "64b85890504390d62228681102c153292624fe69",
+      "bytes": 116448
+    },
+    {
+      "path": "siman/release/v140/Siman_v1.4.0_WEBSTORE.zip.base64",
+      "git_blob_sha": "b81ee828a563c835dc6e22c265bebb0a459019a0",
+      "bytes": 102232
+    },
+    {
+      "path": "siman/release/v150/Siman_v1.5.0_INSTALL.zip.base64",
+      "git_blob_sha": "ee1e5507e33c444c978efeece42f49039954ca8c",
+      "bytes": 116268
+    },
+    {
+      "path": "siman/release/v150/Siman_v1.5.0_SOURCE.zip.base64",
+      "git_blob_sha": "7d810973e45143d5afa912a319321fd9671f9c6a",
+      "bytes": 128180
+    },
+    {
+      "path": "siman/release/v150/Siman_v1.5.0_WEBSTORE.zip.base64",
+      "git_blob_sha": "bd90216094977e8a1d7951270ece5d1af9909c74",
+      "bytes": 108000
+    },
+    {
+      "path": "siman/release/v151/Siman_v1.5.1_INSTALL.zip.base64",
+      "git_blob_sha": "ab7645eae9a09a391d53fb53bfd35c2833a78936",
+      "bytes": 116868
+    },
+    {
+      "path": "siman/release/v151/Siman_v1.5.1_SOURCE.zip.base64",
+      "git_blob_sha": "458dcb96051fa1ae77d504729a6ed4102a70aded",
+      "bytes": 132548
+    },
+    {
+      "path": "siman/release/v151/Siman_v1.5.1_WEBSTORE.zip.base64",
+      "git_blob_sha": "7ba9bbd734d41f19bf96ebff7849e239fc81519a",
+      "bytes": 109104
+    },
+    {
+      "path": "siman/release/v155/Siman_v1.5.5_SOURCE.zip.base64",
+      "git_blob_sha": "d2e0f8bf0280ca61b324c83b81cb6bb9961aff7d",
+      "bytes": 145900
+    },
+    {
+      "path": "siman/release/v155/Siman_v1.5.5_WEBSTORE.zip.base64",
+      "git_blob_sha": "a7fdbd6d23b9eff0f53f3ff2129e870dccf403fa",
+      "bytes": 114024
+    }
+  ],
+  "purpose": "Immutable handoff snapshot. Files are exact existing Git blobs; prior workflows are inert reference copies. This manifest is not a release checksum list."
+}
