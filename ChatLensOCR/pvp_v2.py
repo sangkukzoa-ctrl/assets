@@ -36,8 +36,14 @@ def transcribe(img,source,top,language,world,icons):
     geometry=split_header(img)
     if geometry is not None:
         from ffxiv_chromatic_v050 import chromatic_body
+        from ffxiv_body_boundary_v050 import guarded_body_reread
+        def read_body(im,x0,x1,lang):
+            def read_variant(p,a,b,l):
+                return chromatic_body(p,a,b,l,_read_zone)
+            original=read_variant(im,x0,x1,lang)
+            return guarded_body_reread(im,x0,x1,lang,read_variant,original)
         return transcribe_header(img,source,top,language,world,icons,_read_zone,geometry,
-                                 body_reader=lambda im,x0,x1,lang: chromatic_body(im,x0,x1,lang,_read_zone))
+                                 body_reader=read_body)
     if not is_pvp_row(img):return None
     # The HUD role badge occupies x=65..80 and the job icon x=78..100
     # in this chat UI scale; the speaker name follows at x~100.
