@@ -1,0 +1,54 @@
+name: FF14KakaoBridge handoff CI (no publish)
+on:
+  push:
+    branches: ['ff14kakaobridge-handoff/2026-11-27']
+    paths:
+      - 'project/**'
+      - '.github/workflows/ff14kakaobridge-handoff-ci.yml'
+      - 'tools/verify_baseline.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    if: github.ref == 'refs/heads/ff14kakaobridge-handoff/2026-11-27'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CGO_ENABLED: '0'
+      GOOS: windows
+      GOARCH: amd64
+      GOAMD64: v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Cross-build Windows GUI binary
+        working-directory: project
+        run: |
+          go version
+          mkdir -p ../artifacts
+          go build -trimpath -buildvcs=false -ldflags='-H=windowsgui -s -w' -o ../artifacts/FF14KakaoBridge.exe .
+          go version -m ../artifacts/FF14KakaoBridge.exe
+      - name: Check original hash when baseline source unchanged
+        shell: bash
+        run: |
+          sha256sum artifacts/FF14KakaoBridge.exe | tee artifacts/SHA256SUMS.txt
+          if [ "$(sha256sum project/main.go | cut -d' ' -f1)" = 'd86c49b60e4a053882e3146ecb8d9bcbc969d86c684aec3c375d085070d5773a' ] && [ "$(sha256sum project/go.mod | cut -d' ' -f1)" = '8473cfb08bd8e083728fae0d5dddde7b112a751e1561dd1f57f18e89f2019aae' ]; then
+            echo 'b7d732b9cea6fdc20ddeb96c78a1759e7e0fbc2cb4f7d1481a7373918517477f  artifacts/FF14KakaoBridge.exe' | sha256sum -c -
+          else
+            echo 'Source changed; original hash comparison not applicable. Record new SHA and approved task.'
+          fi
+      - name: Baseline vet (unsafe.Pointer warnings explicitly excluded)
+        working-directory: project
+        run: go vet -unsafeptr=false ./...
+      - name: Compile test packages (baseline has no tests)
+        working-directory: project
+        run: go test -vet=off ./...
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FF14KakaoBridge-handoff-ci-windows-x64-unsigned
+          path: artifacts/
+          retention-days: 14

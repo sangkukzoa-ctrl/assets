@@ -1,0 +1,26 @@
+2026-11-27 / Go 1.23.2 linux/amd64
+Original v1.7.13 ZIP SHA256 82508e875934b58b663434270ea2f3808b2a9bd1c2072756a90d68b81a48599e
+Source main.go SHA256 d86c49b60e4a053882e3146ecb8d9bcbc969d86c684aec3c375d085070d5773a
+Source go.mod SHA256 8473cfb08bd8e083728fae0d5dddde7b112a751e1561dd1f57f18e89f2019aae
+Original exe 2522112 bytes SHA256 b7d732b9cea6fdc20ddeb96c78a1759e7e0fbc2cb4f7d1481a7373918517477f
+Rebuilt exe 2522112 bytes SHA256 b7d732b9cea6fdc20ddeb96c78a1759e7e0fbc2cb4f7d1481a7373918517477f
+Command: CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags='-H=windowsgui -s -w' -o ../check/reproduced.exe .
+cmp original reproduced: exit 0 (byte-identical)
+Initial attempt with -buildvcs=false -ldflags='-s -w -H=windowsgui' gave 95923d372acd68ad5d0584651fc64c43b83f63c8beee3a5c259dc38ffffc99b6; build IDs differed in first component. Correct flags matched exactly.
+go version -m: go1.23.2, path ff14kakaobridge, windows, amd64, CGO_ENABLED=0, GOAMD64=v1, trimpath=true.
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go vet ./...: exit 1 (existing warnings):
+main.go:3125:30 possible misuse of unsafe.Pointer
+main.go:3639:32 possible misuse of unsafe.Pointer
+main.go:3664:32 possible misuse of unsafe.Pointer
+main.go:4604:22 possible misuse of unsafe.Pointer
+main.go:4608:21 possible misuse of unsafe.Pointer
+main.go:4626:34 possible misuse of unsafe.Pointer
+main.go:5496:22 possible misuse of unsafe.Pointer
+main.go:5500:21 possible misuse of unsafe.Pointer
+main.go:5556:32 possible misuse of unsafe.Pointer
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go vet -unsafeptr=false ./...: exit 0
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go test -vet=off ./...: no test files
+Windows/FF14/Kakao runtime: NOT_RUN
+GitHub branch/CI: NOT_CREATED/NOT_RUN
+
+CI exact flags including -buildvcs=false and GOAMD64=v1: PASS, identical SHA256.

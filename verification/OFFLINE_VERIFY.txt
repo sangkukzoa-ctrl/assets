@@ -1,0 +1,3 @@
+PASS source main.go d86c49b60e4a053882e3146ecb8d9bcbc969d86c684aec3c375d085070d5773a
+PASS source go.mod 8473cfb08bd8e083728fae0d5dddde7b112a751e1561dd1f57f18e89f2019aae
+PASS original ZIP, original EXE, source byte comparison

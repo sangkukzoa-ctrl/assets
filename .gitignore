@@ -1,0 +1,12 @@
+*.exe
+*.pdb
+*.log
+config.json
+recent_messages.json
+.env
+*.pfx
+*.p12
+*.jks
+__pycache__/
+baseline/
+artifacts/

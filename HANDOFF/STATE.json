@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "as_of": "2026-11-27",
+  "timezone": "Asia/Seoul",
+  "project": "FF14KakaoBridge",
+  "publisher": "2bornot",
+  "current_phase": "handoff_local_package_complete_remote_bootstrap_pending",
+  "task_status": "no_active_task",
+  "authorized_next_action": "read_verify_and_bootstrap_only_if_initial_prompt_authorizes_then_wait",
+  "latest_build": {
+    "version": "1.7.13",
+    "date": "2026-11-13",
+    "label": "Fast Return",
+    "source_root": "project/",
+    "original_zip": "baseline/FF14KakaoBridge_v1.7.13.zip",
+    "zip_sha256": "82508e875934b58b663434270ea2f3808b2a9bd1c2072756a90d68b81a48599e",
+    "exe_sha256": "b7d732b9cea6fdc20ddeb96c78a1759e7e0fbc2cb4f7d1481a7373918517477f",
+    "main_go_sha256": "d86c49b60e4a053882e3146ecb8d9bcbc969d86c684aec3c375d085070d5773a",
+    "go_mod_sha256": "8473cfb08bd8e083728fae0d5dddde7b112a751e1561dd1f57f18e89f2019aae",
+    "published_to_blog": "UNKNOWN",
+    "user_runtime_test": "NOT_CONFIRMED",
+    "signed": false
+  },
+  "previous_build": {
+    "version": "1.7.12",
+    "label": "Input Priority",
+    "archive": "baseline/FF14KakaoBridge_v1.7.12_Public_SigningReady_UNSIGNED.zip",
+    "user_report": "입력창 반응 개선 체감 확인, 카카오톡 창 종료 지연 잔존"
+  },
+  "build": {
+    "go": "1.23.2",
+    "host": "linux/amd64",
+    "GOOS": "windows",
+    "GOARCH": "amd64",
+    "CGO_ENABLED": "0",
+    "GOAMD64": "v1",
+    "command": "go build -trimpath -ldflags=\"-H=windowsgui -s -w\" -o FF14KakaoBridge.exe .",
+    "cross_build": "PASS",
+    "byte_identical_to_original": "PASS",
+    "go_vet_default": "9 existing unsafe.Pointer warnings",
+    "go_vet_unsafeptr_disabled": "PASS",
+    "go_test_vet_off": "NO_TEST_FILES",
+    "windows_runtime": "NOT_RUN"
+  },
+  "github": {
+    "repository": "sangkukzoa-ctrl/assets",
+    "branch": "ff14kakaobridge-handoff/2026-11-27",
+    "branch_status": "NOT_CREATED",
+    "workflow": ".github/workflows/ff14kakaobridge-handoff-ci.yml",
+    "workflow_status": "PREPARED_NOT_RUN",
+    "main_modified": false,
+    "pat": "reuse existing Chat LLM connection; do not embed token"
+  },
+  "distribution": {
+    "primary": "Naver Blog",
+    "mode": "free portable ZIP; no code signing required",
+    "public_release_publishing": "user_only",
+    "private_config_or_logs_included": false
+  },
+  "next_task": null,
+  "outstanding_user_approved_work": [],
+  "pending_validation_not_active_tasks": [
+    "v1.7.13 Windows/FF14/Kakao real use tests",
+    "Kakao background verification false negatives",
+    "rapid reopen/rapid multiple sends, Korean IME, clipboard preservation, focus restore",
+    "GitHub isolated branch initialization and CI (handoff infrastructure)"
+  ],
+  "normal_chat_only": true,
+  "agent_enabled": false
+}

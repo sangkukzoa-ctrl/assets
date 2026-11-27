@@ -1,0 +1,18 @@
+Repository: sangkukzoa-ctrl/assets new branch: ff14kakaobridge-handoff/2026-11-27 files: 17
+DRY RUN: project/main.go
+DRY RUN: project/go.mod
+DRY RUN: HANDOFF/03_RELEASE_AND_SECURITY.md
+DRY RUN: HANDOFF/05_VERIFICATION_AND_HISTORY.md
+DRY RUN: HANDOFF/01_PRODUCT_AND_ARCHITECTURE.md
+DRY RUN: HANDOFF/INITIAL_PROMPT_KO.md
+DRY RUN: HANDOFF/00_START_HERE.md
+DRY RUN: HANDOFF/02_BUILD_AND_ENVIRONMENT.md
+DRY RUN: HANDOFF/STATE.json
+DRY RUN: HANDOFF/04_CHATLLM_WORKFLOW.md
+DRY RUN: HANDOFF/DECISIONS.md
+DRY RUN: HANDOFF/TASKS.md
+DRY RUN: verification/OFFLINE_VERIFY.txt
+DRY RUN: verification/REBUILD_RESULT.txt
+DRY RUN: .gitignore
+DRY RUN: .github/workflows/ff14kakaobridge-handoff-ci.yml
+DRY RUN: tools/verify_baseline.py
