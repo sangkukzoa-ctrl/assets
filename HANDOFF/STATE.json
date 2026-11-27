@@ -4,9 +4,9 @@
   "timezone": "Asia/Seoul",
   "project": "FF14KakaoBridge",
   "publisher": "2bornot",
-  "current_phase": "handoff_local_package_complete_remote_bootstrap_pending",
+  "current_phase": "handoff_remote_bootstrap_complete_ci_green_waiting_for_task",
   "task_status": "no_active_task",
-  "authorized_next_action": "read_verify_and_bootstrap_only_if_initial_prompt_authorizes_then_wait",
+  "authorized_next_action": "wait_for_user_new_task_or_progress_command",
   "latest_build": {
     "version": "1.7.13",
     "date": "2026-11-13",
@@ -45,11 +45,28 @@
   "github": {
     "repository": "sangkukzoa-ctrl/assets",
     "branch": "ff14kakaobridge-handoff/2026-11-27",
-    "branch_status": "NOT_CREATED",
+    "branch_status": "CREATED",
     "workflow": ".github/workflows/ff14kakaobridge-handoff-ci.yml",
-    "workflow_status": "PREPARED_NOT_RUN",
+    "workflow_status": "PASS",
     "main_modified": false,
-    "pat": "reuse existing Chat LLM connection; do not embed token"
+    "pat": "reuse existing Chat LLM connection; do not embed token",
+    "branch_head": "8645b66a217a3785f46983d65799d314c2d9c3a9",
+    "branch_head_short": "8645b66a",
+    "bootstrap_commit_message": "Handoff FF14KakaoBridge v1.7.13 (unchanged source; no release)",
+    "bootstrap_date": "2026-11-27",
+    "main_head_at_bootstrap": "d1a7af4196eb724d9d3327a534f48cbdd17e255c",
+    "main_unchanged": true,
+    "tree_mode": "base_tree inherited from main (same pattern as pdfimage-handoff/2026-11-26); branch is a normal descendant of main, not merged",
+    "files_registered": 18,
+    "ci_run_id": 46010382231,
+    "ci_run_url": "https://github.com/sangkukzoa-ctrl/assets/actions/runs/46010382231",
+    "ci_event": "push",
+    "ci_conclusion": "success",
+    "ci_head_sha": "8645b66a217a3785f46983d65799d314c2d9c3a9",
+    "ci_scope": "build + original-hash compare + go vet -unsafeptr=false + go test -vet=off; no publish",
+    "ci_evidence_level": "run conclusion success; per-step log text not quoted",
+    "baseline_zip_uploaded": false,
+    "baseline_zip_note": "v1.7.12/v1.7.13 배포 ZIP은 03_RELEASE_AND_SECURITY.md 원칙에 따라 원격 미업로드, 이관 첨부에만 보존"
   },
   "distribution": {
     "primary": "Naver Blog",
@@ -62,8 +79,7 @@
   "pending_validation_not_active_tasks": [
     "v1.7.13 Windows/FF14/Kakao real use tests",
     "Kakao background verification false negatives",
-    "rapid reopen/rapid multiple sends, Korean IME, clipboard preservation, focus restore",
-    "GitHub isolated branch initialization and CI (handoff infrastructure)"
+    "rapid reopen/rapid multiple sends, Korean IME, clipboard preservation, focus restore"
   ],
   "normal_chat_only": true,
   "agent_enabled": false

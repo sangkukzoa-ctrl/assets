@@ -1,0 +1,25 @@
+2026-11-27 / FF14KakaoBridge handoff remote bootstrap (Chat LLM, DeepSeek Flash 4.1)
+Repository: sangkukzoa-ctrl/assets (public)
+Branch: ff14kakaobridge-handoff/2026-11-27  (created new; pre-check GET ref = 404, no overwrite)
+main HEAD before: d1a7af4196eb724d9d3327a534f48cbdd17e255c
+main HEAD after : d1a7af4196eb724d9d3327a534f48cbdd17e255c  (unchanged)
+Bootstrap commit: 8645b66a217a3785f46983d65799d314c2d9c3a9
+  message: Handoff FF14KakaoBridge v1.7.13 (unchanged source; no release)
+  tree: fc224a2d10fc2165e1a0940c6c585ba88ec4a6a2 (base_tree inherited from main)
+Files registered: 18
+  project/main.go, project/go.mod
+  HANDOFF/00_START_HERE.md .. 05_VERIFICATION_AND_HISTORY.md, DECISIONS.md, INITIAL_PROMPT_KO.md, STATE.json, TASKS.md
+  verification/OFFLINE_VERIFY.txt, REBUILD_RESULT.txt, BOOTSTRAP_DRY_RUN.txt
+  tools/verify_baseline.py, .gitignore, .github/workflows/ff14kakaobridge-handoff-ci.yml
+Blob integrity: every created blob SHA-1 matched locally computed git blob hash (18/18).
+Not uploaded: baseline/FF14KakaoBridge_v1.7.13.zip, baseline/FF14KakaoBridge_v1.7.12_*.zip (per 03_RELEASE_AND_SECURITY.md).
+
+CI (actual run, not assumed):
+  run id 46010382231, event push, head 8645b66a, status completed, conclusion success
+  url https://github.com/sangkukzoa-ctrl/assets/actions/runs/46010382231
+  only one workflow run was triggered on this branch; no other workflow fired.
+  scope: windows/amd64 cross build, original-hash compare, go vet -unsafeptr=false, go test -vet=off, artifact upload.
+  evidence level: run conclusion success. Per-step log text was not downloaded/quoted.
+
+Not done in this handoff: product code change, version bump, tag, release, blog work, merge to main.
+Windows/FF14/KakaoTalk runtime test: NOT_RUN.
