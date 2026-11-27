@@ -2,19 +2,29 @@
 set -euo pipefail
 project="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 pkg=com.twobornot.imageorder
-alias="$pkg/.DirectPhotoPickerTrial"
 report="$project/direct-picker-report"
 mkdir -p "$report"
 trap 'adb logcat -d -v brief -s ImageOrderDirect:I ImageOrderFlow:I > "$report/logcat.txt" || true' EXIT
 (cd "$project" && sha256sum -c direct-apk-sha256.txt)
+# Fresh disposable emulator: compare platform resolver before installing trial APK.
+adb shell cmd package query-activities --brief -a android.provider.action.PICK_IMAGES -t 'image/*' > "$report/baseline-resolver.txt"
+adb shell cmd package resolve-activity --brief -a android.provider.action.PICK_IMAGES -t 'image/*' > "$report/baseline-default.txt"
 adb install -r -t "$project/app/build/outputs/apk/debug/app-debug.apk"
 adb install -r -t "$project/externalcaller/build/outputs/apk/debug/externalcaller-debug.apk"
 adb install -r -t "$project/externalcaller/build/outputs/apk/androidTest/debug/externalcaller-debug-androidTest.apk"
-# Own debug alias only; no system app, preferred handler, or global setting changed.
-adb shell cmd package query-activities --brief -a android.provider.action.PICK_IMAGES -t 'image/*' > "$report/baseline-resolver.txt"
-adb shell pm enable "$alias"
+# Debug-only alias is enabled in the APK manifest itself. The shell cannot
+# change component state on these images; no such command or system changes.
 adb shell cmd package query-activities --brief -a android.provider.action.PICK_IMAGES -t 'image/*' > "$report/trial-resolver.txt"
-grep -F 'DirectPhotoPickerTrial' "$report/trial-resolver.txt"
+adb shell cmd package resolve-activity --brief -a android.provider.action.PICK_IMAGES -t 'image/*' > "$report/trial-default.txt"
+for file in baseline-resolver baseline-default trial-resolver trial-default; do
+  echo "=== $file ==="; cat "$report/$file.txt"
+done
+# Missing alias is an observed resolution result, not a setup failure.
+if grep -F 'DirectPhotoPickerTrial' "$report/trial-resolver.txt"; then
+  echo "Trial handler visible to shell"
+else
+  echo "Trial handler NOT visible to shell; continue actual independent caller probe"
+fi
 adb shell pm grant "$pkg" android.permission.READ_MEDIA_IMAGES
 runner=com.twobornot.imageorder.caller.test/androidx.test.runner.AndroidJUnitRunner
 timeout 8m adb shell am instrument -w -r -e class com.twobornot.imageorder.caller.DirectPhotoPickerTrialTest -e directQa true "$runner" | tee "$report/instrumentation.txt"

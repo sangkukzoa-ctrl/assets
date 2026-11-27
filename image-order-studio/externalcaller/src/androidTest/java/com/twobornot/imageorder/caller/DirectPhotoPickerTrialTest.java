@@ -57,6 +57,10 @@ public final class DirectPhotoPickerTrialTest {
                     android.util.Log.i("ImageOrderDirect","P0_BLOCKED first picker="+foreground+
                         " targetCandidate="+AttachmentCallerActivity.directCandidate+
                         " default="+AttachmentCallerActivity.directResolved);
+                    // Save evidence before leaving the first picker, not merely the caller afterward.
+                    java.io.ByteArrayOutputStream firstXml=new java.io.ByteArrayOutputStream();
+                    device.dumpWindowHierarchy(firstXml);
+                    android.util.Log.i("ImageOrderDirect","First picker hierarchy="+firstXml.toString("UTF-8"));
                     device.pressBack();
                     assertTrue("Canceled picker must return",AttachmentCallerActivity.done.await(15,TimeUnit.SECONDS));
                     assertEquals(Activity.RESULT_CANCELED,AttachmentCallerActivity.resultCode);
