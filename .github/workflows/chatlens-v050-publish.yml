@@ -1,0 +1,165 @@
+name: Publish verified ChatLens OCR 0.5.0 beta
+on:
+  push:
+    branches: [chatlens-v050-publish]
+    paths: ['.github/workflows/chatlens-v050-publish.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: chatlens-beta-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      FINAL_SHA: f6ce564192478b9f65bc24174f49b0aa32644e15
+      OLD_SHA: a80f791c8a0f8ef68b0b91cf2a84834c7839e387
+      EXE_SHA: 4194ec8034a813cf4eb7e1837fe7cc22cab429feacf223e4134879f8db13e693
+      ZIP_SHA: f10d81c1a7063609254de75cd094f92d5c178a6b8683629d8c63081b991a1997
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: f6ce564192478b9f65bc24174f49b0aa32644e15
+          fetch-depth: 0
+      - name: Verify exact final artifact and public regression gate
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$FINAL_SHA"
+          gh run download 46024706782 --repo "$GITHUB_REPOSITORY" --name ChatLensOCR-v050-final-Windows-QA --dir final
+          gh run download 46038140583 --repo "$GITHUB_REPOSITORY" --name ChatLensOCR-WebCorpus-v1-frozen-audit-results --dir gate
+          python3 - <<'PY'
+          import hashlib,json,os,shutil,zipfile
+          from pathlib import Path
+          def one(root,name):
+              paths=list(Path(root).rglob(name))
+              assert len(paths)==1,(root,name,paths)
+              return paths[0]
+          def sha(p):
+              with p.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+          m=json.loads(one('final','build-manifest.json').read_text(encoding='utf-8-sig'))
+          assert m['source_sha']==os.environ['FINAL_SHA'] and m['version']=='0.5.0' and m['pe_version']=='0.5.0.5' and m['released_publicly'] is False
+          assert m['workflow_run'].endswith('/46024706782') and m['authenticode_signed'] is False
+          g=json.loads(one('gate','final-vs-rc4.json').read_text(encoding='utf-8-sig'))
+          assert g['count']==30 and g['output_and_mode_equal'] and all(not v for v in g['differences'].values())
+          assert json.loads(one('gate','final-build-manifest.json').read_text(encoding='utf-8-sig'))==m
+          z=one('final','ChatLensOCR_v0.5.0_Windows_x64.zip')
+          assert sha(z)==os.environ['ZIP_SHA']
+          out=Path('release');out.mkdir()
+          shutil.copy2(z,out/'ChatLensOCR-Windows-x64.zip')
+          with zipfile.ZipFile(z) as a:
+              assert a.testzip() is None
+              assert set(a.namelist())=={'ChatLensOCR_v0.5.0.exe','LICENSE.txt','NOTICE.md','PRIVACY.md'}
+              with a.open('ChatLensOCR_v0.5.0.exe') as src,(out/'ChatLensOCR.exe').open('wb') as dst:shutil.copyfileobj(src,dst)
+          assert sha(out/'ChatLensOCR.exe')==os.environ['EXE_SHA']
+          print('Exact verified binary and all 30 web outputs agree with RC4')
+          PY
+          git archive --format=zip --output=release/ChatLensOCR_SOURCE.zip "$FINAL_SHA" ChatLensOCR
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          p=Path('release')
+          def sha(f):
+              with f.open('rb') as s:return hashlib.file_digest(s,'sha256').hexdigest()
+          (p/'SHA256SUMS-LATEST.txt').write_text(''.join(sha(p/n)+'  '+n+'\n' for n in ['ChatLensOCR.exe','ChatLensOCR-Windows-x64.zip']),encoding='ascii')
+          (p/'BETA_RELEASE_NOTES.md').write_text("""# ChatLens OCR — 무료 공개 테스트판 (Beta)
+
+          **v0.5.0 | Windows x64 | 개발자: 2bornot**
+
+          개발 중인 무료 오프라인 OCR 프로그램입니다. 복잡한 화면, 게임 UI, 작은 글자와 혼합 언어에서 오인식 및 누락이 발생할 수 있습니다. 중요한 내용은 원본과 대조해 주세요.
+
+          ## 다운로드
+          - ChatLensOCR.exe: 단독 실행파일 (Python 설치 불필요)
+          - ChatLensOCR-Windows-x64.zip: 실행파일 및 라이선스/안내문
+          - SHA256SUMS-LATEST.txt: EXE 및 ZIP 검증
+          - ChatLensOCR_SOURCE.zip: 정확한 이번 빌드 소스
+
+          ## 변경 사항
+          - 일부 게임 장비 정보창, 색상 채팅 헤더 및 본문의 경계 판독 개선
+          - 일부 공란 이미지의 문자 오검출 억제
+          - 기존 오프라인 OCR, 일괄 판독, 선택영역, TXT/JSON 및 디버그 기능 유지
+          - Windows CI 회귀 및 오프라인 실행 검증 통과. 공개 법령 본문 30장으로 최종 빌드와 RC4의 출력 동일성 확인.
+          - 전체 인식률의 대폭 향상을 주장하지 않으며, 일부 화면의 퇴행과 추가 판독 비용이 남아 있습니다.
+          - Windows 공인 코드서명 미적용: 알 수 없는 게시자/SmartScreen 경고 가능.
+
+          빌드 소스: f6ce564192478b9f65bc24174f49b0aa32644e15
+          빌드: https://github.com/sangkukzoa-ctrl/assets/actions/runs/46024706782
+          """.replace('\n          ','\n'),encoding='utf-8')
+          PY
+      - name: Verify and archive previous fixed public assets before replacement
+        run: |
+          set -euo pipefail
+          cat > /tmp/verify_release.py <<'PY'
+          import hashlib,json,subprocess,sys
+          from pathlib import Path
+          repo=sys.argv[1]; tag=sys.argv[2]; folder=Path(sys.argv[3])
+          actual=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/releases/tags/{tag}']))
+          assets={a['name']:a['digest'] for a in actual['assets']}
+          expected={}
+          for f in folder.iterdir():
+              if f.is_file():
+                  with f.open('rb') as s:expected[f.name]='sha256:'+hashlib.file_digest(s,'sha256').hexdigest()
+          assert expected and assets==expected,(tag,assets,expected)
+          print('Verified remote assets:',tag,len(expected))
+          PY
+          archive=chatlens-v0.4.25-public-archive-20261128
+          # On retry, read archived assets if the previous snapshot already exists.
+          if gh release view "$archive" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release download "$archive" --repo "$GITHUB_REPOSITORY" --dir previous
+          else
+            gh release download chatlens-beta --repo "$GITHUB_REPOSITORY" --dir previous
+          fi
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          hashes={'BETA_RELEASE_NOTES.md':'469a5d22f006d2cc0494553e83455287a32009035aec58ff7e001e9ce94fa162','ChatLensOCR-Windows-x64.zip':'8c838f6bc7879ecc482448f9f6ee4e47ea8f5d092007a25c52db90b3869e8788','ChatLensOCR.exe':'bd7319b4cf1fb679d5d55396b7962577dded5be5b4cc06200c56ec7d3c982f6a','ChatLensOCR_SOURCE.zip':'afc74d9e81e675872c0481823ef70303992456835ffabd2ce5f2f4d698e6b922','SHA256SUMS-LATEST.txt':'557a5aa92fad9253bde0d0867d202584a31767e74520864eea8e2dc7e9e6e9e1'}
+          p=Path('previous')
+          assert {x.name for x in p.iterdir()}==hashes.keys()
+          for n,h in hashes.items():
+              with (p/n).open('rb') as s:assert hashlib.file_digest(s,'sha256').hexdigest()==h,n
+          print('Previous public files independently verified 5/5')
+          PY
+          if ! gh release view "$archive" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            python3 /tmp/verify_release.py "$GITHUB_REPOSITORY" chatlens-beta previous
+            gh release create "$archive" previous/* --repo "$GITHUB_REPOSITORY" --target "$OLD_SHA" --title 'ChatLens OCR v0.4.25 previous public snapshot' --notes-file previous/BETA_RELEASE_NOTES.md --prerelease
+          fi
+          python3 /tmp/verify_release.py "$GITHUB_REPOSITORY" "$archive" previous
+      - name: Publish versioned release and verify all five remote assets
+        run: |
+          set -euo pipefail
+          tag=chatlens-v0.5.0
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$tag" release/* --repo "$GITHUB_REPOSITORY" --target "$FINAL_SHA" --title 'ChatLens OCR v0.5.0 | 무료 공개 테스트판' --notes-file release/BETA_RELEASE_NOTES.md --prerelease
+          fi
+          python3 /tmp/verify_release.py "$GITHUB_REPOSITORY" "$tag" release
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq '.object.sha')" = "$FINAL_SHA"
+      - name: Update existing fixed download only after backup and versioned release verified
+        run: |
+          set -euo pipefail
+          current="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/chatlens-beta" --jq '.object.sha')"
+          test "$current" = "$OLD_SHA" || test "$current" = "$FINAL_SHA"
+          # Refuse unrecognized changes to fixed assets; retries may contain a mix
+          # of old and new files if a previous upload was interrupted.
+          python3 - <<'PY'
+          import hashlib,json,os,subprocess
+          from pathlib import Path
+          repo=os.environ['GITHUB_REPOSITORY']
+          assets=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/releases/tags/chatlens-beta']))['assets']
+          def dig(p):
+              with p.open('rb') as f:return 'sha256:'+hashlib.file_digest(f,'sha256').hexdigest()
+          old={p.name:dig(p) for p in Path('previous').iterdir()}
+          new={p.name:dig(p) for p in Path('release').iterdir()}
+          assert all(a['name'] in old and a['digest'] in (old[a['name']],new[a['name']]) for a in assets)
+          PY
+          gh release upload chatlens-beta release/* --clobber --repo "$GITHUB_REPOSITORY"
+          python3 /tmp/verify_release.py "$GITHUB_REPOSITORY" chatlens-beta release
+          if test "$current" = "$OLD_SHA"; then
+            git push origin "$FINAL_SHA:refs/tags/chatlens-beta" --force-with-lease="refs/tags/chatlens-beta:$OLD_SHA"
+          fi
+          gh release edit chatlens-beta --repo "$GITHUB_REPOSITORY" --title 'ChatLens OCR — 무료 공개 테스트판 (개발 중)' --notes-file release/BETA_RELEASE_NOTES.md --prerelease
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/chatlens-beta" --jq '.object.sha')" = "$FINAL_SHA"
+          python3 /tmp/verify_release.py "$GITHUB_REPOSITORY" chatlens-beta release
+          echo 'Fixed public URL verified: https://github.com/sangkukzoa-ctrl/assets/releases/tag/chatlens-beta' >> "$GITHUB_STEP_SUMMARY"
