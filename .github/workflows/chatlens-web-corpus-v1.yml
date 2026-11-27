@@ -1,4 +1,4 @@
-name: ChatLens OCR live public-domain web corpus v1
+name: ChatLens OCR frozen WebCorpus v1 RC4 versus final Windows audit
 on:
   push:
     branches: [chatlens-web-corpus-v1]
@@ -11,7 +11,7 @@ concurrency:
   group: chatlens-web-corpus-v1
   cancel-in-progress: false
 jobs:
-  capture-and-audit:
+  frozen-audit:
     runs-on: windows-2022
     timeout-minutes: 75
     env:
@@ -25,57 +25,103 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install browser and run synthetic capture selftest
-        run: |
-          python -m pip install playwright==1.51.0
-          if ($LASTEXITCODE -ne 0) { throw 'Playwright install failed' }
-          python -m playwright install chromium
-          if ($LASTEXITCODE -ne 0) { throw 'Chromium install failed' }
-          python ChatLensOCR/benchmarks/web_corpus_v1.py selftest
-          if ($LASTEXITCODE -ne 0) { throw 'Selftest failed' }
-      - name: Capture 30 unique live law documents, no synthetic substitution
-        run: |
-          python ChatLensOCR/benchmarks/web_corpus_v1.py capture corpus --seed 20261128
-          if ($LASTEXITCODE -ne 0) { throw 'Live capture incomplete' }
-      - name: Download exact RC4 QA artifact and validate build provenance
+      - name: Recover and verify the original 30 captured web pages
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download 45986164713 --repo $env:GITHUB_REPOSITORY --name ChatLensOCR-v050-rc4-Windows-QA --dir rc4
-          if ($LASTEXITCODE -ne 0) { throw 'RC4 artifact download failed' }
-          $manifest = Get-Content rc4/build-manifest.json -Raw | ConvertFrom-Json
-          if ($manifest.source_sha -ne 'fc5680546af3d09d964c36816109daf110df4d62' -or $manifest.version -ne '0.5.0-rc.4' -or $manifest.released_publicly -ne $false) { throw 'RC4 provenance mismatch' }
-          $zip = 'ChatLensOCR_v0.5.0-rc.4_Windows_x64.zip'
-          $exe = 'ChatLensOCR_v0.5.0-rc.4.exe'
-          $sums = @{}
-          Get-Content rc4/SHA256SUMS.txt | ForEach-Object { if ($_ -match '^([a-fA-F0-9]{64})\s+(.+)$') { $sums[$Matches[2]]=$Matches[1].ToLowerInvariant() } }
-          if ((Get-FileHash "rc4/$zip" -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sums[$zip]) { throw 'ZIP checksum mismatch' }
-          Expand-Archive "rc4/$zip" rc4/extracted
-          if ((Get-FileHash "rc4/extracted/$exe" -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sums[$exe]) { throw 'EXE checksum mismatch' }
-          Copy-Item rc4/build-manifest.json corpus/rc4-build-manifest.json
-          Copy-Item rc4/SHA256SUMS.txt corpus/rc4-SHA256SUMS.txt
-      - name: Execute RC4 actual Windows OCR on live screenshots
+          gh run download 46024993918 --repo $env:GITHUB_REPOSITORY --name ChatLensOCR-WebCorpus-v1-live-frozen --dir corpus
+          if ($LASTEXITCODE -ne 0) { throw 'Frozen corpus download failed' }
+          $manifest = 'corpus/manifest.json'
+          if ((Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash.ToLowerInvariant() -ne '3e48fe81b693374a3fb76569d83214a8bc1be9600c207140301b3df9d7c6f8ad') { throw 'Frozen manifest mismatch' }
+          $data = Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json
+          if (-not $data.complete -or $data.records.Count -ne 30) { throw 'Incomplete frozen corpus' }
+          foreach ($r in $data.records) {
+            if ((Get-FileHash -LiteralPath ("corpus/images/"+$r.filename) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $r.sha256) { throw 'Image checksum mismatch' }
+          }
+          Write-Host 'Frozen corpus 30/30 PNG hash matches; no recapture'
+      - name: Download exact RC4 and final artifacts, discover dist paths and verify checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          $exe = (Resolve-Path 'rc4/extracted/ChatLensOCR_v0.5.0-rc.4.exe').Path
+          $builds = @(
+            @{key='rc4'; run=45986164713; artifact='ChatLensOCR-v050-rc4-Windows-QA'; sha='fc5680546af3d09d964c36816109daf110df4d62'; version='0.5.0-rc.4'; pe='0.5.0.4'},
+            @{key='final'; run=46024706782; artifact='ChatLensOCR-v050-final-Windows-QA'; sha='f6ce564192478b9f65bc24174f49b0aa32644e15'; version='0.5.0'; pe='0.5.0.5'}
+          )
+          foreach ($b in $builds) {
+            $root = Join-Path $PWD $b.key
+            gh run download $b.run --repo $env:GITHUB_REPOSITORY --name $b.artifact --dir $root
+            if ($LASTEXITCODE -ne 0) { throw "Artifact download failed: $($b.key)" }
+            $man = @(Get-ChildItem -LiteralPath $root -Recurse -File -Filter 'build-manifest.json')
+            if ($man.Count -ne 1) { throw "Expected exactly one build manifest: $($b.key)" }
+            $dist = $man[0].Directory.FullName
+            $manifest = Get-Content -LiteralPath $man[0].FullName -Raw | ConvertFrom-Json
+            $runUrl = "https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$($b.run)"
+            if ($manifest.source_sha -ne $b.sha -or $manifest.version -ne $b.version -or $manifest.pe_version -ne $b.pe -or $manifest.workflow_run -ne $runUrl -or $manifest.released_publicly -ne $false) { throw "Build provenance mismatch: $($b.key)" }
+            $zip = "ChatLensOCR_v$($b.version)_Windows_x64.zip"
+            $exe = "ChatLensOCR_v$($b.version).exe"
+            $sumPath = Join-Path $dist 'SHA256SUMS.txt'
+            $sums = @{}
+            Get-Content -LiteralPath $sumPath | ForEach-Object {
+              if ($_ -match '^([a-fA-F0-9]{64})\s+(.+)$') {
+                $name = $Matches[2].Trim()
+                if ($sums.ContainsKey($name)) { throw 'Duplicate checksum entry' }
+                $sums[$name] = $Matches[1].ToLowerInvariant()
+              }
+            }
+            if (-not $sums.ContainsKey($zip) -or -not $sums.ContainsKey($exe)) { throw 'Missing checksum entry' }
+            $bundle = Join-Path $dist $zip
+            if ((Get-FileHash -LiteralPath $bundle -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sums[$zip]) { throw 'ZIP checksum mismatch' }
+            $extracted = Join-Path $root 'extracted'
+            Expand-Archive -LiteralPath $bundle -DestinationPath $extracted
+            $executable = Join-Path $extracted $exe
+            if ((Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sums[$exe]) { throw 'EXE checksum mismatch' }
+            if ((Get-Item -LiteralPath $executable).VersionInfo.ProductVersion -ne $b.pe) { throw 'PE version mismatch' }
+            Copy-Item -LiteralPath $man[0].FullName -Destination "corpus/$($b.key)-build-manifest.json"
+            Copy-Item -LiteralPath $sumPath -Destination "corpus/$($b.key)-SHA256SUMS.txt"
+            Write-Host "Verified $($b.key) at $dist, EXE SHA256=$($sums[$exe])"
+          }
+      - name: Execute both exact Windows OCR binaries on frozen screenshots
+        run: |
           $images = (Resolve-Path 'corpus/images').Path
-          $audit = Join-Path $PWD 'rc4-audit.jsonl'
-          $p = Start-Process -FilePath $exe -ArgumentList '--audit-folder', ('"'+$images+'"'), ('"'+$audit+'"') -Wait -PassThru
-          if ($p.ExitCode -ne 0) { throw "OCR audit failed: $($p.ExitCode)" }
-          python ChatLensOCR/benchmarks/web_corpus_v1.py score corpus rc4-audit.jsonl rc4-report.json --version 0.5.0-rc.4
-          if ($LASTEXITCODE -ne 0) { throw 'OCR scoring failed' }
+          foreach ($b in @(@{key='rc4';version='0.5.0-rc.4'},@{key='final';version='0.5.0'})) {
+            $exe = (Resolve-Path "$($b.key)/extracted/ChatLensOCR_v$($b.version).exe").Path
+            $audit = Join-Path $PWD "$($b.key)-audit.jsonl"
+            $p = Start-Process -FilePath $exe -ArgumentList '--audit-folder', ('"'+$images+'"'), ('"'+$audit+'"') -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw "OCR audit failed: $($b.key) $($p.ExitCode)" }
+            python ChatLensOCR/benchmarks/web_corpus_v1.py score corpus $audit "$($b.key)-report.json" --version $b.version
+            if ($LASTEXITCODE -ne 0) { throw "OCR scoring failed: $($b.key)" }
+          }
+      - name: Compare final and RC4 literal output, modes and recognized geometry
+        run: |
+          @'
+          import json
+          from pathlib import Path
+          def load(path,version):
+              rows=[json.loads(x) for x in Path(path).read_text(encoding='utf-8-sig').splitlines() if x.strip()]
+              assert len(rows)==30 and len({r['filename'] for r in rows})==30
+              assert all(r['settings']==['자동','한국어',True,'모그리',version] and not r['failed'] for r in rows)
+              return {r['filename']:r for r in rows}
+          a,b=load('rc4-audit.jsonl','0.5.0-rc.4'),load('final-audit.jsonl','0.5.0')
+          assert a.keys()==b.keys()
+          assert all(a[k]['sha256']==b[k]['sha256'] for k in a)
+          differences={field:[k for k in sorted(a) if a[k].get(field)!=b[k].get(field)] for field in ['result','mode','ocr_lines','icons','messages']}
+          summary={'count':30,'differences':differences,'output_and_mode_equal':not differences['result'] and not differences['mode']}
+          Path('final-vs-rc4.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2),encoding='utf-8')
+          print(json.dumps(summary,ensure_ascii=False))
+          assert summary['output_and_mode_equal'],'Final binary differs from RC4 on frozen web corpus'
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Final equivalence gate failed' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ChatLensOCR-WebCorpus-v1-live-frozen
-          path: corpus/
-          if-no-files-found: warn
-          retention-days: 90
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: ChatLensOCR-WebCorpus-v1-RC4-results
+          name: ChatLensOCR-WebCorpus-v1-frozen-audit-results
           path: |
-            rc4-report.json
-            rc4-audit.jsonl
+            *-audit.jsonl
+            *-audit.jsonl.summary.json
+            *-audit.jsonl.error.txt
+            *-report.json
+            final-vs-rc4.json
+            corpus/*-build-manifest.json
+            corpus/*-SHA256SUMS.txt
           if-no-files-found: warn
           retention-days: 90
