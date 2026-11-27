@@ -50,9 +50,8 @@
     "workflow_status": "PASS",
     "main_modified": false,
     "pat": "reuse existing Chat LLM connection; do not embed token",
-    "branch_head": "8645b66a217a3785f46983d65799d314c2d9c3a9",
-    "branch_head_short": "8645b66a",
     "bootstrap_commit_message": "Handoff FF14KakaoBridge v1.7.13 (unchanged source; no release)",
+    "bootstrap_commit_sha": "8645b66a217a3785f46983d65799d314c2d9c3a9",
     "bootstrap_date": "2026-11-27",
     "main_head_at_bootstrap": "d1a7af4196eb724d9d3327a534f48cbdd17e255c",
     "main_unchanged": true,
@@ -66,7 +65,10 @@
     "ci_scope": "build + original-hash compare + go vet -unsafeptr=false + go test -vet=off; no publish",
     "ci_evidence_level": "run conclusion success; per-step log text not quoted",
     "baseline_zip_uploaded": false,
-    "baseline_zip_note": "v1.7.12/v1.7.13 배포 ZIP은 03_RELEASE_AND_SECURITY.md 원칙에 따라 원격 미업로드, 이관 첨부에만 보존"
+    "baseline_zip_note": "v1.7.12/v1.7.13 배포 ZIP은 03_RELEASE_AND_SECURITY.md 원칙에 따라 원격 미업로드, 이관 첨부에만 보존",
+    "head_note": "HEAD는 HANDOFF 문서 갱신 커밋마다 전진한다. 소스 기준 커밋은 bootstrap_commit_sha이며, 최신 HEAD는 브랜치 커밋 목록 또는 STATE 갱신 커밋으로 확인한다.",
+    "state_record_commit": "52e7d2c83e875f0be838c06707f2732363aedbdf",
+    "ci_paths_filter_note": "CI는 project/**, 워크플로 파일, tools/verify_baseline.py 변경에만 반응한다. HANDOFF/·verification/ 문서 커밋은 워크플로를 실행하지 않는 것이 정상이다."
   },
   "distribution": {
     "primary": "Naver Blog",
