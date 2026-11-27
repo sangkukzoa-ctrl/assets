@@ -40,5 +40,5 @@ result="$project/chrome-qa-instrumentation.txt"
 # One clean emulator, one method, one explicit positive success result.
 timeout 12m adb shell am instrument -w -r \
   -e class "com.twobornot.imageorder.caller.ChromeUploadTest#$method" \
-  -e chromeQa true "$runner" | tee "$result"
+  -e chromeQa true -e nativeOnlyQa "${IMAGE_ORDER_NATIVE_ONLY_QA:-false}" "$runner" | tee "$result"
 python3 "$script_dir/check-chrome-instrumentation.py" "$result" "$method"

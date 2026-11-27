@@ -269,3 +269,9 @@
 - 사용자 화면 1000018156.jpg: Chrome 작업 선택→파일→시스템 DocumentsUI 최근 화면, 개인/직장 탭, '다른 앱의 파일 탐색' 가로 목록. 삼성 갤러리 등 외부 앱 항목이 보이고 우측 목록은 화면 밖으로 이어짐. Image Order가 전체 목록에 없는지는 아직 미확인. 햄버거 탐색 메뉴도 존재. 다음 확인은 가로 목록 전체 및 탐색 drawer에서 Image Order 또는 Image Order (Files), 별도 앱 열기 동작 확인.
 - AOSP RootsFragment의 handler app/provider 동일 package 병합 및 AppsRowManager의 앱/루트 표시 구조 확인. 특히 RootsFragment는 ACTION_PICK_IMAGES로 조회되는 패키지를 외부 handler app 목록에서 제외하므로 해당 intent-filter 무조건 추가 시 기존 DocumentsUI 연동까지 손상될 수 있음. https://android.googlesource.com/platform/packages/apps/DocumentsUI/+/265ccf6333c739b7a020478f6bf5eca2a8accf30/src/com/android/documentsui/sidebar/RootsFragment.java
 - 화면에서 Image Order 미노출 여부 확정 전 제품 manifest 변경하지 않음. 직접 Photo Picker 경로는 별도 과제. 스크린샷 원본/개인 사진은 저장소에 포함하지 않음.
+
+### 2026-11-27 — 실기기 목록 노출 성공, 잘못된 진입 화면 보고 / native-entry A/B 실험
+- 사용자: Chrome 파일 선택 계층에 Image Order가 나타났으나 해당 항목을 누르면 Image Order의 선택 갤러리가 아닌 다른 화면이 열림. 정확한 화면 미확보(Claude 웹이 앱으로 자동 전환). 미노출 결함과 구분. DocumentsUI provider root와 GET_CONTENT activity 동일 package 병합이 유력 원인이나 실기기 action/화면 확인 전 확정하지 않음.
+- AOSP RootsFragment.includeHandlerApps는 동일 package/user의 RootItem과 ResolveInfo를 RootAndAppItem으로 합친다. https://android.googlesource.com/platform/packages/apps/DocumentsUI/+/265ccf6333c739b7a020478f6bf5eca2a8accf30/src/com/android/documentsui/sidebar/RootsFragment.java
+- 별도 image-order/native-entry-qa 브랜치에서 -PimageOrderExposeSafRoot=false로 queryRoots의 광고 루트만 숨긴 실험 빌드. provider 구현/authority 및 문서 ID는 유지하여 기존 URI 접근 경로 보존, 실제 기존 grant 검증은 별도 필요. 일반 빌드는 true 기본값으로 기존 SAF 유지. 실험 빌드의 OPEN_DOCUMENT 신규 루트 탐색 기능은 의도적으로 제외되므로 기존 기능을 무조건 대체하지 않음. GET_CONTENT/PICK 및 원본 순서 엔진 변경 없음.
+- 별도 Chrome 실제 HTTP 4개 독립 QA job: 일반 DocumentsUI Image Order 타일을 누른 경로만 성공으로 인정, merged 별도 버튼으로 성공 처리 금지. unsigned release도 동일 설정으로 빌드하되 서명/배포하지 않음. Android13 삼성 실기기 및 direct ACTION_PICK_IMAGES 해결은 별도. CI 결과 미확정.

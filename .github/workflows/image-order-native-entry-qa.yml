@@ -1,0 +1,95 @@
+name: Image Order - native-entry A/B trial
+on:
+  push:
+    branches: ['image-order/native-entry-qa']
+    paths:
+      - 'image-order-studio/**'
+      - '.github/workflows/image-order-native-entry-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build-test-apks:
+    name: Build one shared set of Chrome QA APKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: SDK and shell validation
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-36' 'build-tools;35.0.0'
+          bash -n image-order-studio/tests/run-chrome-qa.sh
+          python3 image-order-studio/tests/check-chrome-instrumentation.py --self-test
+      - name: Build APKs once
+        run: |
+          bash image-order-studio/tests/gradle-with-retry.sh native-entry-prebuild -p image-order-studio --no-daemon -PimageOrderExposeSafRoot=false :app:assembleDebug :app:assembleRelease :externalcaller:assembleDebug :externalcaller:assembleDebugAndroidTest
+          cd image-order-studio
+          sha256sum app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/debug/app-debug.apk externalcaller/build/outputs/apk/debug/externalcaller-debug.apk externalcaller/build/outputs/apk/androidTest/debug/externalcaller-debug-androidTest.apk > chrome-qa-apk-sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-entry-qa-shared-apks
+          path: |
+            image-order-studio/app/build/outputs/apk/release/app-release-unsigned.apk
+            image-order-studio/app/build/outputs/apk/debug/app-debug.apk
+            image-order-studio/externalcaller/build/outputs/apk/debug/externalcaller-debug.apk
+            image-order-studio/externalcaller/build/outputs/apk/androidTest/debug/externalcaller-debug-androidTest.apk
+            image-order-studio/chrome-qa-apk-sha256.txt
+          if-no-files-found: error
+          retention-days: 14
+  chrome:
+    needs: build-test-apks
+    name: Chrome API ${{ matrix.api-level }} - ${{ matrix.method }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        api-level: [34, 35]
+        method: [chromeImageInputUploadsOriginalsInTapOrder, chromeGenericInputUploadsOriginalsInTapOrder]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-entry-qa-shared-apks
+          path: image-order-studio
+      - name: Verify identical prebuilt APKs and enable KVM
+        run: |
+          (cd image-order-studio && sha256sum -c chrome-qa-apk-sha256.txt)
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Real Chrome APK, no browser modifications
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          CHROME_QA_METHOD: ${{ matrix.method }}
+          IMAGE_ORDER_NATIVE_ONLY_QA: 'true'
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis_playstore
+          arch: x86_64
+          profile: pixel_5
+          emulator-boot-timeout: 480
+          emulator-options: '-no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect'
+          script: bash image-order-studio/tests/run-chrome-qa.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ImageOrder-real-Chrome-api${{ matrix.api-level }}-${{ matrix.method }}
+          path: |
+            image-order-studio/chrome-qa-apk-sha256.txt
+            image-order-studio/chrome-qa-instrumentation.txt
+            image-order-studio/chrome-qa-logcat.txt
+            image-order-studio/chrome-qa-activities.txt
+            image-order-studio/chrome-qa-diagnostics/
+          if-no-files-found: warn
+          retention-days: 14

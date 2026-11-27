@@ -49,6 +49,11 @@ public final class OrderedDocumentsProvider extends DocumentsProvider {
     private String authority(){return getContext().getPackageName()+".documents";}
     @Override public Cursor queryRoots(String[] projection) {
         MatrixCursor out=new MatrixCursor(projection==null?ROOT_COLUMNS:projection);
+        // DocumentsUI merges a provider root and GET_CONTENT activity belonging
+        // to the same package. In the native-entry trial, omit the advertised
+        // root so the ordinary app tile can launch NativeGalleryActivity.
+        // Keep the actual provider and document IDs intact for prior URI grants.
+        if(!BuildConfig.EXPOSE_SAF_ROOT)return out;
         String[] keys=ROOT_COLUMNS;
         Object[] vals={"images",SafDocumentIds.ROOT,"Image Order (Files)",
             "Original photos · open app for ordered selection",

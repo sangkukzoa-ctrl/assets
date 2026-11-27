@@ -176,6 +176,9 @@ public final class WebUploadCallerTest {
         selectRealSystemGallery(device,false);
     }
     static void selectRealSystemGallery(UiDevice device,boolean chromeCase) throws Exception {
+        boolean nativeOnly=chromeCase && "true".equals(
+            androidx.test.platform.app.InstrumentationRegistry.getArguments().getString("nativeOnlyQa"));
+        boolean clickedNativeDocumentTile=false;
         long deadline=android.os.SystemClock.uptimeMillis()+(chromeCase?90000:60000);
         String previousPackage=null;
         long cameraApprovedAt=0;
@@ -184,7 +187,10 @@ public final class WebUploadCallerTest {
         int chooserActions=0;
         int clicks=0,drawerAttempts=0,menuAttempts=0,scrolls=0;
         while(android.os.SystemClock.uptimeMillis()<deadline){
-            if(device.hasObject(By.desc("imageorder.photos")))return;
+            if(device.hasObject(By.desc("imageorder.photos"))){
+                if(nativeOnly)assertTrue("Native-only trial must open via the ordinary DocumentsUI app tile",clickedNativeDocumentTile);
+                return;
+            }
             try{
                 String foreground=device.getCurrentPackageName();
                 if(!java.util.Objects.equals(previousPackage,foreground)){
@@ -226,7 +232,10 @@ public final class WebUploadCallerTest {
                 // Clicking its title opens SAF instead, which cannot guarantee tap order.
                 UiObject2 open=device.findObject(By.desc("Open Image Order (Files)"));
                 if(open==null)open=device.findObject(By.desc("Open Image Order"));
-                if(open!=null && clicks<5){
+                if(open!=null && nativeOnly && foreground!=null && foreground.contains("documentsui")){
+                    fail("Native-only trial still exposes merged provider/app action");
+                }
+                if(open!=null && !nativeOnly && clicks<5){
                     android.util.Log.i("ImageOrderResolver","Opening merged RootAndAppItem app action");
                     open.click();clicks++;Thread.sleep(900);continue;
                 }
@@ -234,7 +243,14 @@ public final class WebUploadCallerTest {
                 if(once!=null){once.click();Thread.sleep(500);continue;}
                 UiObject2 option=device.findObject(By.text("Image Order"));
                 if(option==null)option=device.findObject(By.desc("Image Order"));
-                if(option!=null && clicks<5){
+                boolean documentsEntry=foreground!=null&&foreground.contains("documentsui");
+                if(option!=null && clicks<5 && (!nativeOnly||documentsEntry)){
+                    if(nativeOnly){
+                        assertFalse("Provider root must not be exposed in native-entry trial",
+                            device.hasObject(By.text("Image Order (Files)")));
+                        android.util.Log.i("ImageOrderResolver","Native-only trial: clicking ordinary Image Order tile in DocumentsUI");
+                        clickedNativeDocumentTile=true;
+                    }
                     android.util.Log.i("ImageOrderResolver","Opening standalone Image Order option");
                     option.click();clicks++;Thread.sleep(900);continue;
                 }

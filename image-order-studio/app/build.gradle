@@ -3,12 +3,17 @@ plugins { id 'com.android.application' }
 android {
     namespace 'com.twobornot.imageorder'
     compileSdk 36
+    buildFeatures { buildConfig true }
     defaultConfig {
         applicationId 'com.twobornot.imageorder'
         minSdk 26
         targetSdk 35
         versionCode 11
         versionName '0.5.5'
+        // A/B compatibility trial: keep provider access but optionally omit its browsing root.
+        def exposeSaf = providers.gradleProperty('imageOrderExposeSafRoot').orElse('true').get()
+        if (!(exposeSaf in ['true', 'false'])) throw new GradleException('imageOrderExposeSafRoot must be true or false')
+        buildConfigField 'boolean', 'EXPOSE_SAF_ROOT', exposeSaf
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     compileOptions {
