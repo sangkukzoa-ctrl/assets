@@ -39,6 +39,7 @@ public final class AttachmentCallerActivity extends Activity {
         Intent seed=new Intent();seed.setComponent(new ComponentName(TARGET,FIXTURE));
         seed.putExtra("test_count",getIntent().getIntExtra("testCount",3));
         seed.putExtra("test_mixed",getIntent().getBooleanExtra("testMixed",false));
+        seed.putExtra("test_color_probe",getIntent().getBooleanExtra("colorProbe",false));
         seed.putExtra("test_duplicate_names",getIntent().getBooleanExtra("testDuplicateNames",false));
         try{startActivityForResult(seed,SEED);}
         catch(Exception ex){error="Fixture start: "+ex;done.countDown();}
@@ -63,6 +64,8 @@ public final class AttachmentCallerActivity extends Activity {
                     // First picker only. No chooser, setPackage, explicit component, or Browse.
                     picker.setType(requestedType);
                     if(allowMultiple)picker.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX,5);
+                    if(getIntent().getBooleanExtra("orderedProbe",false))
+                        picker.putExtra(MediaStore.EXTRA_PICK_IMAGES_IN_ORDER,true);
                     android.content.pm.PackageManager pm=getPackageManager();
                     android.content.pm.ResolveInfo resolved=pm.resolveActivity(picker,android.content.pm.PackageManager.MATCH_DEFAULT_ONLY);
                     directResolved=resolved==null?null:resolved.activityInfo.packageName+"/"+resolved.activityInfo.name;

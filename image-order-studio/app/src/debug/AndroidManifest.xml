@@ -5,7 +5,7 @@
         <activity android:name=".CrossAppMediaFixtureActivity" android:exported="true" />
         <!-- Experimental registration only: no change to the release manifest. -->
         <activity-alias android:name=".DirectPhotoPickerTrial" android:targetActivity=".NativeGalleryActivity"
-            android:label="Image Order" android:enabled="true" android:exported="true">
+            android:label="Image Order" android:enabled="false" android:exported="true">
             <intent-filter android:priority="1000">
                 <action android:name="android.provider.action.PICK_IMAGES" />
                 <category android:name="android.intent.category.DEFAULT" />

@@ -41,6 +41,8 @@ public final class CrossAppMediaFixtureActivity extends Activity {
             ArrayList<String> names=new ArrayList<>(),uris=new ArrayList<>(),hashes=new ArrayList<>(),mimes=new ArrayList<>();
             int count=Math.max(1,Math.min(8,getIntent().getIntExtra("test_count",3)));
             boolean mixed=getIntent().getBooleanExtra("test_mixed",false);
+            boolean colorProbe=getIntent().getBooleanExtra("test_color_probe",false);
+            int[] colors={0xffe02020,0xff20c040,0xff3030e0,0xffe0a020,0xffd020d0};
             boolean duplicateNames=getIntent().getBooleanExtra("test_duplicate_names",false);
             long runId=System.nanoTime();
             for(int i=0;i<count;i++){
@@ -49,8 +51,8 @@ public final class CrossAppMediaFixtureActivity extends Activity {
                 if(mixed && i%3==1){format=Bitmap.CompressFormat.JPEG;mime="image/jpeg";extension="jpg";}
                 if(mixed && i%3==2){format=android.os.Build.VERSION.SDK_INT>=30
                     ?Bitmap.CompressFormat.WEBP_LOSSLESS:Bitmap.CompressFormat.WEBP;mime="image/webp";extension="webp";}
-                Bitmap image=Bitmap.createBitmap(19,17,Bitmap.Config.ARGB_8888);
-                image.eraseColor(0xff224466+(i*0x00070b0d));
+                Bitmap image=Bitmap.createBitmap(colorProbe?192:19,colorProbe?192:17,Bitmap.Config.ARGB_8888);
+                image.eraseColor(colorProbe?colors[i%colors.length]:0xff224466+(i*0x00070b0d));
                 ByteArrayOutputStream data=new ByteArrayOutputStream();
                 if(!image.compress(format,100,data))throw new IllegalStateException("Image fixture "+mime);
                 image.recycle();byte[] bytes=data.toByteArray();
