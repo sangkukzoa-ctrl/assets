@@ -269,3 +269,9 @@
 - 사용자 화면 1000018156.jpg: Chrome 작업 선택→파일→시스템 DocumentsUI 최근 화면, 개인/직장 탭, '다른 앱의 파일 탐색' 가로 목록. 삼성 갤러리 등 외부 앱 항목이 보이고 우측 목록은 화면 밖으로 이어짐. Image Order가 전체 목록에 없는지는 아직 미확인. 햄버거 탐색 메뉴도 존재. 다음 확인은 가로 목록 전체 및 탐색 drawer에서 Image Order 또는 Image Order (Files), 별도 앱 열기 동작 확인.
 - AOSP RootsFragment의 handler app/provider 동일 package 병합 및 AppsRowManager의 앱/루트 표시 구조 확인. 특히 RootsFragment는 ACTION_PICK_IMAGES로 조회되는 패키지를 외부 handler app 목록에서 제외하므로 해당 intent-filter 무조건 추가 시 기존 DocumentsUI 연동까지 손상될 수 있음. https://android.googlesource.com/platform/packages/apps/DocumentsUI/+/265ccf6333c739b7a020478f6bf5eca2a8accf30/src/com/android/documentsui/sidebar/RootsFragment.java
 - 화면에서 Image Order 미노출 여부 확정 전 제품 manifest 변경하지 않음. 직접 Photo Picker 경로는 별도 과제. 스크린샷 원본/개인 사진은 저장소에 포함하지 않음.
+
+### 2026-11-27 — 사용자 우선순위 재정렬: 최초 이미지 선택창을 직접 개선
+- 사용자 명시: GPT/Chat LLM/네이버 리뷰의 최초 사진 선택창이 참고 대상이며 Claude 웹의 파일/이미지 혼합 UI는 네 사례 중 하나일 뿐. 업로드 절차를 없애려는 원래 목표와 무관한 특정 UI 최적화에 집중하지 않는다.
+- P0 직접 Photo Picker 계열 최초 호출 및 원본 순서 반환. P1 GET_CONTENT/PICK 유지, P2 DocumentsUI/혼합 파일 첨부. native-entry-qa 47ea7d0, run 45950093506은 P2 보조 실험으로 분리 보존, 결과에 관계없이 P0 완료로 인정하지 않는다. 주 개발판에는 해당 실험을 병합하지 않음.
+- AOSP MediaProvider 시스템 ACTION_PICK_IMAGES filter priority 100~105(https://android.googlesource.com/platform/packages/providers/MediaProvider/+/refs/tags/android-15.0.0_r28/AndroidManifest.xml), AndroidX PickMultipleVisualMedia는 플랫폼 picker 우선(https://developer.android.com/reference/androidx/activity/result/contract/ActivityResultContracts.PickMultipleVisualMedia). 순서 extra는 호출자 계약. 다음 기술 검증은 일반 설치된 앱이 비고정 직접 호출에서 실제 후보/실행 가능 여부와 원본 순서 결과를 검증하는 독립 실험. 선언만으로 해결했다고 보지 않는다. 시스템 수준 대안은 일반 APK와 별도 평가하며 권한 및 설치 안전성을 유지한다.
+- 개발 목표 문서에 최초 선택창 합격 기준 및 우선순위를 명문화. 이번 커밋은 문서만 변경, 추가 실기기 검수 요청/공개 배포 없음.
