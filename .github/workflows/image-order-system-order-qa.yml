@@ -21,6 +21,9 @@ jobs:
       - run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-36' 'build-tools;35.0.0'
           bash -n image-order-studio/tests/run-system-order-qa.sh
+          # A successful build of the new test must not hide a stale emulator command.
+          test "$(grep -Fc 'script: bash image-order-studio/tests/run-system-order-qa.sh' .github/workflows/image-order-system-order-qa.yml)" -ge 1
+          if grep -Eq '^\s+script:.*run-direct-picker-qa\.sh' .github/workflows/image-order-system-order-qa.yml; then exit 1; fi
           bash image-order-studio/tests/gradle-with-retry.sh direct-prebuild -p image-order-studio --no-daemon :app:assembleDebug :externalcaller:assembleDebug :externalcaller:assembleDebugAndroidTest
           cd image-order-studio
           sha256sum app/build/outputs/apk/debug/app-debug.apk externalcaller/build/outputs/apk/debug/externalcaller-debug.apk externalcaller/build/outputs/apk/androidTest/debug/externalcaller-debug-androidTest.apk > direct-apk-sha256.txt
@@ -60,7 +63,18 @@ jobs:
           profile: pixel_5
           emulator-boot-timeout: 480
           emulator-options: '-no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect'
-          script: bash image-order-studio/tests/run-direct-picker-qa.sh
+          script: bash image-order-studio/tests/run-system-order-qa.sh
+      - name: Require the actual system-order experiment evidence
+        env:
+          ORDERED_PROBE: ${{ matrix.ordered }}
+        run: |
+          report=image-order-studio/system-order-report
+          test -s "$report/outcome.txt"
+          test -s "$report/instrumentation.txt"
+          grep -F 'INSTRUMENTATION_STATUS: class=com.twobornot.imageorder.caller.SystemOrderContractTest' "$report/instrumentation.txt"
+          grep -F "SYSTEM_ORDER_RESULT orderedExtra=$ORDERED_PROBE" "$report/outcome.txt"
+          if grep -F 'DirectPhotoPickerTrialTest' "$report/instrumentation.txt"; then exit 1; fi
+          cat "$report/outcome.txt"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

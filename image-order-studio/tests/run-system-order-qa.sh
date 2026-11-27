@@ -21,12 +21,17 @@ s=(p/'instrumentation.txt').read_text().replace('\r','')
 assert re.search(r'^OK \(1 test\)\s*$',s,re.M)
 assert re.search(r'^INSTRUMENTATION_CODE: -1\s*$',s,re.M)
 assert not re.search(r'^INSTRUMENTATION_STATUS_CODE: -|^FAILURES!!!|^INSTRUMENTATION_FAILED:',s,re.M)
+assert s.count('INSTRUMENTATION_STATUS: class=com.twobornot.imageorder.caller.SystemOrderContractTest')==2
 assert s.count('INSTRUMENTATION_STATUS: test=platformPickerOrderControl')==2
+assert 'DirectPhotoPickerTrialTest' not in s
 assert s.count('INSTRUMENTATION_STATUS_CODE: 1\n')==1
 assert s.count('INSTRUMENTATION_STATUS_CODE: 0\n')==1
 log=(p/'system-log.txt').read_text()
 lines=[l for l in log.splitlines() if 'SYSTEM_ORDER_RESULT orderedExtra='+ordered in l]
 assert len(lines)==1,lines
+taps=re.findall(r'Tapped fixture (\d+) count=(\d+)',log)
+assert taps==[('3','1'),('0','2'),('4','3')],taps
+assert 'tap=[3, 0, 4]' in lines[0],lines[0]
 if ordered=='true': assert 'matches=true' in lines[0]
 print(lines[0])
 (p/'outcome.txt').write_text(lines[0]+'\n')
