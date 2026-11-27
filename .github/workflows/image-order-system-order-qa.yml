@@ -73,6 +73,7 @@ jobs:
           test -s "$report/instrumentation.txt"
           grep -F 'INSTRUMENTATION_STATUS: class=com.twobornot.imageorder.caller.SystemOrderContractTest' "$report/instrumentation.txt"
           grep -F "SYSTEM_ORDER_RESULT orderedExtra=$ORDERED_PROBE" "$report/outcome.txt"
+          grep -F "SYSTEM_HTTP_RESULT orderedExtra=$ORDERED_PROBE" "$report/outcome.txt"
           if grep -F 'DirectPhotoPickerTrialTest' "$report/instrumentation.txt"; then exit 1; fi
           cat "$report/outcome.txt"
       - uses: actions/upload-artifact@v4

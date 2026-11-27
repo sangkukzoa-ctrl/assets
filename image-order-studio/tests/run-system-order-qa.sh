@@ -30,9 +30,12 @@ log=(p/'system-log.txt').read_text()
 lines=[l for l in log.splitlines() if 'SYSTEM_ORDER_RESULT orderedExtra='+ordered in l]
 assert len(lines)==1,lines
 taps=re.findall(r'Tapped fixture (\d+) count=(\d+)',log)
-assert taps==[('3','1'),('0','2'),('4','3')],taps
-assert 'tap=[3, 0, 4]' in lines[0],lines[0]
+assert taps==[('3','1'),('0','2'),('4','3'),('0','2'),('0','3'),('1','4'),('2','5')],taps
+assert 'tap=[3, 4, 0, 1, 2]' in lines[0],lines[0]
+http=[l for l in log.splitlines() if 'SYSTEM_HTTP_RESULT orderedExtra='+ordered in l]
+assert len(http)==1 and 'originals=true' in http[0],http
 if ordered=='true': assert 'matches=true' in lines[0]
 print(lines[0])
-(p/'outcome.txt').write_text(lines[0]+'\n')
+print(http[0])
+(p/'outcome.txt').write_text(lines[0]+'\n'+http[0]+'\n')
 PY

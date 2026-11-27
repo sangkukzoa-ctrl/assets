@@ -294,3 +294,8 @@
 ### 2026-11-28 — system-order-qa 잘못된 CI 실행 경로 수정
 - 46022349051 build 및 API35/36 × ordered 미지정/true 4개 job conclusion success였으나, 실제 네 instrumentation transcript 모두 DirectPhotoPickerTrialTest#firstPhotoPickerWithoutPackageOrChooser 및 P0_BLOCKED였다. SYSTEM_ORDER_RESULT 없음. 신규 순서 테스트 미실행으로 판정하며 기존 녹색 결과를 순서 검증 성과로 집계하지 않음.
 - workflow emulator script가 run-direct-picker-qa.sh를 그대로 가리키던 결함 수정. build preflight에서 잘못된 script 경로 거부, emulator job 이후 별도 단계에서 SystemOrderContractTest class/ordered 조건별 outcome 파일 필수 확인. runner 내부 class/정확한 세 번의 fixture 탭 3→0→4 및 반환 기록 검증 추가. 실제 ordered A/B 결과는 재실행 이후 확인. 주 개발판 및 공개판 변경 없음.
+
+### 2026-11-28 — 실 시스템 picker A/B 성공 기록 및 native HTTP end-to-end 확대
+- 46030180212 정확한 SystemOrderContractTest 4/4 성공. API35/36 ordered extra 미지정과 true 모두 tap=[3,0,4] returned=[3,0,4], SHA256/MIME 일치. 로그 class/실제 탭 검증 통과. 기본 UI의 한 사례에서도 선택 순서 보존됨. 범용 연동이나 모든 상황 보장으로 해석하지 않음.
+- 동일 실험을 mixed PNG/JPEG/WebP 5장, 4→1→5→1(해제)→1(재선택)→2→3, 최종 4→5→1→2→3으로 확대. 독립 native caller가 실제 반환 URI를 병렬 준비하되 input-index 순서로 HTTP multipart 전송하고 loopback 수신 순서/원본 파일명/MIME/SHA256 검사. 시스템 picker 결과 순서와 HTTP 수신 순서를 분리 기록. 테스트 전용 코드이며 실제 GPT 등 외부 앱 내부 구현이나 일반 APK의 시스템 호출 수정 기능을 의미하지 않음. 이전 P0 직접 등록 4/4 차단 유지. 색상/좌표/선택 수 및 원본 파일명 호환성 실험은 아직 실행 미검증. 공개판 및 dev-v2 제품 변경 없음.
+- 공식 API 및 소스 재확인: ordered extra는 요청 앱이 지정하고 embedded picker도 호스트 feature info에서 선택(https://developer.android.com/reference/android/provider/MediaStore.html, https://android.googlesource.com/platform/packages/providers/MediaProvider/+/refs/heads/main/photopicker/framework/java/android/widget/photopicker/EmbeddedPhotoPickerFeatureInfo.java). 일반 APK 전역 설정 공개 API 미확보. OS/OEM 협력과 호출 앱 지원은 별도 범위이며 자동화/루팅을 전제하지 않는다.

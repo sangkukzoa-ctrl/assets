@@ -25,7 +25,9 @@ import static org.junit.Assert.*;
 public final class SystemOrderContractTest {
     private static final String TARGET="com.twobornot.imageorder";
     private static final int[] COLORS={0xffe02020,0xff20c040,0xff3030e0,0xffe0a020,0xffd020d0};
-    private static final int[] ORDER={3,0,4};
+    private static final int[] ORDER={3,4,0,1,2};
+    private static final int[] TAPS={3,0,4,0,0,1,2};
+    private static final int[] COUNTS={1,2,3,2,3,4,5};
     @Test public void platformPickerOrderControl() throws Exception {
         Assume.assumeTrue("Dedicated platform picker order experiment",
             "true".equals(InstrumentationRegistry.getArguments().getString("systemOrderQa")));
@@ -43,7 +45,7 @@ public final class SystemOrderContractTest {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK)
             .putExtra("pickerAction",MediaStore.ACTION_PICK_IMAGES)
             .putExtra("requestedMime","image/*").putExtra("testCount",5)
-            .putExtra("testMixed",false).putExtra("allowMultiple",true)
+            .putExtra("testMixed",true).putExtra("allowMultiple",true)
             .putExtra("colorProbe",true).putExtra("orderedProbe",ordered);
         ctx.startActivity(start);
         try {
@@ -62,13 +64,18 @@ public final class SystemOrderContractTest {
             assertFalse(device.hasObject(By.desc("imageorder.photos")));
             // Locate original synthetic color tiles on a clean emulator by actual rendered pixels,
             // not by assuming MediaStore/grid order. No screenshots of a user's device.
-            for(int i=0;i<ORDER.length;i++){
-                int index=ORDER[i];
-                Point point=awaitTile(inst,COLORS[index]);
+            // Record the actual on-screen centers before taps (all five visible).
+            // Selected tiles can be dimmed; keep the coordinates only within this
+            // fixed grid session and assert the selection count after every touch.
+            Point[] points=new Point[COLORS.length];
+            for(int i=0;i<points.length;i++)points[i]=awaitTile(inst,COLORS[i]);
+            for(int i=0;i<TAPS.length;i++){
+                int index=TAPS[i];
+                Point point=points[index];
                 assertTrue("Tap rendered fixture "+index,device.click(point.x,point.y));
-                UiObject2 count=waitForAddCount(device,foreground,i+1,12000);
+                UiObject2 count=waitForAddCount(device,foreground,COUNTS[i],12000);
                 assertNotNull("Selection counter after tap "+index,count);
-                android.util.Log.i("ImageOrderSystem","Tapped fixture "+index+" count="+(i+1));
+                android.util.Log.i("ImageOrderSystem","Tapped fixture "+index+" count="+COUNTS[i]);
             }
             UiObject2 confirm=waitForAddCount(device,foreground,ORDER.length,10000);
             assertNotNull(confirm);confirm.click();
@@ -78,9 +85,11 @@ public final class SystemOrderContractTest {
             assertNotNull(result);assertNotNull(result.getClipData());
             assertEquals(ORDER.length,result.getClipData().getItemCount());
             int[] actual=new int[ORDER.length];
+            List<Uri> returnedUris=new ArrayList<>();
             for(int pos=0;pos<actual.length;pos++){
                 Uri uri=result.getClipData().getItemAt(pos).getUri();
                 assertNotNull(uri);
+                returnedUris.add(uri);
                 MessageDigest digest=MessageDigest.getInstance("SHA-256");
                 try(InputStream in=ctx.getContentResolver().openInputStream(uri)){
                     assertNotNull(in);byte[] buf=new byte[8192];int n;
@@ -99,6 +108,23 @@ public final class SystemOrderContractTest {
             android.util.Log.i("ImageOrderSystem","SYSTEM_ORDER_RESULT orderedExtra="+ordered+
                 " tap="+Arrays.toString(ORDER)+" returned="+Arrays.toString(actual)+" matches="+same);
             if(ordered)assertArrayEquals("Ordered system API must preserve explicit tap order",ORDER,actual);
+            // Independent caller uploads the real returned URIs, not fixture paths.
+            // Never sort by name, MIME, or worker completion order.
+            try(LoopbackUploadServer server=new LoopbackUploadServer("")){
+                NativeUploadOrderProbe.upload(ctx.getContentResolver(),returnedUris,server.url()+"upload");
+                assertTrue("HTTP receiver timeout",server.received.await(15,TimeUnit.SECONDS));
+                assertNull(server.error);assertNotNull(server.parts);
+                assertEquals(actual.length,server.parts.size());
+                for(int i=0;i<actual.length;i++){
+                    LoopbackUploadServer.Part part=server.parts.get(i);
+                    assertEquals("photos",part.field);
+                    assertEquals(AttachmentCallerActivity.names[actual[i]],part.filename);
+                    assertEquals(AttachmentCallerActivity.mimes[actual[i]],part.mime);
+                    assertEquals(AttachmentCallerActivity.hashes[actual[i]],NativeUploadOrderProbe.sha256(part.bytes));
+                }
+                android.util.Log.i("ImageOrderSystem","SYSTEM_HTTP_RESULT orderedExtra="+ordered+
+                    " picker="+Arrays.toString(actual)+" server="+Arrays.toString(actual)+" originals=true");
+            }
         } finally {
             try{
                 java.io.ByteArrayOutputStream xml=new java.io.ByteArrayOutputStream();
