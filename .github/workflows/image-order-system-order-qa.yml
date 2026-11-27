@@ -75,17 +75,7 @@ jobs:
           grep -F "SYSTEM_ORDER_RESULT orderedExtra=$ORDERED_PROBE" "$report/outcome.txt"
           grep -F "SYSTEM_HTTP_RESULT orderedExtra=$ORDERED_PROBE" "$report/outcome.txt"
           grep -F "SYSTEM_NAME_RESULT orderedExtra=$ORDERED_PROBE" "$report/outcome.txt"
-          grep -Eq '^CONTROL_COMPLETE(_ORIGINAL_NAME_LOSS)?
-          if grep -F 'DirectPhotoPickerTrialTest' "$report/instrumentation.txt"; then exit 1; fi
-          cat "$report/outcome.txt"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: system-order-api${{ matrix.api }}-ordered-${{ matrix.ordered }}
-          path: image-order-studio/system-order-report/
-          if-no-files-found: warn
-          retention-days: 14
- "$report/outcome.txt"
+          grep -Eq '^CONTROL_COMPLETE(_ORIGINAL_NAME_LOSS)?$' "$report/outcome.txt"
           if grep -F 'DirectPhotoPickerTrialTest' "$report/instrumentation.txt"; then exit 1; fi
           cat "$report/outcome.txt"
       - uses: actions/upload-artifact@v4
