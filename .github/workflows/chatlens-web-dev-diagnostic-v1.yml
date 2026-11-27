@@ -1,0 +1,59 @@
+name: ChatLens OCR WebCorpus development Windows OCR diagnostics
+on:
+  push:
+    branches: [chatlens-web-corpus-v1]
+    paths: ['ChatLensOCR/benchmarks/web_dev_diagnostic_v1.py', '.github/workflows/chatlens-web-dev-diagnostic-v1.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  diagnostics:
+    runs-on: windows-2022
+    timeout-minutes: 50
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: f6ce564192478b9f65bc24174f49b0aa32644e15
+          path: baseline-src
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Restore frozen public corpus and exact baseline audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 46024993918 --repo $env:GITHUB_REPOSITORY --name ChatLensOCR-WebCorpus-v1-live-frozen --dir corpus
+          if ($LASTEXITCODE -ne 0) { throw 'Corpus download failed' }
+          gh run download 46038140583 --repo $env:GITHUB_REPOSITORY --name ChatLensOCR-WebCorpus-v1-frozen-audit-results --dir gate
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline download failed' }
+          if ((git -C baseline-src rev-parse HEAD) -ne 'f6ce564192478b9f65bc24174f49b0aa32644e15') { throw 'Source mismatch' }
+      - name: Install current development OCR dependencies
+        run: |
+          python -m pip install "rapidocr>=3.10,<4" "onnxruntime>=1.20,<2" "opencv-python-headless>=4.8" "Pillow>=10" "numpy>=1.26,<3" "pytesseract>=0.3.13,<1"
+          if ($LASTEXITCODE -ne 0) { throw 'OCR dependency failure' }
+          choco install tesseract -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Tesseract install failure' }
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/kor.traineddata' -OutFile (Join-Path $env:ProgramFiles 'Tesseract-OCR/tessdata/kor.traineddata')
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/eng.traineddata' -OutFile (Join-Path $env:ProgramFiles 'Tesseract-OCR/tessdata/eng.traineddata')
+          python -m pip freeze | Set-Content dependency-versions.txt
+      - name: Run development 21 only, no holdout tuning or release mutation
+        run: |
+          python ChatLensOCR/benchmarks/web_dev_diagnostic_v1.py
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostic failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ChatLensOCR-WebCorpus-v1-Windows-development-diagnostics
+          path: |
+            windows-dev-diagnostic.json
+            dependency-versions.txt
+          if-no-files-found: warn
+          retention-days: 90
