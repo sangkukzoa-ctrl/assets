@@ -6,6 +6,7 @@
         <package android:name="com.twobornot.imageorder" />
         <package android:name="com.android.chrome" />
         <intent><action android:name="android.intent.action.GET_CONTENT" /><data android:mimeType="*/*" /></intent>
+        <intent><action android:name="android.provider.action.PICK_IMAGES" /><data android:mimeType="image/*" /></intent>
     </queries>
     <application android:label="External Picker Caller Test" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:usesCleartextTraffic="true">
         <activity android:name=".AttachmentCallerActivity" android:exported="true">

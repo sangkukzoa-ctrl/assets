@@ -275,3 +275,8 @@
 - P0 직접 Photo Picker 계열 최초 호출 및 원본 순서 반환. P1 GET_CONTENT/PICK 유지, P2 DocumentsUI/혼합 파일 첨부. native-entry-qa 47ea7d0, run 45950093506은 P2 보조 실험으로 분리 보존, 결과에 관계없이 P0 완료로 인정하지 않는다. 주 개발판에는 해당 실험을 병합하지 않음.
 - AOSP MediaProvider 시스템 ACTION_PICK_IMAGES filter priority 100~105(https://android.googlesource.com/platform/packages/providers/MediaProvider/+/refs/tags/android-15.0.0_r28/AndroidManifest.xml), AndroidX PickMultipleVisualMedia는 플랫폼 picker 우선(https://developer.android.com/reference/androidx/activity/result/contract/ActivityResultContracts.PickMultipleVisualMedia). 순서 extra는 호출자 계약. 다음 기술 검증은 일반 설치된 앱이 비고정 직접 호출에서 실제 후보/실행 가능 여부와 원본 순서 결과를 검증하는 독립 실험. 선언만으로 해결했다고 보지 않는다. 시스템 수준 대안은 일반 APK와 별도 평가하며 권한 및 설치 안전성을 유지한다.
 - 개발 목표 문서에 최초 선택창 합격 기준 및 우선순위를 명문화. 이번 커밋은 문서만 변경, 추가 실기기 검수 요청/공개 배포 없음.
+
+### 2026-11-27 — P0 직접 사진 선택 첫 호출 실험
+- P2 native-entry-qa run 45950093506: Chrome 4/4 실제 HTTP 통과, 별도 보존, 주 개발판 병합하지 않음.
+- P0 전용 image-order/direct-picker-qa: debug-only DirectPhotoPickerTrial activity-alias 등록, 기본 disabled, CI에서 해당 자사 alias만 enable. priority=1000 선언에 대한 실효 priority 및 후보 비교. 일반 release manifest 변경 없음. 실제 NativeGalleryActivity의 PICK_IMAGES max/MIME 계약 처리 추가(실험 브랜치만).
+- 별도 UID caller가 package/component/chooser 없이 ACTION_PICK_IMAGES(image/*, MAX=5) 최초 호출. 일반 앱에서 ordered extra를 넘기지 않는 실제 상황을 모사. API33~36에서 actual foreground 및 resolver 기록. system picker 관측 시 취소 후 P0_BLOCKED로 별도 명시(계측 성공과 제품 성공 구분). Native gallery가 실제 나타나면 5→2→4→1→3 원본 bytes/MIME/ClipData 검증. 선택창, 미확인 화면 등은 실패. 시스템 앱/설정/권한 강제 변경 없음. 독립 실험 CI 결과 미확정, 주 개발판과 RC 유지.

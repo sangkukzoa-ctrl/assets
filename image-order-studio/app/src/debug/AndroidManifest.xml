@@ -3,5 +3,14 @@
         <activity android:name=".PickerHostActivity" android:exported="false" />
         <!-- Test-only cross-UID media fixture creator; NEVER packaged in release APK. -->
         <activity android:name=".CrossAppMediaFixtureActivity" android:exported="true" />
+        <!-- Experimental registration only: no change to the release manifest. -->
+        <activity-alias android:name=".DirectPhotoPickerTrial" android:targetActivity=".NativeGalleryActivity"
+            android:label="Image Order" android:enabled="false" android:exported="true">
+            <intent-filter android:priority="1000">
+                <action android:name="android.provider.action.PICK_IMAGES" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity-alias>
     </application>
 </manifest>

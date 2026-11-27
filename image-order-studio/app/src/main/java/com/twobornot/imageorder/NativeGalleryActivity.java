@@ -72,11 +72,17 @@ public final class NativeGalleryActivity extends Activity {
         String action=incoming.getAction();
         boolean externalGet=Intent.ACTION_GET_CONTENT.equals(action);
         boolean externalPick=Intent.ACTION_PICK.equals(action);
+        boolean directPhotoPick=MediaStore.ACTION_PICK_IMAGES.equals(action);
         int preferredLimit=incoming.getIntExtra(EXTRA_MAX_SELECTION,100);
-        if(externalPick || (externalGet && !incoming.getBooleanExtra(Intent.EXTRA_ALLOW_MULTIPLE,false)))preferredLimit=1;
+        if(directPhotoPick){
+            preferredLimit=incoming.getIntExtra(MediaStore.EXTRA_PICK_IMAGES_MAX,1);
+            if(preferredLimit<1 || (Build.VERSION.SDK_INT>=33 && preferredLimit>MediaStore.getPickImagesMaxLimit())){
+                setResult(RESULT_CANCELED);finish();return;
+            }
+        }else if(externalPick || (externalGet && !incoming.getBooleanExtra(Intent.EXTRA_ALLOW_MULTIPLE,false)))preferredLimit=1;
         maxSelection=Math.max(1,Math.min(200,preferredLimit));
         acceptedMime=incoming.getStringExtra(EXTRA_ACCEPTED_MIME);
-        if(acceptedMime==null && externalGet)acceptedMime=incoming.getType();
+        if(acceptedMime==null && (externalGet||directPhotoPick))acceptedMime=incoming.getType();
         if(acceptedMime==null)acceptedMime="image/*";
         acceptedMimeTypes=incoming.getStringArrayExtra(EXTRA_MIME_TYPES);
         if(acceptedMimeTypes==null && externalGet)acceptedMimeTypes=incoming.getStringArrayExtra(Intent.EXTRA_MIME_TYPES);

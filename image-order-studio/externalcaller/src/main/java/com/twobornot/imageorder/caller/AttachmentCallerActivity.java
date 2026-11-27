@@ -16,6 +16,9 @@ public final class AttachmentCallerActivity extends Activity {
     public static volatile int resultCode;
     public static volatile Intent resultData;
     public static volatile String error;
+    public static volatile String directResolved;
+    public static volatile boolean directCandidate;
+    public static volatile CountDownLatch directDispatched=new CountDownLatch(1);
     public static volatile CountDownLatch done=new CountDownLatch(1);
     private static final int SEED=320, PICK=321;
     private static final String TARGET="com.twobornot.imageorder";
@@ -56,7 +59,21 @@ public final class AttachmentCallerActivity extends Activity {
                     hadAccessBeforeUserSelection=(in!=null);
                 }catch(SecurityException|java.io.FileNotFoundException denied){hadAccessBeforeUserSelection=false;}
                 Intent picker=new Intent(pickerAction);
-                if(Intent.ACTION_OPEN_DOCUMENT.equals(pickerAction)){
+                if(MediaStore.ACTION_PICK_IMAGES.equals(pickerAction)){
+                    // First picker only. No chooser, setPackage, explicit component, or Browse.
+                    picker.setType(requestedType);
+                    if(allowMultiple)picker.putExtra(MediaStore.EXTRA_PICK_IMAGES_MAX,5);
+                    android.content.pm.PackageManager pm=getPackageManager();
+                    android.content.pm.ResolveInfo resolved=pm.resolveActivity(picker,android.content.pm.PackageManager.MATCH_DEFAULT_ONLY);
+                    directResolved=resolved==null?null:resolved.activityInfo.packageName+"/"+resolved.activityInfo.name;
+                    for(android.content.pm.ResolveInfo candidate:pm.queryIntentActivities(picker,android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)){
+                        String pkg=candidate.activityInfo.packageName;
+                        directCandidate|=TARGET.equals(pkg);
+                        android.util.Log.i("ImageOrderDirect","Candidate "+pkg+"/"+candidate.activityInfo.name+
+                            " priority="+candidate.priority+" system="+((candidate.activityInfo.applicationInfo.flags&android.content.pm.ApplicationInfo.FLAG_SYSTEM)!=0));
+                    }
+                    android.util.Log.i("ImageOrderDirect","Default resolved="+directResolved+" candidate="+directCandidate);
+                }else if(Intent.ACTION_OPEN_DOCUMENT.equals(pickerAction)){
                     // Real system DocumentsUI, NOT an Image Order activity or direct URI grant.
                     picker.addCategory(Intent.CATEGORY_OPENABLE);
                     picker.setType(requestedType);
@@ -78,6 +95,7 @@ public final class AttachmentCallerActivity extends Activity {
                 android.util.Log.i("ImageOrderFlow","ThirdParty launching action="+pickerAction
                     +" mime="+picker.getType()+" uri="+picker.getData());
                 startActivityForResult(picker,PICK);
+                if(MediaStore.ACTION_PICK_IMAGES.equals(pickerAction))directDispatched.countDown();
             }catch(Exception ex){error="Picker launch: "+ex;done.countDown();}
         }else if(request==PICK){
             resultCode=code;resultData=returned;done.countDown();
@@ -87,5 +105,6 @@ public final class AttachmentCallerActivity extends Activity {
         names=null;uriStrings=null;hashes=null;mimes=null;error=null;resultData=null;
         resultCode=RESULT_CANCELED;hadAccessBeforeUserSelection=false;
         done=new CountDownLatch(1);
+        directResolved=null;directCandidate=false;directDispatched=new CountDownLatch(1);
     }
 }
