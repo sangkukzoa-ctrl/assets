@@ -8,7 +8,9 @@
 - [x] main의 development tree와 v1.5.13 빌드 commit 일치 검증
 - [x] 공개 버전별/고정 릴리스 SHA digest 대조
 - [x] 세 세션의 핵심 요구·실패·검증·현 상태와 원본 기록 보존
-- [ ] 이관 전용 브랜치 실제 CI 및 ZIP 확인 (STATE의 검증 필드 갱신)
+- [x] 이관 전용 브랜치의 실제 Windows CI 성공 (154개 원본 blob, Node 15종, EXE 설치·갱신, Chrome 실 E2E 및 후보 artifact)
+- [x] CI 결과 및 run 46026757091을 STATE에 반영
+- [ ] 이관 ZIP은 export workflow가 자체 검증 후 브랜치에 커밋하며, SHA256 파일과 실제 공개 파일 존재로 완료 확인
 - [ ] Chat LLM 새 일반 대화에서 자료 및 권한 열람 확인 (사용자 환경에서 진행)
 
 ## 남은 기술 문제 (미승인 신규 과제)

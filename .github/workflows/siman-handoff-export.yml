@@ -1,0 +1,88 @@
+name: Siman - export Chat LLM handoff package
+on:
+  push:
+    branches: ['siman-handoff/2026-11-28']
+    paths:
+      - '.github/workflows/siman-handoff-export.yml'
+      - 'HANDOFF/STATE.json'
+      - 'HANDOFF/TASKS.md'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: siman-handoff-export
+  cancel-in-progress: false
+jobs:
+  bundle:
+    if: github.ref == 'refs/heads/siman-handoff/2026-11-28'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: siman-handoff/2026-11-28
+      - name: Verify preserved original project files
+        run: python3 tools/verify_baseline.py
+      - name: Download and verify published immutable v1.5.13 baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/siman-baseline
+          gh release download siman-v1.5.13 --repo "$GITHUB_REPOSITORY" --dir /tmp/siman-baseline \
+            --pattern 'SimanSetup.exe' --pattern 'Siman_v1.5.13_BLOG_ATTACHMENT.zip' \
+            --pattern 'Siman_v1.5.13_SOURCE.zip' --pattern 'Siman_v1.5.13_WEBSTORE.zip'
+          cd /tmp/siman-baseline
+          printf '%s\n' \
+            '4f1f97a331b985d422384bce7232fdfec063a9129da6a719f9a7f28226c0617b  SimanSetup.exe' \
+            'cd93b5e6bd9a0345fddfbdb572456772f33048c426f38775f41ff28aaae9c033  Siman_v1.5.13_BLOG_ATTACHMENT.zip' \
+            '1e13d0d73857763448ced8a48882ff5eeb9fbf12d5fc0cb1983a5be0845025aa  Siman_v1.5.13_SOURCE.zip' \
+            'e24a55c53567e9de72f679254283debc4475ddc444bda1b478f69a95c64745a9  Siman_v1.5.13_WEBSTORE.zip' > SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+      - name: Package all tracked handoff files plus verified baseline binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib, zipfile, subprocess, hashlib
+          out=pathlib.Path('HANDOFF/Siman_ChatLLM_Handoff_20261128.zip')
+          sums=pathlib.Path('HANDOFF/HANDOFF_BUNDLE_SHA256.txt')
+          paths=subprocess.check_output(['git','ls-files','-z']).decode('utf-8').split('\0')
+          with zipfile.ZipFile(out,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+              for path in sorted(p for p in paths if p):
+                  if path in (out.as_posix(),sums.as_posix()):
+                      continue
+                  z.write(path,path)
+              for p in sorted(pathlib.Path('/tmp/siman-baseline').iterdir()):
+                  z.write(p,'baseline/v1.5.13/'+p.name)
+          with zipfile.ZipFile(out) as z:
+              assert z.testzip() is None
+              assert 'siman/development/app/manifest.json' in z.namelist()
+              assert 'HANDOFF/STATE.json' in z.namelist()
+              assert 'HANDOFF/INITIAL_PROMPT_KO.md' in z.namelist()
+              assert 'baseline/v1.5.13/SimanSetup.exe' in z.namelist()
+              print('Verified ZIP entries:',len(z.namelist()))
+          digest=hashlib.sha256(out.read_bytes()).hexdigest()
+          sums.write_text(f'{digest}  {out.name}\n',encoding='ascii')
+          print('Bundle SHA256:',digest,'bytes:',out.stat().st_size)
+          PY
+      - name: Store ZIP on isolated handoff branch (no product publishing)
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add HANDOFF/Siman_ChatLLM_Handoff_20261128.zip HANDOFF/HANDOFF_BUNDLE_SHA256.txt
+          if ! git diff --cached --quiet; then
+            git commit -m 'Handoff: attach verified source, history and published baseline ZIP'
+            git push origin HEAD:siman-handoff/2026-11-28
+          fi
+      - name: Upload portability copy
+        uses: actions/upload-artifact@v4
+        with:
+          name: Siman-ChatLLM-Complete-Handoff-20261128
+          path: |
+            HANDOFF/Siman_ChatLLM_Handoff_20261128.zip
+            HANDOFF/HANDOFF_BUNDLE_SHA256.txt
+          if-no-files-found: error
