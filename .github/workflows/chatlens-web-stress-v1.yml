@@ -1,0 +1,86 @@
+name: ChatLens OCR frozen web development stress comparison
+on:
+  push:
+    branches: [chatlens-web-stress-v1]
+    paths: ['ChatLensOCR/benchmarks/web_stress_v1.py', '.github/workflows/chatlens-web-stress-v1.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  stress:
+    runs-on: windows-2022
+    timeout-minutes: 55
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Restore exact public corpus and build 84 stress variants
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python -m pip install Pillow==11.3.0
+          if ($LASTEXITCODE -ne 0) { throw 'Pillow failed' }
+          gh run download 46024993918 --repo $env:GITHUB_REPOSITORY --name ChatLensOCR-WebCorpus-v1-live-frozen --dir corpus
+          if ($LASTEXITCODE -ne 0) { throw 'Corpus download failed' }
+          python ChatLensOCR/benchmarks/web_stress_v1.py prepare corpus stress
+          if ($LASTEXITCODE -ne 0) { throw 'Prepare failed' }
+      - name: Restore and verify the two exact Windows binaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $builds = @(
+            @{key='old';run=46024706782;artifact='ChatLensOCR-v050-final-Windows-QA';sha='f6ce564192478b9f65bc24174f49b0aa32644e15';version='0.5.0';pe='0.5.0.5'},
+            @{key='new';run=46152690636;artifact='ChatLensOCR-v051-rc1-Windows-QA';sha='0607877c1cfef30d3c7b6da6f5f600f71b7c6146';version='0.5.1-rc.1';pe='0.5.1.1'}
+          )
+          foreach ($b in $builds) {
+            $root=Join-Path $PWD $b.key
+            gh run download $b.run --repo $env:GITHUB_REPOSITORY --name $b.artifact --dir $root
+            if ($LASTEXITCODE -ne 0) { throw 'Download failed' }
+            $man=@(Get-ChildItem -LiteralPath $root -Recurse -File -Filter 'build-manifest.json')
+            if ($man.Count -ne 1) { throw 'Manifest count' }
+            $m=Get-Content -LiteralPath $man[0].FullName -Raw | ConvertFrom-Json
+            if ($m.source_sha -ne $b.sha -or $m.version -ne $b.version -or $m.pe_version -ne $b.pe -or $m.workflow_run -ne "https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$($b.run)") { throw 'Provenance mismatch' }
+            $dist=$man[0].Directory.FullName
+            $zip="ChatLensOCR_v$($b.version)_Windows_x64.zip"
+            $exe="ChatLensOCR_v$($b.version).exe"
+            $sums=@{}
+            Get-Content (Join-Path $dist 'SHA256SUMS.txt') | ForEach-Object {
+              if ($_ -match '^([a-fA-F0-9]{64})\s+(.+)$') { $sums[$Matches[2].Trim()]=$Matches[1].ToLowerInvariant() }
+            }
+            if ((Get-FileHash (Join-Path $dist $zip) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sums[$zip]) { throw 'ZIP hash mismatch' }
+            Expand-Archive -LiteralPath (Join-Path $dist $zip) -DestinationPath (Join-Path $root 'extracted')
+            $p=Join-Path (Join-Path $root 'extracted') $exe
+            if ((Get-FileHash $p -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sums[$exe] -or (Get-Item $p).VersionInfo.ProductVersion -ne $b.pe) { throw 'EXE identity mismatch' }
+            Copy-Item $man[0].FullName "stress/$($b.key)-build-manifest.json"
+          }
+      - name: Compare 168 actual frozen EXE OCR runs
+        run: |
+          $images=(Resolve-Path 'stress/images').Path
+          foreach ($b in @(@{key='old';version='0.5.0'},@{key='new';version='0.5.1-rc.1'})) {
+            $exe=(Resolve-Path "$($b.key)/extracted/ChatLensOCR_v$($b.version).exe").Path
+            $audit=Join-Path $PWD "$($b.key)-audit.jsonl"
+            $p=Start-Process -FilePath $exe -ArgumentList '--audit-folder', ('"'+$images+'"'), ('"'+$audit+'"') -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw 'Audit failed' }
+          }
+          python ChatLensOCR/benchmarks/web_stress_v1.py score stress old-audit.jsonl new-audit.jsonl stress-report.json
+          if ($LASTEXITCODE -ne 0) { throw 'Scoring failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ChatLensOCR-WebStress-v1
+          path: |
+            stress/
+            *-audit.jsonl
+            *-audit.jsonl.summary.json
+            *-audit.jsonl.error.txt
+            stress-report.json
+          if-no-files-found: warn
+          retention-days: 90
