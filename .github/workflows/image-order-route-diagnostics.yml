@@ -1,0 +1,30 @@
+name: Image Order - first picker diagnostic package
+on:
+  push:
+    branches: ['image-order/dev-v2']
+    paths:
+      - 'image-order-studio/diagnostics/**'
+      - '.github/workflows/image-order-route-diagnostics.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate PowerShell parser and privacy filter
+        shell: powershell
+        run: |
+          & .\image-order-studio\diagnostics\Capture-AttachmentRoute.ps1 -SelfTest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package diagnostic source only
+        shell: powershell
+        run: |
+          Compress-Archive -Path image-order-studio/diagnostics/Capture-AttachmentRoute.ps1,image-order-studio/diagnostics/Run-AttachmentRoute.cmd,image-order-studio/diagnostics/README_KO.md -DestinationPath ImageOrder-FirstPicker-Diagnostic.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ImageOrder-FirstPicker-Diagnostic
+          path: ImageOrder-FirstPicker-Diagnostic.zip
+          if-no-files-found: error
+          retention-days: 30
