@@ -1,13 +1,14 @@
 name: ChatLens OCR v0.5.1-rc.1 Windows candidate paragraph rescue QA
 on:
   push:
-    branches: [chatlens-v051-rc1-staging]
+    branches: [chatlens-v051-candidate]
     paths: ['ChatLensOCR/**', '.github/workflows/chatlens-v050-candidate.yml']
 concurrency:
   group: chatlens-release-${{ github.ref }}
   cancel-in-progress: true
 permissions:
   contents: read
+  actions: read
 jobs:
   windows:
     runs-on: windows-2022
