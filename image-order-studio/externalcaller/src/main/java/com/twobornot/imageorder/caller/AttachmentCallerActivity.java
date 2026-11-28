@@ -70,10 +70,30 @@ public final class AttachmentCallerActivity extends Activity {
                     if(uriOnlyPick)picker.setData(MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
                     else picker.setDataAndType(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,requestedType);
                 }else{
-                    picker.setPackage(TARGET);
                     picker.addCategory(Intent.CATEGORY_OPENABLE);
                     picker.setType(requestedType);
                     picker.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,allowMultiple);
+                    if(requestedType.startsWith("image/")){
+                        // Simulate a cooperating host's opt-in. ONLY the QA caller
+                        // trusts the installed debug signer; production helper pins release cert.
+                        android.content.pm.PackageInfo info=getPackageManager().getPackageInfo(TARGET,
+                            android.content.pm.PackageManager.GET_SIGNATURES);
+                        byte[] cert=java.security.MessageDigest.getInstance("SHA-256").digest(info.signatures[0].toByteArray());
+                        StringBuilder hex=new StringBuilder();
+                        for(byte b:cert)hex.append(String.format(java.util.Locale.ROOT,"%02x",b&255));
+                        Intent normal=new Intent(picker);
+                        Intent disabled=com.twobornot.imageorder.integration.OrderedAttachment.requestForTrustedSigner(
+                            this,false,requestedType,5,normal,hex.toString());
+                        Intent untrusted=com.twobornot.imageorder.integration.OrderedAttachment.requestForTrustedSigner(
+                            this,true,requestedType,5,normal,"0000000000000000000000000000000000000000000000000000000000000000");
+                        if(disabled.getPackage()!=null||untrusted.getPackage()!=null||
+                            !normal.filterEquals(disabled)||!normal.filterEquals(untrusted))
+                            throw new IllegalStateException("Opt-out/untrusted fallback changed");
+                        picker=com.twobornot.imageorder.integration.OrderedAttachment.requestForTrustedSigner(
+                            this,true,requestedType,allowMultiple?5:1,normal,hex.toString());
+                        if(!TARGET.equals(picker.getPackage()))throw new IllegalStateException("Cooperating host direct route unavailable");
+                        android.util.Log.i("ImageOrderHost","HOST_ROUTE_OK optedIn=true optOutUnchanged=true untrustedUnchanged=true");
+                    }else picker.setPackage(TARGET);
                 }
                 android.util.Log.i("ImageOrderFlow","ThirdParty launching action="+pickerAction
                     +" mime="+picker.getType()+" uri="+picker.getData());

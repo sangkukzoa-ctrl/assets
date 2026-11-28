@@ -275,3 +275,8 @@
 - P0 직접 Photo Picker 계열 최초 호출 및 원본 순서 반환. P1 GET_CONTENT/PICK 유지, P2 DocumentsUI/혼합 파일 첨부. native-entry-qa 47ea7d0, run 45950093506은 P2 보조 실험으로 분리 보존, 결과에 관계없이 P0 완료로 인정하지 않는다. 주 개발판에는 해당 실험을 병합하지 않음.
 - AOSP MediaProvider 시스템 ACTION_PICK_IMAGES filter priority 100~105(https://android.googlesource.com/platform/packages/providers/MediaProvider/+/refs/tags/android-15.0.0_r28/AndroidManifest.xml), AndroidX PickMultipleVisualMedia는 플랫폼 picker 우선(https://developer.android.com/reference/androidx/activity/result/contract/ActivityResultContracts.PickMultipleVisualMedia). 순서 extra는 호출자 계약. 다음 기술 검증은 일반 설치된 앱이 비고정 직접 호출에서 실제 후보/실행 가능 여부와 원본 순서 결과를 검증하는 독립 실험. 선언만으로 해결했다고 보지 않는다. 시스템 수준 대안은 일반 APK와 별도 평가하며 권한 및 설치 안전성을 유지한다.
 - 개발 목표 문서에 최초 선택창 합격 기준 및 우선순위를 명문화. 이번 커밋은 문서만 변경, 추가 실기기 검수 요청/공개 배포 없음.
+
+### 2026-11-28 — 시스템 picker 연구 종료, 협력 연동 실험
+- 46019982406: API33~36 직접 등록 후보는 있음, 실제 priority=0 vs 시스템100, 모두 P0_BLOCKED. 46030180212: API35/36 단순 3장 선택은 ordered extra 여부 무관하게 4→1→5 반환, SHA256/MIME 일치. 46039933167: API35 false/true, API36 true 3/4에서 4→5→1→2→3 재선택 순서와 HTTP 수신 bytes/MIME 일치, 원본 표시 파일명 0/5씩 유지(총 15개 손실); API36 false 마지막 선택 수 검증 실패, 미완료. 시스템 순서 연구 확대 종료.
+- Android 공개 API에서 일반 APK가 다른 앱의 PICK_IMAGES 요청을 변경하거나 기본 시스템 picker를 대체하는 전역 사용자 설정을 확보하지 못함. CloudMediaProvider는 소스 공급, DPC 기본 처리 기능은 관리 기기 권한 전제. 일반 배포에 적용하지 않음.
+- host-integration-qa는 기존 GET_CONTENT 계약을 활용한 협력 앱용 선택적 integration helper. release 인증서 고정, 사용자 opt-in, v0.5.5 이상 및 정상 resolver 확인, 미지원/미동의/서명 불일치면 기존 Intent 보존. 테스트 caller만 debug cert 사용. Android15/16 실제 독립 UID 테스트. 특정 앱 전용 패치 아님. 제품 본체/권한/배포 변경 없음. 핵심 범용 P0 미해결, 협력 앱 미채택 상태. 이 실험을 일반 APK의 전역 연동 성공으로 집계하지 않음.

@@ -3,6 +3,7 @@ plugins { id 'com.android.application' }
 android {
     namespace 'com.twobornot.imageorder.caller'
     compileSdk 36
+    sourceSets { main.java.srcDir '../integration/src/main/java' }
     defaultConfig {
         applicationId 'com.twobornot.imageorder.caller'
         minSdk 26
