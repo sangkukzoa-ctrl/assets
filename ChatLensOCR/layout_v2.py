@@ -610,6 +610,14 @@ def generic(img,language,precise):
         rejection=reject_isolated_graphic(img,items,rows,language)
         if rejection is not None:
             return "범용","",[],[rejection],[]
+    # Only the ordinary fallback in precise mode is eligible. Specialized
+    # panels, recovered captions and other existing paths retain priority.
+    if precise and reread == original:
+        from web_paragraph_v051 import rescue
+        paragraph=rescue(img,language,items)
+        if paragraph is not None:
+            text,source_boxes,provenance=paragraph
+            return "범용",text,[],[provenance],source_boxes
     return "범용",reread,[],metadata,items
 
 
